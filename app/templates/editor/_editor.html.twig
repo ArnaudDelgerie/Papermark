@@ -1,5 +1,8 @@
 {% set height = height|default(400) %}
-<div data-controller="editor" data-editor-csrf-token-value="{{ csrf_token('upload') }}" data-editor-i18n-value="{{ {
+<div data-controller="editor"
+     data-editor-csrf-token-value="{{ csrf_token('upload') }}"
+     data-editor-file-csrf-token-value="{{ csrf_token('file') }}"
+     data-editor-i18n-value="{{ {
     placeholder: 'templates.home.index.editor.placeholder'|trans({}, 'templates'),
     link: {
         confirm: 'templates.home.index.editor.link.confirm'|trans({}, 'templates'),
@@ -25,4 +28,16 @@
         code: 'templates.home.index.editor.slash_menu.code'|trans({}, 'templates'),
         table: 'templates.home.index.editor.slash_menu.table'|trans({}, 'templates'),
     },
-}|json_encode }}" style="height: {{ height }}px;"></div>
+}|json_encode }}" style="height: {{ height }}px;">
+    <div class="editor-file-bar">
+        <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile">
+            {{ 'templates.home.index.editor.open'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>
+            {{ 'templates.home.index.editor.save'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled>
+            {{ 'templates.home.index.editor.print'|trans({}, 'templates') }}
+        </button>
+    </div>
+</div>

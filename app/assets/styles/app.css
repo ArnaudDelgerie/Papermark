@@ -14,6 +14,33 @@
     background: var(--color-surface);
 }
 
+.editor-file-bar {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.editor-filebar-btn {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.editor-filebar-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.editor-filebar-btn:hover:not(:disabled) {
+    background: var(--color-border);
+}
+
 [data-controller="editor"] .milkdown {
     display: flex;
     flex-direction: column;
@@ -36,12 +63,39 @@
     flex: 1;
     padding: var(--space-4) var(--space-5);
 
-    h1 { font-size: 1.8rem; }
-    h2 { font-size: 1.5rem; }
-    h3 { font-size: 1.25rem; }
-    h4 { font-size: 1.1rem; }
-    h5 { font-size: 1rem; }
-    h6 { font-size: 1rem; }
+    h1 {
+        font-size: 1.8rem;
+        margin-top: var(--space-4);
+    }
+
+    h2 {
+        font-size: 1.5rem;
+        margin-top: var(--space-3);
+    }
+
+    h3 {
+        font-size: 1.25rem;
+        margin-top: var(--space-3);
+    }
+
+    h4 {
+        font-size: 1.1rem;
+        margin-top: var(--space-2);
+    }
+
+    h5 {
+        font-size: 1rem;
+        margin-top: var(--space-2);
+    }
+
+    h6 {
+        font-size: 1rem;
+        margin-top: var(--space-2);
+    }
+
+    p {
+        padding: 1px 0;
+    }
 }
 
 /* Print: render only the editor content on a white background. */
@@ -66,6 +120,7 @@
         background: white;
     }
 
+    [data-controller="editor"] .editor-file-bar,
     [data-controller="editor"] .milkdown-top-bar,
     [data-controller="editor"] .milkdown-block-handle,
     [data-controller="editor"] .milkdown-crepe-menubar {
@@ -75,9 +130,10 @@
     [data-controller="editor"] .milkdown .ProseMirror {
         position: static;
         overflow: visible;
-        padding: 0;
+        padding: 0 var(--space-5);
         background: white;
         color: black;
+        font-size: 12pt;
     }
 
     [data-controller="editor"] .milkdown .ProseMirror,

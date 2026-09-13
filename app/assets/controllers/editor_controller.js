@@ -1,10 +1,12 @@
 import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
 import { trailing } from '@milkdown/plugin-trailing';
+import { replaceAll } from '@milkdown/utils';
 
 export default class extends Controller {
     static values = {
         csrfToken: String,
+        fileCsrfToken: String,
         i18n: {
             type: Object,
             default: {
@@ -34,7 +36,10 @@ export default class extends Controller {
         },
     };
 
+    static targets = ['saveButton', 'printButton'];
+
     #crepe = null;
+    #currentPath = null;
 
     connect() {
         this.#crepe = new Crepe({
@@ -117,15 +122,129 @@ export default class extends Controller {
             listener.markdownUpdated((_ctx, markdown, prevMarkdown) => {
                 const removed = this.#diffImageUrls(prevMarkdown, markdown);
                 removed.forEach((url) => this.#deleteImage(url));
+                this.#updateSaveButton(markdown);
+                this.#updatePrintButton(markdown);
             });
         });
 
         this.#crepe.create();
+        this.#updateSaveButton('');
+        this.#updatePrintButton('');
     }
 
     disconnect() {
         this.#crepe?.destroy();
         this.#crepe = null;
+    }
+
+    async openFile() {
+        const path = await this.#pickPath('file');
+        if (path === null) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('path', path);
+
+        try {
+            const response = await fetch('/file/open', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Open failed: ${response.status}`);
+            }
+
+            const { content } = await response.json();
+            this.#crepe.editor.action(replaceAll(content));
+            this.#currentPath = path;
+        } catch (err) {
+            console.error('Failed to open file:', err);
+        }
+    }
+
+    async saveFile() {
+        let path = this.#currentPath;
+        if (path === null) {
+            path = await this.#savePath();
+            if (path === null) {
+                return;
+            }
+        }
+
+        const markdown = this.#crepe.getMarkdown();
+
+        const formData = new FormData();
+        formData.append('path', path);
+        formData.append('content', markdown);
+
+        try {
+            const response = await fetch('/file/save', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Save failed: ${response.status}`);
+            }
+
+            this.#currentPath = path;
+        } catch (err) {
+            console.error('Failed to save file:', err);
+        }
+    }
+
+    printFile() {
+        const prosemirror = this.element.querySelector('.ProseMirror');
+        if (prosemirror) {
+            prosemirror.blur();
+        }
+
+        setTimeout(() => window.print(), 50);
+    }
+
+    #pickPath(kind) {
+        const tauri = window.__TAURI__;
+        if (!tauri?.core?.invoke) {
+            console.warn('Tauri IPC is not available — file picker requires the TFSApp hub.');
+            return Promise.resolve(null);
+        }
+
+        return tauri.core.invoke('pick_path', { kind });
+    }
+
+    #savePath() {
+        const tauri = window.__TAURI__;
+        if (!tauri?.core?.invoke) {
+            console.warn('Tauri IPC is not available — save dialog requires the TFSApp hub.');
+            return Promise.resolve(null);
+        }
+
+        return tauri.core.invoke('save_path', {
+            filters: [
+                { name: 'Markdown', extensions: ['md'] },
+                { name: 'Text', extensions: ['txt'] },
+            ],
+            fileName: 'untitled.md',
+        });
+    }
+
+    #updateSaveButton(markdown) {
+        if (this.hasSaveButtonTarget) {
+            const hasContent = markdown !== undefined ? markdown.trim() !== '' : false;
+            this.saveButtonTarget.disabled = !hasContent;
+        }
+    }
+
+    #updatePrintButton(markdown) {
+        if (this.hasPrintButtonTarget) {
+            this.printButtonTarget.disabled = markdown.trim() === '';
+        }
     }
 
     #uploadFile(file) {

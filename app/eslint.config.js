@@ -20,6 +20,7 @@ export default [
                 sessionStorage: 'readonly',
                 btoa: 'readonly',
                 atob: 'readonly',
+                setTimeout: 'readonly',
                 URL: 'readonly',
             },
         },

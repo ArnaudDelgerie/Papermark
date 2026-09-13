@@ -6,6 +6,9 @@ templates:
             title: Papermark
             editor:
                 placeholder: Start writing…
+                open: Open
+                save: Save
+                print: Print
                 link:
                     confirm: Confirm
                     input_placeholder: Paste link…
