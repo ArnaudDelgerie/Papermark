@@ -9,6 +9,9 @@ templates:
                 open: Open
                 save: Save
                 print: Print
+                toggle:
+                    edit: Edit
+                    readonly: Read only
                 link:
                     confirm: Confirm
                     input_placeholder: Paste link…

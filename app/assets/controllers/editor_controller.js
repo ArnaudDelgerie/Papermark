@@ -7,11 +7,13 @@ export default class extends Controller {
     static values = {
         csrfToken: String,
         fileCsrfToken: String,
+        readonly: { type: Boolean, default: false },
         i18n: {
             type: Object,
             default: {
                 placeholder: 'Start writing…',
                 link: { confirm: 'Confirm', inputPlaceholder: 'Paste link…' },
+                toggle: { edit: 'Edit', readonly: 'Read only' },
                 slashMenu: {
                     text: 'Text',
                     paragraph: 'Text',
@@ -36,21 +38,24 @@ export default class extends Controller {
         },
     };
 
-    static targets = ['saveButton', 'printButton'];
+    static targets = ['saveButton', 'printButton', 'toggleButton'];
 
     #crepe = null;
     #currentPath = null;
+    #isReadonly = false;
     #lastScrollTop = 0;
     #scrollTarget = null;
     #onScroll = null;
 
     connect() {
+        this.#isReadonly = this.readonlyValue;
         this.#crepe = new Crepe({
             root: this.element,
             defaultValue: '',
             features: {
                 [Crepe.Feature.Toolbar]: false,
                 [Crepe.Feature.TopBar]: true,
+                [Crepe.Feature.BlockEdit]: true,
             },
             featureConfigs: {
                 [Crepe.Feature.Cursor]: {
@@ -131,9 +136,49 @@ export default class extends Controller {
         });
 
         this.#crepe.create();
-        this.#setupScrollHide();
+
+        if (this.#isReadonly) {
+            this.#applyReadonlyState();
+        } else {
+            this.#setupScrollHide();
+        }
+
         this.#updateSaveButton('');
         this.#updatePrintButton('');
+    }
+
+    toggleReadonly() {
+        this.#isReadonly = !this.#isReadonly;
+        this.#applyReadonlyState();
+    }
+
+    #applyReadonlyState() {
+        const prosemirror = this.element.querySelector('.ProseMirror');
+        if (prosemirror) {
+            prosemirror.setAttribute('contenteditable', this.#isReadonly ? 'false' : 'true');
+        }
+
+        if (this.#isReadonly) {
+            this.element.classList.add('editor-readonly');
+            this.element.classList.remove('top-bar-hidden');
+            if (this.#scrollTarget && this.#onScroll) {
+                this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
+                this.#scrollTarget = null;
+            }
+        } else {
+            this.element.classList.remove('editor-readonly');
+            this.#setupScrollHide();
+        }
+
+        if (this.hasSaveButtonTarget) {
+            this.saveButtonTarget.disabled = this.#isReadonly;
+        }
+
+        if (this.hasToggleButtonTarget) {
+            this.toggleButtonTarget.textContent = this.#isReadonly
+                ? this.i18nValue.toggle?.edit ?? 'Edit'
+                : this.i18nValue.toggle?.readonly ?? 'Read only';
+        }
     }
 
     disconnect() {

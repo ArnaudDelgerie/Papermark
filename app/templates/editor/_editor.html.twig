@@ -1,12 +1,18 @@
 {% set height = height|default(400) %}
+{% set readonly = readonly|default(false) %}
 <div data-controller="editor"
      data-editor-csrf-token-value="{{ csrf_token('upload') }}"
      data-editor-file-csrf-token-value="{{ csrf_token('file') }}"
+     {% if readonly %}data-editor-readonly-value="true"{% endif %}
      data-editor-i18n-value="{{ {
     placeholder: 'templates.home.index.editor.placeholder'|trans({}, 'templates'),
     link: {
         confirm: 'templates.home.index.editor.link.confirm'|trans({}, 'templates'),
         inputPlaceholder: 'templates.home.index.editor.link.input_placeholder'|trans({}, 'templates'),
+    },
+    toggle: {
+        edit: 'templates.home.index.editor.toggle.edit'|trans({}, 'templates'),
+        readonly: 'templates.home.index.editor.toggle.readonly'|trans({}, 'templates'),
     },
     slashMenu: {
         text: 'templates.home.index.editor.slash_menu.text'|trans({}, 'templates'),
@@ -38,6 +44,11 @@
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled>
             {{ 'templates.home.index.editor.print'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn editor-toggle-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly">
+            {{ readonly
+                ? 'templates.home.index.editor.toggle.edit'|trans({}, 'templates')
+                : 'templates.home.index.editor.toggle.readonly'|trans({}, 'templates') }}
         </button>
     </div>
 </div>
