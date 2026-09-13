@@ -2,3 +2,44 @@
 @import url("./layout.css");
 @import url("@milkdown/crepe/theme/common/style.css");
 @import url("@milkdown/crepe/theme/frame-dark.css");
+
+/* Editor integration ------------------------------------------------------- */
+
+[data-controller="editor"] {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--color-surface);
+}
+
+[data-controller="editor"] .milkdown {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Fixed top toolbar: keep it pinned, blend with the surface token. */
+[data-controller="editor"] .milkdown-top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Editor body: fill the remaining height, with tamed heading sizes. */
+[data-controller="editor"] .milkdown .ProseMirror {
+    flex: 1;
+    padding: var(--space-4) var(--space-5);
+
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
+    h4 { font-size: 1.1rem; }
+    h5 { font-size: 1rem; }
+    h6 { font-size: 1rem; }
+}

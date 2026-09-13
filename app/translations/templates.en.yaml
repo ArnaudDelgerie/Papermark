@@ -4,3 +4,5 @@ templates:
     home:
         index:
             title: Papermark
+            editor:
+                placeholder: Start writing…

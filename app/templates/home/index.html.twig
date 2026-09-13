@@ -3,6 +3,6 @@
 {% block body %}
 <div>
     <h1>{{ 'templates.home.index.title'|trans({}, 'templates') }}</h1>
-    <div data-controller="editor" style="height: 400px;"></div>
+    <div data-controller="editor" data-editor-csrf-token-value="{{ csrf_token('upload') }}" data-editor-placeholder-value="{{ 'templates.home.index.editor.placeholder'|trans({}, 'templates') }}" style="height: 400px;"></div>
 </div>
 {% endblock %}

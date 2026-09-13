@@ -13,6 +13,7 @@ export default [
                 navigator: 'readonly',
                 console: 'readonly',
                 fetch: 'readonly',
+                FormData: 'readonly',
                 Event: 'readonly',
                 CustomEvent: 'readonly',
                 localStorage: 'readonly',
