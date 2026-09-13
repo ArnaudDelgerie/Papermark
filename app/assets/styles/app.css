@@ -43,3 +43,54 @@
     h5 { font-size: 1rem; }
     h6 { font-size: 1rem; }
 }
+
+/* Print: render only the editor content on a white background. */
+@media print {
+    body { background: white; }
+
+    body > *:not(:has([data-controller="editor"])) { display: none; }
+    :has(> [data-controller="editor"]) > *:not([data-controller="editor"]) { display: none; }
+
+    [data-controller="editor"] {
+        display: block;
+        border: none;
+        border-radius: 0;
+        overflow: visible;
+        background: white;
+    }
+
+    [data-controller="editor"] .milkdown {
+        display: block;
+        overflow: visible;
+        min-height: auto;
+        background: white;
+    }
+
+    [data-controller="editor"] .milkdown-top-bar,
+    [data-controller="editor"] .milkdown-block-handle,
+    [data-controller="editor"] .milkdown-crepe-menubar {
+        display: none !important;
+    }
+
+    [data-controller="editor"] .milkdown .ProseMirror {
+        position: static;
+        overflow: visible;
+        padding: 0;
+        background: white;
+        color: black;
+    }
+
+    [data-controller="editor"] .milkdown .ProseMirror,
+    [data-controller="editor"] .milkdown .ProseMirror * {
+        color: black !important;
+        background: transparent !important;
+        border-color: #ccc !important;
+    }
+
+    [data-controller="editor"] .milkdown .ProseMirror table,
+    [data-controller="editor"] .milkdown .ProseMirror pre,
+    [data-controller="editor"] .milkdown .ProseMirror img,
+    [data-controller="editor"] .milkdown .ProseMirror figure {
+        break-inside: avoid;
+    }
+}
