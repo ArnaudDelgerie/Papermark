@@ -46,22 +46,35 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    position: relative;
+    overflow: hidden;
 }
 
-/* Fixed top toolbar: keep it pinned, blend with the surface token. */
-[data-controller="editor"] .milkdown-top-bar {
-    position: sticky;
+/* Top toolbar: overlaid above the scroll area so collapsing it never
+   changes the editor height (prevents scroll feedback loops). */
+[data-controller="editor"] .milkdown .milkdown-top-bar {
+    position: absolute;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 10;
+    min-height: 0;
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
+    transform: translateY(0);
+    transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-/* Editor body: fill the remaining height, with tamed heading sizes. */
+[data-controller="editor"].top-bar-hidden .milkdown .milkdown-top-bar {
+    transform: translateY(-100%);
+    border-color: transparent;
+}
+
+/* Editor body: scroll container with tamed heading sizes. */
 [data-controller="editor"] .milkdown .ProseMirror {
     flex: 1;
-    padding: var(--space-4) var(--space-5);
+    overflow-y: auto;
+    padding: calc(44px + var(--space-3)) var(--space-5) var(--space-4);
 
     h1 {
         font-size: 1.8rem;
@@ -121,7 +134,7 @@
     }
 
     [data-controller="editor"] .editor-file-bar,
-    [data-controller="editor"] .milkdown-top-bar,
+    [data-controller="editor"] .milkdown .milkdown-top-bar,
     [data-controller="editor"] .milkdown-block-handle,
     [data-controller="editor"] .milkdown-crepe-menubar {
         display: none !important;

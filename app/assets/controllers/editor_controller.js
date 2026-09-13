@@ -40,6 +40,9 @@ export default class extends Controller {
 
     #crepe = null;
     #currentPath = null;
+    #lastScrollTop = 0;
+    #scrollTarget = null;
+    #onScroll = null;
 
     connect() {
         this.#crepe = new Crepe({
@@ -128,11 +131,15 @@ export default class extends Controller {
         });
 
         this.#crepe.create();
+        this.#setupScrollHide();
         this.#updateSaveButton('');
         this.#updatePrintButton('');
     }
 
     disconnect() {
+        if (this.#scrollTarget && this.#onScroll) {
+            this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
+        }
         this.#crepe?.destroy();
         this.#crepe = null;
     }
@@ -206,6 +213,30 @@ export default class extends Controller {
         }
 
         setTimeout(() => window.print(), 50);
+    }
+
+    #setupScrollHide() {
+        this.#onScroll = () => {
+            if (!this.#scrollTarget) {
+                return;
+            }
+            const scrollTop = this.#scrollTarget.scrollTop;
+            if (scrollTop <= 0) {
+                this.element.classList.remove('top-bar-hidden');
+            } else if (scrollTop > this.#lastScrollTop + 4) {
+                this.element.classList.add('top-bar-hidden');
+            } else if (scrollTop < this.#lastScrollTop - 4) {
+                this.element.classList.remove('top-bar-hidden');
+            }
+            this.#lastScrollTop = scrollTop;
+        };
+
+        requestAnimationFrame(() => {
+            this.#scrollTarget = this.element.querySelector('.ProseMirror');
+            if (this.#scrollTarget) {
+                this.#scrollTarget.addEventListener('scroll', this.#onScroll);
+            }
+        });
     }
 
     #pickPath(kind) {

@@ -21,6 +21,7 @@ export default [
                 btoa: 'readonly',
                 atob: 'readonly',
                 setTimeout: 'readonly',
+                requestAnimationFrame: 'readonly',
                 URL: 'readonly',
             },
         },
