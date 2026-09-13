@@ -1,0 +1,10 @@
+###> coding agent ###
+/.project
+/.agents
+/.claude
+/.codex
+/.vibe
+/CLAUDE.md
+/AGENTS.md
+/.mcp.json
+###< coding agent ###

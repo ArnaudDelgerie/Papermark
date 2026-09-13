@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Tracked pre-commit hook, installed into .git/hooks/pre-commit by
+# `make hooks-install` (git never tracks .git/hooks/ itself).
+# Blocks the commit whenever a staged file fails its linter.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+make lint-staged

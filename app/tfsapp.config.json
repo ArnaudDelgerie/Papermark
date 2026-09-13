@@ -1,0 +1,39 @@
+{
+  "product_name": "Papermark",
+  "identifier": "dev.local.papermark",
+  "project_name": "papermark",
+  "app_version": "0.1.0",
+  "splash_bg": "#121212",
+  "splash_text": "#e0e0e0",
+  "workers": [
+    {
+      "transports": [
+        "async"
+      ]
+    }
+  ],
+  "commands": {
+    "pre-install": [
+      "doctrine:migrations:migrate --no-interaction"
+    ],
+    "post-install": [],
+    "pre-update": [
+      "doctrine:migrations:migrate --no-interaction"
+    ],
+    "post-update": []
+  },
+  "actions": {
+    "secrets": {
+      "ipc": false,
+      "bridge": false,
+      "keys": []
+    },
+    "update": {
+      "ipc": true,
+      "bridge": false
+    },
+    "picker": {
+      "ipc": true
+    }
+  }
+}
