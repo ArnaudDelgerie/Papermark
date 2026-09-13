@@ -1,0 +1,28 @@
+{% set height = height|default(400) %}
+<div data-controller="editor" data-editor-csrf-token-value="{{ csrf_token('upload') }}" data-editor-i18n-value="{{ {
+    placeholder: 'templates.home.index.editor.placeholder'|trans({}, 'templates'),
+    link: {
+        confirm: 'templates.home.index.editor.link.confirm'|trans({}, 'templates'),
+        inputPlaceholder: 'templates.home.index.editor.link.input_placeholder'|trans({}, 'templates'),
+    },
+    slashMenu: {
+        text: 'templates.home.index.editor.slash_menu.text'|trans({}, 'templates'),
+        paragraph: 'templates.home.index.editor.slash_menu.paragraph'|trans({}, 'templates'),
+        h1: 'templates.home.index.editor.slash_menu.h1'|trans({}, 'templates'),
+        h2: 'templates.home.index.editor.slash_menu.h2'|trans({}, 'templates'),
+        h3: 'templates.home.index.editor.slash_menu.h3'|trans({}, 'templates'),
+        h4: 'templates.home.index.editor.slash_menu.h4'|trans({}, 'templates'),
+        h5: 'templates.home.index.editor.slash_menu.h5'|trans({}, 'templates'),
+        h6: 'templates.home.index.editor.slash_menu.h6'|trans({}, 'templates'),
+        quote: 'templates.home.index.editor.slash_menu.quote'|trans({}, 'templates'),
+        divider: 'templates.home.index.editor.slash_menu.divider'|trans({}, 'templates'),
+        list: 'templates.home.index.editor.slash_menu.list'|trans({}, 'templates'),
+        bulletList: 'templates.home.index.editor.slash_menu.bullet_list'|trans({}, 'templates'),
+        orderedList: 'templates.home.index.editor.slash_menu.ordered_list'|trans({}, 'templates'),
+        taskList: 'templates.home.index.editor.slash_menu.task_list'|trans({}, 'templates'),
+        advanced: 'templates.home.index.editor.slash_menu.advanced'|trans({}, 'templates'),
+        image: 'templates.home.index.editor.slash_menu.image'|trans({}, 'templates'),
+        code: 'templates.home.index.editor.slash_menu.code'|trans({}, 'templates'),
+        table: 'templates.home.index.editor.slash_menu.table'|trans({}, 'templates'),
+    },
+}|json_encode }}" style="height: {{ height }}px;"></div>

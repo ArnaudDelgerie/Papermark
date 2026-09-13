@@ -1,10 +1,37 @@
 import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
+import { trailing } from '@milkdown/plugin-trailing';
 
 export default class extends Controller {
     static values = {
         csrfToken: String,
-        placeholder: { type: String, default: 'Start writing…' },
+        i18n: {
+            type: Object,
+            default: {
+                placeholder: 'Start writing…',
+                link: { confirm: 'Confirm', inputPlaceholder: 'Paste link…' },
+                slashMenu: {
+                    text: 'Text',
+                    paragraph: 'Text',
+                    h1: 'Heading 1',
+                    h2: 'Heading 2',
+                    h3: 'Heading 3',
+                    h4: 'Heading 4',
+                    h5: 'Heading 5',
+                    h6: 'Heading 6',
+                    quote: 'Quote',
+                    divider: 'Divider',
+                    list: 'List',
+                    bulletList: 'Bullet List',
+                    orderedList: 'Ordered List',
+                    taskList: 'Task List',
+                    advanced: 'Advanced',
+                    image: 'Image',
+                    code: 'Code',
+                    table: 'Table',
+                },
+            },
+        },
     };
 
     #crepe = null;
@@ -27,8 +54,38 @@ export default class extends Controller {
                     inlineUploadPlaceholderText: '',
                 },
                 [Crepe.Feature.Placeholder]: {
-                    text: this.placeholderValue,
+                    text: this.i18nValue.placeholder,
                     mode: 'doc',
+                },
+                [Crepe.Feature.LinkTooltip]: {
+                    confirmButton: this.i18nValue.link.confirm,
+                    inputPlaceholder: this.i18nValue.link.inputPlaceholder,
+                },
+                [Crepe.Feature.BlockEdit]: {
+                    textGroup: {
+                        label: this.i18nValue.slashMenu.text,
+                        text: { label: this.i18nValue.slashMenu.paragraph },
+                        h1: { label: this.i18nValue.slashMenu.h1 },
+                        h2: { label: this.i18nValue.slashMenu.h2 },
+                        h3: { label: this.i18nValue.slashMenu.h3 },
+                        h4: { label: this.i18nValue.slashMenu.h4 },
+                        h5: { label: this.i18nValue.slashMenu.h5 },
+                        h6: { label: this.i18nValue.slashMenu.h6 },
+                        quote: { label: this.i18nValue.slashMenu.quote },
+                        divider: { label: this.i18nValue.slashMenu.divider },
+                    },
+                    listGroup: {
+                        label: this.i18nValue.slashMenu.list,
+                        bulletList: { label: this.i18nValue.slashMenu.bulletList },
+                        orderedList: { label: this.i18nValue.slashMenu.orderedList },
+                        taskList: { label: this.i18nValue.slashMenu.taskList },
+                    },
+                    advancedGroup: {
+                        label: this.i18nValue.slashMenu.advanced,
+                        image: { label: this.i18nValue.slashMenu.image },
+                        codeBlock: { label: this.i18nValue.slashMenu.code },
+                        table: { label: this.i18nValue.slashMenu.table },
+                    },
                 },
                 [Crepe.Feature.TopBar]: {
                     buildTopBar: (builder) => {
@@ -50,6 +107,10 @@ export default class extends Controller {
                     },
                 },
             },
+        });
+
+        this.#crepe.addFeature((editor) => {
+            editor.use(trailing);
         });
 
         this.#crepe.on((listener) => {
