@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Ai;
 
 use App\Repository\ProviderRepository;
+use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\InputProcessor\SystemPromptInputProcessor;
 use Symfony\AI\Agent\Execution\Update\Progress;
+use Symfony\AI\Platform\Exception\ExceptionInterface as PlatformExceptionInterface;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Consumes an AiInstructionMessage, calls the LLM via symfony/ai-bundle,
@@ -38,11 +41,16 @@ final class AiInstructionHandler
         - If no <selection> is provided, return content to insert at the cursor that flows with the surrounding document.
         PROMPT;
 
+    private const TRANSLATION_PREFIX = 'components.editor.error.';
+    private const TRANSLATION_DOMAIN = 'components';
+
     public function __construct(
         private readonly AiPlatformFactory $platformFactory,
         private readonly ApiKeyResolver $apiKeyResolver,
         private readonly ProviderRepository $providers,
         private readonly HubInterface $hub,
+        private readonly TranslatorInterface $translator,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -50,19 +58,19 @@ final class AiInstructionHandler
     {
         $provider = $this->providers->findSelected();
         if ($provider === null) {
-            $this->publishError($message->getTopic(), 'provider_not_selected');
+            $this->publishOwnError($message->getTopic(), 'provider_not_selected');
             return;
         }
 
         $model = $provider->getModel();
         if ($model === null || $model === '') {
-            $this->publishError($message->getTopic(), 'model_missing');
+            $this->publishOwnError($message->getTopic(), 'model_missing');
             return;
         }
 
         $apiKey = $this->apiKeyResolver->resolve($provider->getName());
         if ($apiKey === null) {
-            $this->publishError($message->getTopic(), 'api_key_missing');
+            $this->publishOwnError($message->getTopic(), 'api_key_missing');
             return;
         }
 
@@ -93,8 +101,24 @@ final class AiInstructionHandler
 
             $this->publishDone($message->getTopic());
         } catch (\Throwable $e) {
-            $this->publishError($message->getTopic(), $e->getMessage());
+            $this->logger->error('AI instruction failed: {message}', ['message' => $e->getMessage(), 'exception' => $e]);
+
+            // symfony/ai exceptions carry the provider's own message; anything else stays generic.
+            $this->publishError($message->getTopic(), $e instanceof PlatformExceptionInterface
+                ? $e->getMessage()
+                : $this->translate('ai_failed'));
         }
+    }
+
+    private function publishOwnError(string $topic, string $key): void
+    {
+        $this->logger->warning('AI instruction refused: {key}', ['key' => $key]);
+        $this->publishError($topic, $this->translate($key));
+    }
+
+    private function translate(string $key): string
+    {
+        return $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN);
     }
 
     private function buildUserMessage(AiInstructionMessage $message): string

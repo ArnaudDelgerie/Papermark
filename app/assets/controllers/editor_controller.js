@@ -165,6 +165,8 @@ export default class extends Controller {
         if (this.#isAiEnabled()) {
             this.#crepe.addFeature(aiFeature, {
                 provider: this.#createAIProvider(),
+                // Crepe prefixes the message ("AI provider error: ..."); show the original one.
+                onError: (error) => this.#toast('error', error.cause?.message ?? error.message),
             });
         }
 
