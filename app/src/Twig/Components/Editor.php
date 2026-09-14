@@ -3,6 +3,7 @@
 namespace App\Twig\Components;
 
 use App\Ai\ApiKeyResolver;
+use App\Repository\ProviderRepository;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -14,7 +15,6 @@ final class Editor
 {
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.';
-    private const AI_PROVIDERS = ['openai', 'anthropic', 'mistral'];
 
     public string $height = '400';
     public bool $readonly = false;
@@ -24,6 +24,7 @@ final class Editor
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly StationContextInterface $stationContext,
         private readonly ApiKeyResolver $apiKeyResolver,
+        private readonly ProviderRepository $providers,
     ) {
     }
 
@@ -93,20 +94,19 @@ final class Editor
     }
 
     /**
-     * @return array{enabled: bool, providers: array<string, bool>, selected_provider: ?string}
+     * AI is offered only with a worker, a selected provider, and a key for it.
+     *
+     * @return array{enabled: bool}
      */
     #[ExposeInTemplate(name: 'ai_config')]
     public function getAiConfig(): array
     {
-        $providers = [];
-        foreach (self::AI_PROVIDERS as $provider) {
-            $providers[$provider] = $this->apiKeyResolver->resolve($provider) !== null;
-        }
+        $provider = $this->providers->findSelected();
 
         return [
-            'enabled' => $this->stationContext->isAsyncWorker(),
-            'providers' => $providers,
-            'selected_provider' => $this->apiKeyResolver->resolveProvider(),
+            'enabled' => $this->stationContext->isAsyncWorker()
+                && $provider !== null
+                && $this->apiKeyResolver->resolve($provider->getName()) !== null,
         ];
     }
 

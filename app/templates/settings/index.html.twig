@@ -7,51 +7,27 @@
         <h1>{{ 'components.settings.title'|trans({}, 'components') }}</h1>
     </div>
 
-    {% for label, messages in app.flashes %}
-        {% for message in messages %}
-            <div class="settings-flash settings-flash-{{ label }}">{{ message }}</div>
-        {% endfor %}
-    {% endfor %}
+    {{ form_start(form, {attr: {class: 'settings-form'}}) }}
+        {{ form_errors(form) }}
 
-    {% if bridge_available %}
-    <form class="settings-form" data-controller="settings">
-        <input type="hidden" name="settings_csrf_token" value="{{ settings_csrf_token }}" data-settings-target="csrfToken">
-
+        {% for name, provider in form.providers %}
         <fieldset class="settings-fieldset">
-            <legend>{{ 'components.settings.provider_label'|trans({}, 'components') }}</legend>
-            {% for name, info in providers %}
-            <label class="settings-provider{% if name == selected_provider %} is-selected{% endif %}">
-                <input type="radio" name="provider" value="{{ name }}" data-settings-target="providerRadio"{% if name == selected_provider %} checked{% endif %}>
-                <span class="settings-provider-name">{{ info.label }}</span>
-                {% if info.has_key %}
+            <legend class="settings-provider{% if form.selected[name].vars.checked %} is-selected{% endif %}">
+                {{ form_widget(form.selected[name]) }}
+                {{ form_label(form.selected[name], null, {label_attr: {class: 'settings-provider-name'}}) }}
+                {% if has_key[name] %}
                 <span class="settings-provider-badge">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
                 {% endif %}
-            </label>
-            {% endfor %}
-        </fieldset>
+            </legend>
 
-        <fieldset class="settings-fieldset">
-            <legend>{{ 'components.settings.api_keys_label'|trans({}, 'components') }}</legend>
-            {% for name, info in providers %}
-            <div class="settings-key-row">
-                <label for="key_{{ name }}">{{ info.label }}</label>
-                <input type="password" name="key_{{ name }}" id="key_{{ name }}" placeholder="{{ 'components.settings.key_placeholder'|trans({}, 'components') }}" autocomplete="off">
-                {% if info.has_key %}
-                <span class="settings-key-status">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
-                {% endif %}
-            </div>
-            {% endfor %}
+            {{ form_row(provider.model) }}
+            {{ form_row(provider.apiKey) }}
         </fieldset>
+        {% endfor %}
 
-        <button type="submit" class="settings-submit" data-action="click->settings#submit">
+        <button type="submit" class="settings-submit">
             {{ 'components.settings.save'|trans({}, 'components') }}
         </button>
-    </form>
-    {% else %}
-    <div class="settings-notice">
-        <p>{{ 'components.settings.bridge_unavailable'|trans({}, 'components') }}</p>
-        <p>{{ 'components.settings.env_hint'|trans({}, 'components') }}</p>
-    </div>
-    {% endif %}
+    {{ form_end(form) }}
 </div>
 {% endblock %}

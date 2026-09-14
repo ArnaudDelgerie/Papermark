@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Ai\AiInstructionMessage;
-use App\Ai\AiPlatformFactory;
 use App\Ai\ApiKeyResolver;
+use App\Ai\ProviderName;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,7 +24,6 @@ final class AiController extends AbstractController
 {
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.error.';
-    private const SUPPORTED_PROVIDERS = ['openai', 'anthropic', 'mistral'];
 
     public function __construct(
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
@@ -48,15 +47,9 @@ final class AiController extends AbstractController
             return $this->errorResponse('invalid_body', Response::HTTP_BAD_REQUEST);
         }
 
-        $provider = $data['provider'] ?? null;
         $instruction = $data['instruction'] ?? null;
         $document = $data['document'] ?? '';
         $selection = $data['selection'] ?? '';
-        $model = $data['model'] ?? null;
-
-        if (!\is_string($provider) || !\in_array($provider, self::SUPPORTED_PROVIDERS, true)) {
-            return $this->errorResponse('invalid_provider', Response::HTTP_BAD_REQUEST);
-        }
 
         if (!\is_string($instruction) || $instruction === '') {
             return $this->errorResponse('no_instruction', Response::HTTP_BAD_REQUEST);
@@ -70,12 +63,6 @@ final class AiController extends AbstractController
             $selection = '';
         }
 
-        if (!\is_string($model) || $model === '') {
-            $model = AiPlatformFactory::supportedProviders() !== []
-                ? $this->defaultModelFor($provider)
-                : 'gpt-4o-mini';
-        }
-
         // Generate an unguessable per-session topic name.
         $topic = 'ai/' . Uuid::v4()->toRfc4122();
 
@@ -83,8 +70,6 @@ final class AiController extends AbstractController
         $mercureAuthorization->setCookie($request, [$topic]);
 
         $this->bus->dispatch(new AiInstructionMessage(
-            provider: $provider,
-            model: $model,
             topic: $topic,
             instruction: $instruction,
             document: $document,
@@ -98,8 +83,8 @@ final class AiController extends AbstractController
     public function config(): JsonResponse
     {
         $providers = [];
-        foreach (self::SUPPORTED_PROVIDERS as $provider) {
-            $providers[$provider] = [
+        foreach (ProviderName::cases() as $provider) {
+            $providers[$provider->value] = [
                 'has_key' => $this->apiKeyResolver->resolve($provider) !== null,
             ];
         }
@@ -108,16 +93,6 @@ final class AiController extends AbstractController
             'enabled' => $this->stationContext->isAsyncWorker(),
             'providers' => $providers,
         ]);
-    }
-
-    private function defaultModelFor(string $provider): string
-    {
-        return match ($provider) {
-            'openai' => 'gpt-4o-mini',
-            'anthropic' => 'claude-sonnet-4-0',
-            'mistral' => 'mistral-large-latest',
-            default => 'gpt-4o-mini',
-        };
     }
 
     private function errorResponse(string $key, int $status): JsonResponse

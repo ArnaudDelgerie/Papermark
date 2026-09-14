@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Ai\AiInstructionMessage;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class AiControllerTest extends WebTestCase
@@ -33,7 +35,6 @@ final class AiControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => 'invalid',
             'CONTENT_TYPE' => 'application/json',
         ], json_encode([
-            'provider' => 'openai',
             'instruction' => 'Improve writing',
             'document' => 'Hello',
         ]));
@@ -51,7 +52,6 @@ final class AiControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
             'CONTENT_TYPE' => 'application/json',
         ], json_encode([
-            'provider' => 'openai',
             'instruction' => '',
             'document' => 'Hello',
         ]));
@@ -61,22 +61,37 @@ final class AiControllerTest extends WebTestCase
         self::assertArrayHasKey('error', $data);
     }
 
-    public function testInstructRejectsInvalidProvider(): void
+    public function testInstructDispatchesMessageWithoutClientProviderOrModel(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
 
         $client->request('POST', '/ai/instruct', [], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
             'CONTENT_TYPE' => 'application/json',
         ], json_encode([
-            'provider' => 'grok',
+            // Ignored: the worker reads the selection from the database.
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
             'instruction' => 'Improve writing',
-            'document' => 'Hello',
+            'document' => 'Hello world',
+            'selection' => 'Hello',
         ]));
 
-        self::assertResponseStatusCodeSame(400);
-        $data = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('error', $data);
+        self::assertResponseIsSuccessful();
+        $topic = json_decode($client->getResponse()->getContent(), true)['topic'];
+
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        $sent = $transport->getSent();
+        self::assertCount(1, $sent);
+
+        $message = $sent[0]->getMessage();
+        self::assertInstanceOf(AiInstructionMessage::class, $message);
+        self::assertSame($topic, $message->getTopic());
+        self::assertSame('Improve writing', $message->getInstruction());
+        self::assertSame('Hello world', $message->getDocument());
+        self::assertSame('Hello', $message->getSelection());
     }
 
     public function testConfigReturnsProviderStatus(): void

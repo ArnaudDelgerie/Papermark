@@ -4,61 +4,76 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Ai\ProviderName;
+use App\Entity\Provider;
+use App\Repository\ProviderRepository;
+use App\Tests\Double\InMemorySecretStore;
+use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class SettingsControllerTest extends WebTestCase
 {
-    /**
-     * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
-     */
-    private function createClientWithCsrf(): array
+    private KernelBrowser $client;
+    private InMemorySecretStore $secretStore;
+
+    protected function setUp(): void
     {
-        $client = static::createClient();
-        $client->request('GET', '/');
+        $this->client = static::createClient();
+        // Keep the kernel between requests so the keyring double survives.
+        $this->client->disableReboot();
 
-        $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
-            ->getToken('settings')->getValue();
+        $this->secretStore = new InMemorySecretStore(['anthropic' => 'existing-key']);
+        static::getContainer()->set(SecretStoreInterface::class, $this->secretStore);
 
-        return [$client, $csrfToken];
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        foreach (ProviderName::cases() as $name) {
+            $entityManager->persist(new Provider($name));
+        }
+        $entityManager->flush();
     }
 
-    public function testSettingsPageRenders(): void
+    public function testRendersOneBlockPerProvider(): void
     {
-        $client = static::createClient();
-        $client->request('GET', '/settings');
+        $this->client->request('GET', '/settings');
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Settings');
         self::assertSelectorExists('a.settings-back');
+        self::assertSelectorCount(3, 'fieldset.settings-fieldset');
+        self::assertSelectorCount(3, 'input[type="radio"][name="settings[selected]"]');
+
+        // Only the provider with a stored key shows the badge.
+        self::assertSelectorCount(1, '.settings-provider-badge');
+        self::assertSelectorTextContains('.settings-provider-badge', 'Key set');
     }
 
-    public function testSaveAiRejectsInvalidCsrf(): void
+    public function testSaveStoresSelectionAndModelInDatabaseAndKeyInKeyring(): void
     {
-        $client = static::createClient();
-        $client->request('POST', '/settings/ai', [
-            'provider' => 'openai',
-        ], [], [
-            'HTTP_X-CSRF-TOKEN' => 'invalid',
-        ]);
+        $this->client->request('GET', '/settings');
+        $this->client->submitForm('Save', [
+            'settings[selected]' => 'mistral',
+            'settings[providers][mistral][model]' => 'mistral-large-latest',
+            'settings[providers][mistral][apiKey]' => 'mistral-key',
+            'settings[providers][anthropic][model]' => 'claude-sonnet-4-5',
+        ], 'POST', ['HTTP_ORIGIN' => 'http://localhost']);
 
-        self::assertResponseStatusCodeSame(403);
-        $data = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('error', $data);
-    }
+        self::assertResponseRedirects('/settings');
 
-    public function testSaveAiRejectsInvalidProvider(): void
-    {
-        [$client, $csrfToken] = $this->createClientWithCsrf();
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        $providers = static::getContainer()->get(ProviderRepository::class)->findAllByName();
 
-        $client->request('POST', '/settings/ai', [
-            'provider' => 'grok',
-        ], [], [
-            'HTTP_X-CSRF-TOKEN' => $csrfToken,
-        ]);
+        self::assertTrue($providers['mistral']->isSelected());
+        self::assertFalse($providers['anthropic']->isSelected());
+        self::assertFalse($providers['openai']->isSelected());
+        self::assertSame('mistral-large-latest', $providers['mistral']->getModel());
+        self::assertSame('claude-sonnet-4-5', $providers['anthropic']->getModel());
+        self::assertNull($providers['openai']->getModel());
 
-        self::assertResponseStatusCodeSame(400);
-        $data = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('error', $data);
+        self::assertSame('mistral-key', $this->secretStore->get('mistral'));
+        // An empty key field keeps the stored key.
+        self::assertSame('existing-key', $this->secretStore->get('anthropic'));
+        self::assertNull($this->secretStore->get('openai'));
     }
 }

@@ -27,18 +27,6 @@
     font-size: 1.2rem;
 }
 
-.settings-flash {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius);
-    margin-bottom: var(--space-4);
-}
-
-.settings-flash-success {
-    background: var(--color-surface);
-    border: 1px solid var(--color-accent);
-    color: var(--color-accent);
-}
-
 .settings-form {
     display: flex;
     flex-direction: column;
@@ -79,8 +67,7 @@
     flex: 1;
 }
 
-.settings-provider-badge,
-.settings-key-status {
+.settings-provider-badge {
     font-size: 0.75rem;
     color: var(--color-accent);
     padding: var(--space-1) var(--space-2);
@@ -88,20 +75,21 @@
     background: var(--color-page);
 }
 
-.settings-key-row {
+/* One form_row() per field: <div><label/><input/></div> */
+.settings-fieldset > div {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     margin-top: var(--space-2);
 }
 
-.settings-key-row label {
+.settings-fieldset > div label {
     min-width: 80px;
     color: var(--color-muted);
     font-size: 0.85rem;
 }
 
-.settings-key-row input {
+.settings-fieldset > div input {
     flex: 1;
     padding: var(--space-2) var(--space-3);
     background: var(--color-page);
@@ -111,7 +99,7 @@
     font-family: var(--font-sans);
 }
 
-.settings-key-row input:focus {
+.settings-fieldset > div input:focus {
     outline: none;
     border-color: var(--color-accent);
 }
@@ -128,17 +116,4 @@
 
 .settings-submit:hover {
     opacity: 0.9;
-}
-
-.settings-notice {
-    padding: var(--space-4);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    color: var(--color-muted);
-    line-height: 1.5;
-}
-
-.settings-notice code {
-    color: var(--color-text);
 }

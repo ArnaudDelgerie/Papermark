@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
+use App\Repository\ProviderRepository;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\InputProcessor\SystemPromptInputProcessor;
 use Symfony\AI\Agent\Execution\Update\Progress;
-use Symfony\AI\Agent\Execution\Update\Result;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
@@ -19,9 +19,10 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
  * Consumes an AiInstructionMessage, calls the LLM via symfony/ai-bundle,
  * and streams each text token to a Mercure topic.
  *
- * The browser subscribes to the same topic via EventSource and yields chunks
- * into Crepe's AIProvider async iterable. A final "done" or "error" event
- * lets the browser close the connection.
+ * The provider and model are read from the database when the message is
+ * consumed, never taken from the client. The browser subscribes to the same
+ * topic via EventSource and yields chunks into Crepe's AIProvider async
+ * iterable. A final "done" or "error" event lets the browser close the connection.
  */
 #[AsMessageHandler]
 final class AiInstructionHandler
@@ -40,23 +41,36 @@ final class AiInstructionHandler
     public function __construct(
         private readonly AiPlatformFactory $platformFactory,
         private readonly ApiKeyResolver $apiKeyResolver,
+        private readonly ProviderRepository $providers,
         private readonly HubInterface $hub,
     ) {
     }
 
     public function __invoke(AiInstructionMessage $message): void
     {
-        $apiKey = $this->apiKeyResolver->resolve($message->getProvider());
+        $provider = $this->providers->findSelected();
+        if ($provider === null) {
+            $this->publishError($message->getTopic(), 'provider_not_selected');
+            return;
+        }
+
+        $model = $provider->getModel();
+        if ($model === null || $model === '') {
+            $this->publishError($message->getTopic(), 'model_missing');
+            return;
+        }
+
+        $apiKey = $this->apiKeyResolver->resolve($provider->getName());
         if ($apiKey === null) {
             $this->publishError($message->getTopic(), 'api_key_missing');
             return;
         }
 
-        $platform = $this->platformFactory->createPlatform($message->getProvider(), $apiKey);
+        $platform = $this->platformFactory->createPlatform($provider->getName(), $apiKey);
 
         $agent = new Agent(
             platform: $platform,
-            model: $message->getModel(),
+            model: $model,
             inputProcessors: [
                 new SystemPromptInputProcessor(self::SYSTEM_PROMPT),
             ],

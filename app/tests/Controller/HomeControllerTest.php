@@ -36,13 +36,9 @@ final class HomeControllerTest extends WebTestCase
         self::assertNotEmpty($editor->attr('data-editor-file-csrf-token-value'));
         self::assertNotEmpty($editor->attr('data-editor-ai-csrf-token-value'));
 
-        // The AI config is exposed to the front-end.
+        // The AI config is exposed to the front-end, decided server-side.
         $aiConfig = json_decode((string) $editor->attr('data-editor-ai-config-value'), true);
-        self::assertArrayHasKey('enabled', $aiConfig);
-        self::assertArrayHasKey('providers', $aiConfig);
-        self::assertArrayHasKey('openai', $aiConfig['providers']);
-        self::assertArrayHasKey('anthropic', $aiConfig['providers']);
-        self::assertArrayHasKey('mistral', $aiConfig['providers']);
+        self::assertSame(['enabled' => false], $aiConfig);
 
         // The file bar buttons are present.
         self::assertSame(7, $editor->filter('button.editor-filebar-btn')->count());

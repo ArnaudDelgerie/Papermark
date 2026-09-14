@@ -16,17 +16,21 @@
     "pre-install": [
       "doctrine:migrations:migrate --no-interaction"
     ],
-    "post-install": [],
+    "post-install": [
+      "app:ai:seed-providers"
+    ],
     "pre-update": [
       "doctrine:migrations:migrate --no-interaction"
     ],
-    "post-update": []
+    "post-update": [
+      "app:ai:seed-providers"
+    ]
   },
   "actions": {
     "secrets": {
       "ipc": false,
       "bridge": true,
-      "keys": ["openai", "anthropic", "mistral", "ai_provider"]
+      "keys": ["openai", "anthropic", "mistral"]
     },
     "update": {
       "ipc": true,

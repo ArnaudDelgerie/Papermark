@@ -13,7 +13,7 @@ export default class extends Controller {
         aiCsrfToken: String,
         aiConfig: {
             type: Object,
-            default: { enabled: false, providers: {} },
+            default: { enabled: false },
         },
         readonly: { type: Boolean, default: false },
         i18n: {
@@ -547,13 +547,9 @@ export default class extends Controller {
         return removed;
     }
 
+    // The server enables AI only with a worker, a selected provider and its key.
     #isAiEnabled() {
-        const config = this.aiConfigValue;
-        if (!config?.enabled) {
-            return false;
-        }
-        const providers = config.providers ?? {};
-        return Object.values(providers).some((hasKey) => hasKey === true);
+        return this.aiConfigValue?.enabled === true;
     }
 
     /**
@@ -593,10 +589,6 @@ export default class extends Controller {
         }).observe(tooltip, { attributes: true, attributeFilter: ['style'] });
     }
 
-    #selectProvider() {
-        return this.aiConfigValue.selected_provider ?? null;
-    }
-
     /**
      * Creates the AIProvider that Crepe calls when the user triggers an AI action.
      *
@@ -606,11 +598,6 @@ export default class extends Controller {
      */
     #createAIProvider() {
         return async function* aiProvider(context, signal) {
-            const provider = this.#selectProvider();
-            if (!provider) {
-                return;
-            }
-
             const response = await fetch('/ai/instruct', {
                 method: 'POST',
                 headers: {
@@ -618,7 +605,6 @@ export default class extends Controller {
                     'X-CSRF-TOKEN': this.aiCsrfTokenValue,
                 },
                 body: JSON.stringify({
-                    provider,
                     instruction: context.instruction,
                     document: context.document,
                     selection: context.selection,
