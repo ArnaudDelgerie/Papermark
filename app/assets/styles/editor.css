@@ -98,8 +98,8 @@
     padding: 0;
 }
 
-/* A4 sheet: centered page on a darker desk, faint line at each page height.
-   Approximate: page breaks on paper also add top/bottom margins. */
+/* A4 sheet: centered page on a darker desk, width matches a real A4 page.
+   No page-break guides — reliable simulation is not feasible in CSS/JS. */
 
 .editor.is-a4 .milkdown {
     background: var(--color-page);
@@ -111,12 +111,4 @@
     margin-inline: auto;
     padding: calc(var(--toolbar-offset) + var(--space-3)) var(--doc-page-margin) var(--doc-page-margin);
     background-color: var(--color-surface);
-    background-image: repeating-linear-gradient(
-        to bottom,
-        transparent 0,
-        transparent calc(var(--doc-page-height) - 1px),
-        rgb(255 255 255 / 6%) calc(var(--doc-page-height) - 1px),
-        rgb(255 255 255 / 6%) var(--doc-page-height)
-    );
-    background-attachment: local;
 }

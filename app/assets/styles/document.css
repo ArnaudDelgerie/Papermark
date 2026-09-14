@@ -8,6 +8,10 @@
     --doc-page-width: 21cm;
     --doc-page-height: 29.7cm;
 
+    /* @page margin enforced by WebKitGTK, used in print.css for the inline
+       padding compensation. */
+    --doc-page-print-margin: 6.35mm;
+
     /* Side margins only in print, see print.css. */
     --doc-page-margin: 2cm;
     --doc-font-body: "Noto Sans", arial, helvetica, sans-serif;

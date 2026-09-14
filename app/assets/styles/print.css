@@ -26,7 +26,7 @@
 
     .print-copy {
         display: block;
-        padding-inline: calc(var(--doc-page-margin) - 6.35mm);
+        padding-inline: calc(var(--doc-page-margin) - var(--doc-page-print-margin));
         color: #000;
         background: #fff;
     }

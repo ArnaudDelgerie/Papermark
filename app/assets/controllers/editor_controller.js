@@ -200,7 +200,6 @@ export default class extends Controller {
             this.element.classList.remove('is-toolbar-hidden');
             if (this.#scrollTarget && this.#onScroll) {
                 this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
-                this.#scrollTarget = null;
             }
         } else {
             this.element.classList.remove('is-readonly');
