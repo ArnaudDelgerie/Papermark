@@ -47,6 +47,11 @@ final class SettingsControllerTest extends WebTestCase
         // Only the provider with a stored key shows the badge.
         self::assertSelectorCount(1, '.settings-provider-badge');
         self::assertSelectorTextContains('.settings-provider-badge', 'Key set');
+
+        // No double-submit on the form: once used in a session, Symfony would then
+        // reject the editor's fetch requests, which rely on the origin check only.
+        self::assertSelectorExists('input[name="settings[_token]"]');
+        self::assertSelectorNotExists('input[name="settings[_token]"][data-controller="csrf-protection"]');
     }
 
     public function testSaveStoresSelectionAndModelInDatabaseAndKeyInKeyring(): void
