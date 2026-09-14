@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Ai\AiAbortRegistry;
 use App\Ai\AiInstructionMessage;
+use App\Ai\AiTopicResolver;
 use App\Ai\ApiKeyResolver;
 use App\Ai\ProviderName;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
@@ -31,19 +33,36 @@ final class AiController extends AbstractController
         private readonly MessageBusInterface $bus,
         private readonly StationContextInterface $stationContext,
         private readonly ApiKeyResolver $apiKeyResolver,
+        private readonly AiTopicResolver $topicResolver,
+        private readonly AiAbortRegistry $abortRegistry,
     ) {
     }
 
-    #[Route('/ai/instruct', name: 'app_ai_instruct', methods: ['POST'])]
-    public function instruct(Request $request, Authorization $mercureAuthorization): JsonResponse
+    /**
+     * Re-mints the subscriber cookie: the hub closes a subscription when its JWT
+     * expires, so the editor renews it before a request once the cookie gets old.
+     */
+    #[Route('/ai/subscribe', name: 'app_ai_subscribe', methods: ['POST'])]
+    public function subscribe(Request $request, Authorization $mercureAuthorization): Response
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('ai', $csrfToken))) {
+        if (!$this->isCsrfTokenValidFor($request)) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $mercureAuthorization->setCookie($request, [$this->topicResolver->resolve($request)]);
+
+        return new Response(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/ai/instruct', name: 'app_ai_instruct', methods: ['POST'])]
+    public function instruct(Request $request): Response
+    {
+        if (!$this->isCsrfTokenValidFor($request)) {
             return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $data = json_decode($request->getContent(), true);
-        if (!\is_array($data)) {
+        if (!\is_array($data) || !$this->isRequestId($data['id'] ?? null)) {
             return $this->errorResponse('invalid_body', Response::HTTP_BAD_REQUEST);
         }
 
@@ -63,20 +82,32 @@ final class AiController extends AbstractController
             $selection = '';
         }
 
-        // Generate an unguessable per-session topic name.
-        $topic = 'ai/' . Uuid::v4()->toRfc4122();
-
-        // Mint a subscriber JWT for this topic so the browser's EventSource can connect.
-        $mercureAuthorization->setCookie($request, [$topic]);
-
         $this->bus->dispatch(new AiInstructionMessage(
-            topic: $topic,
+            topic: $this->topicResolver->resolve($request),
+            requestId: $data['id'],
             instruction: $instruction,
             document: $document,
             selection: $selection,
         ));
 
-        return new JsonResponse(['topic' => $topic]);
+        return new Response(null, Response::HTTP_ACCEPTED);
+    }
+
+    #[Route('/ai/abort', name: 'app_ai_abort', methods: ['POST'])]
+    public function abort(Request $request): Response
+    {
+        if (!$this->isCsrfTokenValidFor($request)) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data) || !$this->isRequestId($data['id'] ?? null)) {
+            return $this->errorResponse('invalid_body', Response::HTTP_BAD_REQUEST);
+        }
+
+        $this->abortRegistry->abort($data['id']);
+
+        return new Response(null, Response::HTTP_NO_CONTENT);
     }
 
     #[Route('/ai/config', name: 'app_ai_config', methods: ['GET'])]
@@ -93,6 +124,21 @@ final class AiController extends AbstractController
             'enabled' => $this->stationContext->isAsyncWorker(),
             'providers' => $providers,
         ]);
+    }
+
+    private function isCsrfTokenValidFor(Request $request): bool
+    {
+        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
+
+        return \is_string($csrfToken) && $this->csrfTokenManager->isTokenValid(new CsrfToken('ai', $csrfToken));
+    }
+
+    /**
+     * @phpstan-assert-if-true non-empty-string $id
+     */
+    private function isRequestId(mixed $id): bool
+    {
+        return \is_string($id) && Uuid::isValid($id);
     }
 
     private function errorResponse(string $key, int $status): JsonResponse

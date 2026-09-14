@@ -7,8 +7,8 @@ namespace App\Ai;
 use App\Repository\ProviderRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\Agent;
-use Symfony\AI\Agent\InputProcessor\SystemPromptInputProcessor;
 use Symfony\AI\Agent\Execution\Update\Progress;
+use Symfony\AI\Agent\InputProcessor\SystemPromptInputProcessor;
 use Symfony\AI\Platform\Exception\ExceptionInterface as PlatformExceptionInterface;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
@@ -20,12 +20,12 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Consumes an AiInstructionMessage, calls the LLM via symfony/ai-bundle,
- * and streams each text token to a Mercure topic.
+ * and streams each text token to the session's Mercure topic.
  *
  * The provider and model are read from the database when the message is
- * consumed, never taken from the client. The browser subscribes to the same
- * topic via EventSource and yields chunks into Crepe's AIProvider async
- * iterable. A final "done" or "error" event lets the browser close the connection.
+ * consumed, never taken from the client. Every event carries the request id, so
+ * the browser ignores events of another request. A final "done" or "error" event
+ * ends the request; an aborted request publishes nothing more.
  */
 #[AsMessageHandler]
 final class AiInstructionHandler
@@ -51,6 +51,7 @@ final class AiInstructionHandler
         private readonly HubInterface $hub,
         private readonly TranslatorInterface $translator,
         private readonly LoggerInterface $logger,
+        private readonly AiAbortRegistry $abortRegistry,
     ) {
     }
 
@@ -58,19 +59,19 @@ final class AiInstructionHandler
     {
         $provider = $this->providers->findSelected();
         if ($provider === null) {
-            $this->publishOwnError($message->getTopic(), 'provider_not_selected');
+            $this->publishOwnError($message, 'provider_not_selected');
             return;
         }
 
         $model = $provider->getModel();
         if ($model === null || $model === '') {
-            $this->publishOwnError($message->getTopic(), 'model_missing');
+            $this->publishOwnError($message, 'model_missing');
             return;
         }
 
         $apiKey = $this->apiKeyResolver->resolve($provider->getName());
         if ($apiKey === null) {
-            $this->publishOwnError($message->getTopic(), 'api_key_missing');
+            $this->publishOwnError($message, 'api_key_missing');
             return;
         }
 
@@ -94,31 +95,25 @@ final class AiInstructionHandler
                 if ($update instanceof Progress && 'delta' === $update->getStage()) {
                     $delta = $update->getPayload();
                     if ($delta instanceof TextDelta) {
-                        $this->publishChunk($message->getTopic(), $delta->getText());
+                        // Leaving the loop releases the HTTP response, which closes the provider connection.
+                        if ($this->abortRegistry->isAborted($message->getRequestId())) {
+                            return;
+                        }
+
+                        $this->publish($message, ['type' => 'chunk', 'content' => $delta->getText()]);
                     }
                 }
             }
 
-            $this->publishDone($message->getTopic());
+            $this->publish($message, ['type' => 'done']);
         } catch (\Throwable $e) {
             $this->logger->error('AI instruction failed: {message}', ['message' => $e->getMessage(), 'exception' => $e]);
 
             // symfony/ai exceptions carry the provider's own message; anything else stays generic.
-            $this->publishError($message->getTopic(), $e instanceof PlatformExceptionInterface
+            $this->publishError($message, $e instanceof PlatformExceptionInterface
                 ? $e->getMessage()
                 : $this->translate('ai_failed'));
         }
-    }
-
-    private function publishOwnError(string $topic, string $key): void
-    {
-        $this->logger->warning('AI instruction refused: {key}', ['key' => $key]);
-        $this->publishError($topic, $this->translate($key));
-    }
-
-    private function translate(string $key): string
-    {
-        return $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN);
     }
 
     private function buildUserMessage(AiInstructionMessage $message): string
@@ -134,27 +129,30 @@ final class AiInstructionHandler
         return implode("\n\n", $parts);
     }
 
-    private function publishChunk(string $topic, string $chunk): void
+    private function publishOwnError(AiInstructionMessage $message, string $key): void
+    {
+        $this->logger->warning('AI instruction refused: {key}', ['key' => $key]);
+        $this->publishError($message, $this->translate($key));
+    }
+
+    private function publishError(AiInstructionMessage $message, string $error): void
+    {
+        $this->publish($message, ['type' => 'error', 'error' => $error]);
+    }
+
+    /**
+     * @param array<string, string> $event
+     */
+    private function publish(AiInstructionMessage $message, array $event): void
     {
         $this->hub->publish(new Update(
-            $topic,
-            json_encode(['type' => 'chunk', 'content' => $chunk], \JSON_THROW_ON_ERROR),
+            $message->getTopic(),
+            json_encode(['id' => $message->getRequestId()] + $event, \JSON_THROW_ON_ERROR),
         ));
     }
 
-    private function publishDone(string $topic): void
+    private function translate(string $key): string
     {
-        $this->hub->publish(new Update(
-            $topic,
-            json_encode(['type' => 'done'], \JSON_THROW_ON_ERROR),
-        ));
-    }
-
-    private function publishError(string $topic, string $error): void
-    {
-        $this->hub->publish(new Update(
-            $topic,
-            json_encode(['type' => 'error', 'error' => $error], \JSON_THROW_ON_ERROR),
-        ));
+        return $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN);
     }
 }

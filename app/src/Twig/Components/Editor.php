@@ -2,9 +2,13 @@
 
 namespace App\Twig\Components;
 
+use App\Ai\AiTopicResolver;
 use App\Ai\ApiKeyResolver;
 use App\Repository\ProviderRepository;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Mercure\Authorization;
+use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
@@ -15,6 +19,7 @@ final class Editor
 {
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.';
+    private const MERCURE_COOKIE_SET_ATTRIBUTE = '_editor_ai_mercure_cookie_set';
 
     public string $height = '400';
     public bool $readonly = false;
@@ -25,6 +30,10 @@ final class Editor
         private readonly StationContextInterface $stationContext,
         private readonly ApiKeyResolver $apiKeyResolver,
         private readonly ProviderRepository $providers,
+        private readonly RequestStack $requestStack,
+        private readonly AiTopicResolver $topicResolver,
+        private readonly Authorization $mercureAuthorization,
+        private readonly HubInterface $hub,
     ) {
     }
 
@@ -95,18 +104,36 @@ final class Editor
 
     /**
      * AI is offered only with a worker, a selected provider, and a key for it.
+     * The subscriber cookie is minted here, so the editor subscribes on display.
      *
-     * @return array{enabled: bool}
+     * @return array{enabled: bool, mercureUrl?: string, topic?: string}
      */
     #[ExposeInTemplate(name: 'ai_config')]
     public function getAiConfig(): array
     {
         $provider = $this->providers->findSelected();
+        $request = $this->requestStack->getMainRequest();
+
+        $enabled = $request !== null
+            && $this->stationContext->isAsyncWorker()
+            && $provider !== null
+            && $this->apiKeyResolver->resolve($provider->getName()) !== null;
+
+        if (!$enabled) {
+            return ['enabled' => false];
+        }
+
+        $topic = $this->topicResolver->resolve($request);
+        // Mercure refuses a second cookie in the same request: several editors on a page share one.
+        if (!$request->attributes->getBoolean(self::MERCURE_COOKIE_SET_ATTRIBUTE)) {
+            $this->mercureAuthorization->setCookie($request, [$topic]);
+            $request->attributes->set(self::MERCURE_COOKIE_SET_ATTRIBUTE, true);
+        }
 
         return [
-            'enabled' => $this->stationContext->isAsyncWorker()
-                && $provider !== null
-                && $this->apiKeyResolver->resolve($provider->getName()) !== null,
+            'enabled' => true,
+            'mercureUrl' => $this->hub->getPublicUrl(),
+            'topic' => $topic,
         ];
     }
 

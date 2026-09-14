@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Ai\AiAbortRegistry;
 use App\Ai\AiInstructionMessage;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Uid\Uuid;
 
 final class AiControllerTest extends WebTestCase
 {
@@ -15,12 +18,13 @@ final class AiControllerTest extends WebTestCase
      * The home page renders the Editor component which generates CSRF
      * tokens, setting the session. The token is then read from the container.
      *
-     * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
+     * @return array{0: KernelBrowser, 1: string}
      */
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
         $client->request('GET', '/');
+        $client->disableReboot();
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('ai')->getValue();
@@ -28,16 +32,25 @@ final class AiControllerTest extends WebTestCase
         return [$client, $csrfToken];
     }
 
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function post(KernelBrowser $client, string $uri, string $csrfToken, array $body = []): void
+    {
+        $client->request('POST', $uri, [], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode($body));
+    }
+
     public function testInstructRejectsInvalidCsrf(): void
     {
         $client = static::createClient();
-        $client->request('POST', '/ai/instruct', [], [], [
-            'HTTP_X-CSRF-TOKEN' => 'invalid',
-            'CONTENT_TYPE' => 'application/json',
-        ], json_encode([
+        $this->post($client, '/ai/instruct', 'invalid', [
+            'id' => Uuid::v4()->toRfc4122(),
             'instruction' => 'Improve writing',
             'document' => 'Hello',
-        ]));
+        ]);
 
         self::assertResponseStatusCodeSame(403);
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -48,50 +61,104 @@ final class AiControllerTest extends WebTestCase
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
-        $client->request('POST', '/ai/instruct', [], [], [
-            'HTTP_X-CSRF-TOKEN' => $csrfToken,
-            'CONTENT_TYPE' => 'application/json',
-        ], json_encode([
+        $this->post($client, '/ai/instruct', $csrfToken, [
+            'id' => Uuid::v4()->toRfc4122(),
             'instruction' => '',
             'document' => 'Hello',
-        ]));
+        ]);
 
         self::assertResponseStatusCodeSame(400);
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertArrayHasKey('error', $data);
     }
 
-    public function testInstructDispatchesMessageWithoutClientProviderOrModel(): void
+    public function testInstructRejectsInvalidRequestId(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
-        $client->disableReboot();
 
-        $client->request('POST', '/ai/instruct', [], [], [
-            'HTTP_X-CSRF-TOKEN' => $csrfToken,
-            'CONTENT_TYPE' => 'application/json',
-        ], json_encode([
-            // Ignored: the worker reads the selection from the database.
-            'provider' => 'openai',
-            'model' => 'gpt-4o-mini',
+        $this->post($client, '/ai/instruct', $csrfToken, [
+            'id' => 'not-a-uuid',
             'instruction' => 'Improve writing',
-            'document' => 'Hello world',
-            'selection' => 'Hello',
-        ]));
+        ]);
 
-        self::assertResponseIsSuccessful();
-        $topic = json_decode($client->getResponse()->getContent(), true)['topic'];
+        self::assertResponseStatusCodeSame(400);
+    }
 
-        /** @var InMemoryTransport $transport */
-        $transport = static::getContainer()->get('messenger.transport.async');
-        $sent = $transport->getSent();
-        self::assertCount(1, $sent);
+    public function testInstructDispatchesMessageOnSessionTopic(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $ids = [Uuid::v4()->toRfc4122(), Uuid::v4()->toRfc4122()];
 
-        $message = $sent[0]->getMessage();
-        self::assertInstanceOf(AiInstructionMessage::class, $message);
-        self::assertSame($topic, $message->getTopic());
-        self::assertSame('Improve writing', $message->getInstruction());
-        self::assertSame('Hello world', $message->getDocument());
-        self::assertSame('Hello', $message->getSelection());
+        // The in-memory transport is reset between requests: read it after each one.
+        $messages = [];
+        foreach ($ids as $id) {
+            $this->post($client, '/ai/instruct', $csrfToken, [
+                // Ignored: the worker reads the selection from the database.
+                'provider' => 'openai',
+                'model' => 'gpt-4o-mini',
+                'id' => $id,
+                'instruction' => 'Improve writing',
+                'document' => 'Hello world',
+                'selection' => 'Hello',
+            ]);
+            self::assertResponseStatusCodeSame(202);
+
+            /** @var InMemoryTransport $transport */
+            $transport = static::getContainer()->get('messenger.transport.async');
+            $sent = $transport->getSent();
+            self::assertCount(1, $sent);
+            $messages[] = $sent[0]->getMessage();
+        }
+
+        [$first, $second] = $messages;
+        self::assertInstanceOf(AiInstructionMessage::class, $first);
+        self::assertInstanceOf(AiInstructionMessage::class, $second);
+        self::assertSame($ids[0], $first->getRequestId());
+        self::assertSame($ids[1], $second->getRequestId());
+        self::assertStringStartsWith('ai/', $first->getTopic());
+        self::assertSame($first->getTopic(), $second->getTopic());
+        self::assertSame('Improve writing', $first->getInstruction());
+        self::assertSame('Hello world', $first->getDocument());
+        self::assertSame('Hello', $first->getSelection());
+    }
+
+    public function testSubscribeRejectsInvalidCsrf(): void
+    {
+        $client = static::createClient();
+        $this->post($client, '/ai/subscribe', 'invalid');
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testSubscribeSetsMercureCookie(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $this->post($client, '/ai/subscribe', $csrfToken);
+
+        self::assertResponseStatusCodeSame(204);
+        self::assertResponseHasCookie('mercureAuthorization', '/.well-known/mercure');
+    }
+
+    public function testAbortRejectsInvalidCsrf(): void
+    {
+        $client = static::createClient();
+        $this->post($client, '/ai/abort', 'invalid', ['id' => Uuid::v4()->toRfc4122()]);
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testAbortFlagsRequest(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $id = Uuid::v4()->toRfc4122();
+
+        $this->post($client, '/ai/abort', $csrfToken, ['id' => $id]);
+
+        self::assertResponseStatusCodeSame(204);
+        $registry = static::getContainer()->get(AiAbortRegistry::class);
+        self::assertTrue($registry->isAborted($id));
+        self::assertFalse($registry->isAborted(Uuid::v4()->toRfc4122()));
     }
 
     public function testConfigReturnsProviderStatus(): void

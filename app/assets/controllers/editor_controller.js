@@ -6,6 +6,9 @@ import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
 import { replaceAll } from '@milkdown/utils';
 
+// Below the 1-hour Mercure cookie lifetime, so a running generation is never cut.
+const AI_SUBSCRIPTION_MAX_AGE = 30 * 60 * 1000;
+
 export default class extends Controller {
     static values = {
         csrfToken: String,
@@ -64,6 +67,9 @@ export default class extends Controller {
     #scrollTarget = null;
     #onScroll = null;
     #printCopy = null;
+    #aiSource = null;
+    #aiSourceOpenedAt = 0;
+    #aiRequests = new Map();
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
 
@@ -168,6 +174,8 @@ export default class extends Controller {
                 // Crepe prefixes the message ("AI provider error: ..."); show the original one.
                 onError: (error) => this.#toast('error', error.cause?.message ?? error.message),
             });
+            // Subscribe on display with the cookie minted at render.
+            this.#openAiSource().catch((err) => console.error('Failed to subscribe to AI events:', err));
         }
 
         this.#crepe.on((listener) => {
@@ -268,6 +276,7 @@ export default class extends Controller {
         window.removeEventListener('beforeprint', this.#onBeforePrint);
         window.removeEventListener('afterprint', this.#onAfterPrint);
         this.#removePrintCopy();
+        this.#closeAiSource();
         this.#crepe?.destroy();
         this.#crepe = null;
     }
@@ -594,112 +603,162 @@ export default class extends Controller {
     /**
      * Creates the AIProvider that Crepe calls when the user triggers an AI action.
      *
-     * The provider posts the instruction to our Symfony endpoint, which dispatches
-     * a Messenger message and returns a Mercure topic. It then opens an EventSource
-     * on that topic and yields streamed chunks until "done" or "error".
+     * The editor is already subscribed to the session's Mercure topic (renewed here
+     * when needed), so no event can be published before we listen. Each request
+     * has its own id: the worker echoes it and events of other requests are ignored.
      */
     #createAIProvider() {
         return async function* aiProvider(context, signal) {
-            const response = await fetch('/ai/instruct', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': this.aiCsrfTokenValue,
-                },
-                body: JSON.stringify({
+            await this.#ensureAiSubscription();
+
+            const id = window.crypto.randomUUID();
+            const request = this.#createAiRequest(id);
+            let finished = false;
+
+            try {
+                const response = await this.#postAi('/ai/instruct', {
+                    id,
                     instruction: context.instruction,
                     document: context.document,
                     selection: context.selection,
-                }),
-            });
+                });
 
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || `AI request failed: ${response.status}`);
+                if (!response.ok) {
+                    finished = true;
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || `AI request failed: ${response.status}`);
+                }
+
+                while (true) {
+                    const payload = await request.next(signal);
+                    if (payload === null) {
+                        return;
+                    }
+
+                    if (payload.type === 'chunk') {
+                        yield payload.content;
+                    } else if (payload.type === 'done') {
+                        finished = true;
+                        return;
+                    } else if (payload.type === 'error') {
+                        // A lost connection leaves the worker running: let finally abort it.
+                        finished = !payload.connectionLost;
+                        throw new Error(payload.error || 'AI stream error');
+                    }
+                }
+            } finally {
+                this.#aiRequests.delete(id);
+                // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
+                if (!finished) {
+                    this.#postAi('/ai/abort', { id }).catch((err) => console.error('Failed to abort AI request:', err));
+                }
             }
-
-            const { topic } = await response.json();
-
-            // The Mercure hub URL comes from MERCURE_PUBLIC_URL, injected by the hub.
-            const mercureUrl = this.#mercureSubscribeUrl(topic);
-
-            yield* this.#streamFromMercure(mercureUrl, signal);
         }.bind(this);
     }
 
-    #mercureSubscribeUrl(topic) {
-        // The hub mounts Mercure at /.well-known/mercure on the app's own origin.
-        const base = window.location.origin + '/.well-known/mercure';
-        return base + '?topic=' + encodeURIComponent(topic);
-    }
-
-    async *#streamFromMercure(url, signal) {
-        const eventSource = new EventSource(url, { withCredentials: true });
-
-        try {
-            while (true) {
-                if (signal?.aborted) {
-                    eventSource.close();
-                    return;
-                }
-
-                const event = await this.#nextMercureEvent(eventSource, signal);
-                if (event === null) {
-                    return;
-                }
-
-                const payload = JSON.parse(event.data);
-                if (payload.type === 'chunk') {
-                    yield payload.content;
-                } else if (payload.type === 'done') {
-                    eventSource.close();
-                    return;
-                } else if (payload.type === 'error') {
-                    eventSource.close();
-                    throw new Error(payload.error || 'AI stream error');
-                }
-            }
-        } finally {
-            eventSource.close();
+    /**
+     * The hub closes a subscription when its cookie expires (1 hour) and a closed
+     * EventSource never retries, so renew it before a request once it gets old.
+     */
+    async #ensureAiSubscription() {
+        const isFresh = this.#aiSource?.readyState === EventSource.OPEN
+            && Date.now() - this.#aiSourceOpenedAt < AI_SUBSCRIPTION_MAX_AGE;
+        if (isFresh) {
+            return;
         }
+
+        const response = await this.#postAi('/ai/subscribe', {});
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `AI subscription failed: ${response.status}`);
+        }
+
+        await this.#openAiSource();
     }
 
-    #nextMercureEvent(eventSource, signal) {
+    /**
+     * Opens the EventSource on the session topic and resolves once the hub accepted it.
+     */
+    #openAiSource() {
+        this.#closeAiSource();
+
+        const url = new URL(this.aiConfigValue.mercureUrl);
+        url.searchParams.append('topic', this.aiConfigValue.topic);
+        const source = new EventSource(url, { withCredentials: true });
+        this.#aiSource = source;
+
+        source.addEventListener('message', (event) => {
+            const payload = JSON.parse(event.data);
+            this.#aiRequests.get(payload.id)?.push(payload);
+        });
+
         return new Promise((resolve, reject) => {
-            if (signal?.aborted) {
-                resolve(null);
-                return;
-            }
+            source.addEventListener('open', () => {
+                this.#aiSourceOpenedAt = Date.now();
+                resolve();
+            }, { once: true });
 
-            const onMessage = (event) => {
-                cleanup();
-                resolve(event);
-            };
-
-            const onError = () => {
-                cleanup();
-                // EventSource auto-reconnects; treat an error during abort as clean exit.
-                if (signal?.aborted) {
-                    resolve(null);
-                } else {
-                    reject(new Error('Mercure connection lost'));
+            source.addEventListener('error', () => {
+                // Transient errors reconnect on their own; only a closed source is lost.
+                if (source.readyState !== EventSource.CLOSED) {
+                    return;
                 }
-            };
 
-            const onAbort = () => {
-                cleanup();
-                resolve(null);
-            };
+                const error = 'Mercure connection lost';
+                reject(new Error(error));
+                this.#aiRequests.forEach((request) => request.push({ type: 'error', error, connectionLost: true }));
+            });
+        });
+    }
 
-            function cleanup() {
-                eventSource.removeEventListener('message', onMessage);
-                eventSource.removeEventListener('error', onError);
-                signal?.removeEventListener('abort', onAbort);
-            }
+    #closeAiSource() {
+        this.#aiSource?.close();
+        this.#aiSource = null;
+    }
 
-            eventSource.addEventListener('message', onMessage);
-            eventSource.addEventListener('error', onError);
-            signal?.addEventListener('abort', onAbort);
+    /**
+     * Queues the events of one request until the provider consumes them.
+     */
+    #createAiRequest(id) {
+        const events = [];
+        let wake = null;
+
+        const request = {
+            push: (payload) => {
+                events.push(payload);
+                wake?.();
+            },
+            next: async (signal) => {
+                while (events.length === 0) {
+                    if (signal?.aborted) {
+                        return null;
+                    }
+
+                    await new Promise((resolve) => {
+                        wake = resolve;
+                        signal?.addEventListener('abort', resolve, { once: true });
+                    });
+                    signal?.removeEventListener('abort', wake);
+                    wake = null;
+                }
+
+                return events.shift();
+            },
+        };
+
+        this.#aiRequests.set(id, request);
+
+        return request;
+    }
+
+    #postAi(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': this.aiCsrfTokenValue,
+            },
+            body: JSON.stringify(body),
         });
     }
 }

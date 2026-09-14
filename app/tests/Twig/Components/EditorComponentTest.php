@@ -2,6 +2,7 @@
 
 namespace App\Tests\Twig\Components;
 
+use App\Ai\AiTopicResolver;
 use App\Ai\ProviderName;
 use App\Entity\Provider;
 use App\Tests\Double\InMemorySecretStore;
@@ -10,6 +11,10 @@ use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Session\Session;
+use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Twig\Environment;
 
 final class EditorComponentTest extends KernelTestCase
@@ -71,16 +76,38 @@ final class EditorComponentTest extends KernelTestCase
 
     public function testAiEnabledWithSelectedProviderAndKey(): void
     {
+        $request = $this->configureAi(selected: ProviderName::Anthropic, secrets: ['anthropic' => 'key']);
+
+        $aiConfig = $this->renderAiConfig();
+
+        self::assertTrue($aiConfig['enabled']);
+        self::assertSame('http://localhost/.well-known/mercure', $aiConfig['mercureUrl']);
+        // Subscribed on display: the topic is the session's one.
+        self::assertSame(self::getContainer()->get(AiTopicResolver::class)->resolve($request), $aiConfig['topic']);
+    }
+
+    public function testTwoEditorsOnOnePageShareTheSubscription(): void
+    {
         $this->configureAi(selected: ProviderName::Anthropic, secrets: ['anthropic' => 'key']);
 
-        self::assertTrue($this->renderAiConfig()['enabled']);
+        $html = $this->twig()->createTemplate("{{ component('editor') }}{{ component('editor') }}")->render([]);
+        $editors = (new Crawler($html))->filter('div[data-controller="editor"]');
+
+        self::assertCount(2, $editors);
+        $topics = $editors->each(static fn (Crawler $editor): string => json_decode((string) $editor->attr('data-editor-ai-config-value'), true)['topic']);
+        self::assertSame($topics[0], $topics[1]);
     }
 
     /**
      * @param array<string, string> $secrets
      */
-    private function configureAi(?ProviderName $selected, array $secrets): void
+    private function configureAi(?ProviderName $selected, array $secrets): Request
     {
+        // Same host as the Mercure hub, so the subscriber cookie can be minted.
+        $request = Request::create('http://localhost/');
+        $request->setSession(new Session(new MockArraySessionStorage()));
+        self::getContainer()->get(RequestStack::class)->push($request);
+
         $stationContext = $this->createStub(StationContextInterface::class);
         $stationContext->method('isAsyncWorker')->willReturn(true);
         self::getContainer()->set(StationContextInterface::class, $stationContext);
@@ -93,6 +120,8 @@ final class EditorComponentTest extends KernelTestCase
             $entityManager->persist($provider);
         }
         $entityManager->flush();
+
+        return $request;
     }
 
     /**
