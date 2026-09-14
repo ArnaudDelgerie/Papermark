@@ -7,24 +7,24 @@
      style="height: {{ css_height }};">
     <div class="editor-file-bar">
         <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile">
-            {{ 'templates.home.index.editor.open'|trans({}, 'templates') }}
+            {{ 'components.editor.open'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>
-            {{ 'templates.home.index.editor.save'|trans({}, 'templates') }}
+            {{ 'components.editor.save'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>
-            {{ 'templates.home.index.editor.save_as'|trans({}, 'templates') }}
+            {{ 'components.editor.save_as'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled>
-            {{ 'templates.home.index.editor.print'|trans({}, 'templates') }}
+            {{ 'components.editor.print'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="a4Button" data-action="click->editor#toggleA4">
-            {{ 'templates.home.index.editor.full_width'|trans({}, 'templates') }}
+            {{ 'components.editor.full_width'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn editor-toggle-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly">
             {{ readonly
-                ? 'templates.home.index.editor.toggle.edit'|trans({}, 'templates')
-                : 'templates.home.index.editor.toggle.readonly'|trans({}, 'templates') }}
+                ? 'components.editor.toggle.edit'|trans({}, 'components')
+                : 'components.editor.toggle.readonly'|trans({}, 'components') }}
         </button>
     </div>
 </div>

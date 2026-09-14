@@ -10,8 +10,8 @@ use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
 #[AsTwigComponent('editor')]
 final class Editor
 {
-    private const TRANSLATION_DOMAIN = 'templates';
-    private const TRANSLATION_PREFIX = 'templates.home.index.editor.';
+    private const TRANSLATION_DOMAIN = 'components';
+    private const TRANSLATION_PREFIX = 'components.editor.';
 
     public string $height = '400';
     public bool $readonly = false;

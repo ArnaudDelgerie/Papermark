@@ -4,36 +4,3 @@ templates:
     home:
         index:
             title: Papermark
-            editor:
-                placeholder: Start writing…
-                open: Open
-                save: Save
-                save_as: Save as
-                print: Print
-                a4: A4
-                full_width: Full width
-                toggle:
-                    edit: Edit
-                    readonly: Read only
-                link:
-                    confirm: Confirm
-                    input_placeholder: Paste link…
-                slash_menu:
-                    text: Text
-                    paragraph: Text
-                    h1: Heading 1
-                    h2: Heading 2
-                    h3: Heading 3
-                    h4: Heading 4
-                    h5: Heading 5
-                    h6: Heading 6
-                    quote: Quote
-                    divider: Divider
-                    list: List
-                    bullet_list: Bullet List
-                    ordered_list: Ordered List
-                    task_list: Task List
-                    advanced: Advanced
-                    image: Image
-                    code: Code
-                    table: Table
