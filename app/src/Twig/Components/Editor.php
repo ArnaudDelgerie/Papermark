@@ -80,6 +80,17 @@ final class Editor
                 'savedAs' => $this->trans('toast.saved_as'),
                 'opened' => $this->trans('toast.opened'),
                 'copiedMarkdown' => $this->trans('toast.copied_markdown'),
+                'copyMarkdownFailed' => $this->trans('toast.copy_markdown_failed'),
+            ],
+            'ai' => [
+                'askAi' => $this->trans('ai.ask_ai'),
+                'instructionPlaceholder' => $this->trans('ai.instruction_placeholder'),
+                'suggestionsHeader' => $this->trans('ai.suggestions_header'),
+                'sendAsPromptHeader' => $this->trans('ai.send_as_prompt_header'),
+                'sendAsPrompt' => $this->trans('ai.send_as_prompt'),
+                'submitButton' => $this->trans('ai.submit_button'),
+                'listbox' => $this->trans('ai.listbox'),
+                'requestFailed' => $this->trans('error.ai_failed'),
             ],
         ];
     }

@@ -96,7 +96,7 @@ final class AiInstructionHandler
                     $delta = $update->getPayload();
                     if ($delta instanceof TextDelta) {
                         // Leaving the loop releases the HTTP response, which closes the provider connection.
-                        if ($this->abortRegistry->isAborted($message->getRequestId())) {
+                        if ($this->abortRegistry->isAborted($message->requestId)) {
                             return;
                         }
 
@@ -118,13 +118,13 @@ final class AiInstructionHandler
 
     private function buildUserMessage(AiInstructionMessage $message): string
     {
-        $parts = ["<document>\n{$message->getDocument()}\n</document>"];
+        $parts = ["<document>\n{$message->document}\n</document>"];
 
-        if ($message->getSelection() !== '') {
-            $parts[] = "<selection>\n{$message->getSelection()}\n</selection>";
+        if ($message->selection !== '') {
+            $parts[] = "<selection>\n{$message->selection}\n</selection>";
         }
 
-        $parts[] = "<instruction>\n{$message->getInstruction()}\n</instruction>";
+        $parts[] = "<instruction>\n{$message->instruction}\n</instruction>";
 
         return implode("\n\n", $parts);
     }
@@ -146,8 +146,8 @@ final class AiInstructionHandler
     private function publish(AiInstructionMessage $message, array $event): void
     {
         $this->hub->publish(new Update(
-            $message->getTopic(),
-            json_encode(['id' => $message->getRequestId()] + $event, \JSON_THROW_ON_ERROR),
+            $message->topic,
+            json_encode(['id' => $message->requestId] + $event, \JSON_THROW_ON_ERROR),
         ));
     }
 

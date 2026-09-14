@@ -67,9 +67,7 @@ final class AiControllerTest extends WebTestCase
             'document' => 'Hello',
         ]);
 
-        self::assertResponseStatusCodeSame(400);
-        $data = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('error', $data);
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testInstructRejectsInvalidRequestId(): void
@@ -81,7 +79,7 @@ final class AiControllerTest extends WebTestCase
             'instruction' => 'Improve writing',
         ]);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testInstructDispatchesMessageOnSessionTopic(): void
@@ -113,13 +111,13 @@ final class AiControllerTest extends WebTestCase
         [$first, $second] = $messages;
         self::assertInstanceOf(AiInstructionMessage::class, $first);
         self::assertInstanceOf(AiInstructionMessage::class, $second);
-        self::assertSame($ids[0], $first->getRequestId());
-        self::assertSame($ids[1], $second->getRequestId());
-        self::assertStringStartsWith('ai/', $first->getTopic());
-        self::assertSame($first->getTopic(), $second->getTopic());
-        self::assertSame('Improve writing', $first->getInstruction());
-        self::assertSame('Hello world', $first->getDocument());
-        self::assertSame('Hello', $first->getSelection());
+        self::assertSame($ids[0], $first->requestId);
+        self::assertSame($ids[1], $second->requestId);
+        self::assertStringStartsWith('ai/', $first->topic);
+        self::assertSame($first->topic, $second->topic);
+        self::assertSame('Improve writing', $first->instruction);
+        self::assertSame('Hello world', $first->document);
+        self::assertSame('Hello', $first->selection);
     }
 
     public function testSubscribeRejectsInvalidCsrf(): void
@@ -159,19 +157,5 @@ final class AiControllerTest extends WebTestCase
         $registry = static::getContainer()->get(AiAbortRegistry::class);
         self::assertTrue($registry->isAborted($id));
         self::assertFalse($registry->isAborted(Uuid::v4()->toRfc4122()));
-    }
-
-    public function testConfigReturnsProviderStatus(): void
-    {
-        $client = static::createClient();
-        $client->request('GET', '/ai/config');
-
-        self::assertResponseIsSuccessful();
-        $data = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('enabled', $data);
-        self::assertArrayHasKey('providers', $data);
-        self::assertArrayHasKey('openai', $data['providers']);
-        self::assertArrayHasKey('anthropic', $data['providers']);
-        self::assertArrayHasKey('mistral', $data['providers']);
     }
 }

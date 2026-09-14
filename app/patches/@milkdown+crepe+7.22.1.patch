@@ -1,0 +1,49 @@
+diff --git a/node_modules/@milkdown/crepe/lib/esm/feature/ai/index.js b/node_modules/@milkdown/crepe/lib/esm/feature/ai/index.js
+index 5d6b02a..726aa6d 100644
+--- a/node_modules/@milkdown/crepe/lib/esm/feature/ai/index.js
++++ b/node_modules/@milkdown/crepe/lib/esm/feature/ai/index.js
+@@ -8,6 +8,20 @@ import { $ctx, $command, $prose } from '@milkdown/kit/utils';
+ import { TextSelection, PluginKey, Plugin } from '@milkdown/kit/prose/state';
+ import DOMPurify from 'dompurify';
+ import { TooltipProvider, tooltipFactory } from '@milkdown/kit/plugin/tooltip';
++// Papermark patch: Floating UI is a dependency of @milkdown/plugin-tooltip, hoisted by npm.
++import { shift, size } from '@floating-ui/dom';
++
++// Papermark patch: one `.milkdown` container under body, so the theme rules and
++// variables (all scoped under `.milkdown`) still apply to the relocated tooltip.
++function aiInstructionTooltipRoot() {
++  let root = document.body.querySelector(":scope > .milkdown-ai-instruction-root");
++  if (!root) {
++    root = document.createElement("div");
++    root.className = "milkdown milkdown-ai-instruction-root";
++    document.body.appendChild(root);
++  }
++  return root;
++}
+ import { posToDOMRect } from '@milkdown/kit/prose';
+ import { defineComponent, ref, watch, computed, h, nextTick, createApp } from 'vue';
+ import { Icon } from '@milkdown/kit/component';
+@@ -1194,7 +1208,22 @@ class AIInstructionTooltipView {
+       shouldShow: () => __privateGet$1(this, _wantsShow),
+       floatingUIOptions: {
+         placement: "bottom"
+-      }
++      },
++      // Papermark patch: render outside the editor's overflow container, keep the
++      // tooltip inside the viewport on both axes and cap its height to the space left.
++      root: aiInstructionTooltipRoot(),
++      middleware: [
++        shift({ crossAxis: true, padding: 8 }),
++        size({
++          padding: 8,
++          apply({ availableHeight, elements }) {
++            Object.assign(elements.floating.style, {
++              maxHeight: `${Math.max(0, availableHeight)}px`,
++              overflowY: "auto"
++            });
++          }
++        })
++      ]
+     }));
+     __privateGet$1(this, _provider).onHide = () => {
+       __privateSet$1(this, _wantsShow, false);

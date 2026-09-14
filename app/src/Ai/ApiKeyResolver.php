@@ -4,54 +4,42 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
+use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\BridgeException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Psr\Log\LoggerInterface;
 
 /**
- * Resolves the API key for a given provider.
+ * Resolves the API key of a provider from the TFSApp keyring.
  *
- * Primary source is the TFSApp keyring (bridge SecretStore). When the bridge is
- * unavailable — dev outside the hub — falls back to an env var (<PROVIDER>_API_KEY
- * in .env.local). Returns null when neither source has a key, so the caller can
- * signal "not configured" rather than throwing.
+ * Returns null when the key is not set, and also when the keyring fails: the
+ * editor then just offers no AI, and the failure is logged.
  */
 final class ApiKeyResolver
 {
     public function __construct(
         private readonly SecretStoreInterface $secretStore,
-        #[Autowire('%env(default::OPENAI_API_KEY)%')]
-        private readonly ?string $openaiFallback = '',
-        #[Autowire('%env(default::ANTHROPIC_API_KEY)%')]
-        private readonly ?string $anthropicFallback = '',
-        #[Autowire('%env(default::MISTRAL_API_KEY)%')]
-        private readonly ?string $mistralFallback = '',
+        private readonly LoggerInterface $logger,
     ) {
     }
 
-    /**
-     * Returns the API key for the provider, or null if not configured anywhere.
-     */
     public function resolve(ProviderName $provider): ?string
     {
-        // Try the keyring first — the hub's bridge transport.
-        if ($this->secretStore->isAvailable()) {
-            try {
-                $key = $this->secretStore->get($provider->value);
-                if (\is_string($key) && $key !== '') {
-                    return $key;
-                }
-            } catch (\Throwable) {
-                // Bridge declared but group not enabled, or key not declared — fall through.
-            }
+        if (!$this->secretStore->isAvailable()) {
+            return null;
         }
 
-        // Fall back to env (.env.local in dev, secrets vault in prod).
-        $fallback = match ($provider) {
-            ProviderName::OpenAi => $this->openaiFallback ?? '',
-            ProviderName::Anthropic => $this->anthropicFallback ?? '',
-            ProviderName::Mistral => $this->mistralFallback ?? '',
-        };
+        try {
+            $key = $this->secretStore->get($provider->value);
+        } catch (BridgeException $e) {
+            $this->logger->error('Could not read the {provider} API key from the keyring: {message}', [
+                'provider' => $provider->value,
+                'message' => $e->getMessage(),
+                'exception' => $e,
+            ]);
 
-        return $fallback !== '' ? $fallback : null;
+            return null;
+        }
+
+        return $key !== null && $key !== '' ? $key : null;
     }
 }

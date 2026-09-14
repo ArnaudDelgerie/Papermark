@@ -52,6 +52,17 @@ export default class extends Controller {
                     savedAs: 'File saved as {name}',
                     opened: 'File opened',
                     copiedMarkdown: 'Markdown copied to clipboard',
+                    copyMarkdownFailed: 'Failed to copy markdown',
+                },
+                ai: {
+                    askAi: 'Ask AI',
+                    instructionPlaceholder: 'Tell AI what to do with the selection…',
+                    suggestionsHeader: 'SUGGESTIONS',
+                    sendAsPromptHeader: 'SEND AS PROMPT',
+                    sendAsPrompt: 'Ask AI:',
+                    submitButton: 'Send prompt',
+                    listbox: 'AI suggestions',
+                    requestFailed: 'The AI request failed',
                 },
             },
         },
@@ -149,7 +160,7 @@ export default class extends Controller {
                             const more = builder.getGroup('more');
                             more.addItem('ai', {
                                 icon: defaultAIIcon,
-                                label: 'Ask AI',
+                                label: this.i18nValue.ai.askAi,
                                 active: () => false,
                                 onRun: (ctx) => {
                                     const api = ctx.get('aiInstructionTooltipAPI');
@@ -171,6 +182,12 @@ export default class extends Controller {
         if (this.#isAiEnabled()) {
             this.#crepe.addFeature(aiFeature, {
                 provider: this.#createAIProvider(),
+                instructionPlaceholder: this.i18nValue.ai.instructionPlaceholder,
+                suggestionsHeaderLabel: this.i18nValue.ai.suggestionsHeader,
+                sendAsPromptHeaderLabel: this.i18nValue.ai.sendAsPromptHeader,
+                sendAsPromptLabel: this.i18nValue.ai.sendAsPrompt,
+                submitButtonLabel: this.i18nValue.ai.submitButton,
+                listboxLabel: this.i18nValue.ai.listbox,
                 // Crepe prefixes the message ("AI provider error: ..."); show the original one.
                 onError: (error) => this.#toast('error', error.cause?.message ?? error.message),
             });
@@ -196,7 +213,7 @@ export default class extends Controller {
             }));
         });
 
-        this.#crepe.create().then(() => this.#relocateAiTooltip());
+        this.#crepe.create();
 
         window.addEventListener('beforeprint', this.#onBeforePrint);
         window.addEventListener('afterprint', this.#onAfterPrint);
@@ -395,7 +412,7 @@ export default class extends Controller {
             this.#toast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
         } catch (err) {
             console.error('Failed to copy markdown:', err);
-            this.#toast('error', 'Failed to copy markdown');
+            this.#toast('error', this.i18nValue.toast.copyMarkdownFailed);
         }
     }
 
@@ -564,43 +581,6 @@ export default class extends Controller {
     }
 
     /**
-     * Moves the AI instruction tooltip from the editor's scroll container
-     * to document.body so Floating UI's shift() middleware uses the viewport
-     * as its boundary instead of the .milkdown overflow:hidden container.
-     * Without this the tooltip can appear under the TopBar or off-screen.
-     *
-     * The `milkdown` class is added to the relocated element so the Crepe
-     * theme's `.milkdown .ai-instruction-*` descendant selectors still apply.
-     * The `.milkdown-ai-instruction`-level styles are overridden in
-     * ai-tooltip.css since those selectors require a .milkdown ancestor.
-     */
-    #relocateAiTooltip() {
-        if (!this.#isAiEnabled()) {
-            return;
-        }
-        const tooltip = this.element.querySelector('.milkdown-ai-instruction');
-        if (!tooltip) {
-            return;
-        }
-        tooltip.classList.add('milkdown');
-        document.body.append(tooltip);
-
-        // Floating UI's flip() can switch placement to "top" when the
-        // selection covers the whole document, and shift() (without padding)
-        // doesn't fully correct the resulting negative top. Clamp it so the
-        // tooltip never escapes the viewport.
-        new MutationObserver(() => {
-            if (tooltip.dataset.show !== 'true') {
-                return;
-            }
-            const top = parseFloat(tooltip.style.top);
-            if (!isNaN(top) && top < 8) {
-                tooltip.style.top = '8px';
-            }
-        }).observe(tooltip, { attributes: true, attributeFilter: ['style'] });
-    }
-
-    /**
      * Creates the AIProvider that Crepe calls when the user triggers an AI action.
      *
      * The editor is already subscribed to the session's Mercure topic (renewed here
@@ -626,7 +606,7 @@ export default class extends Controller {
                 if (!response.ok) {
                     finished = true;
                     const data = await response.json().catch(() => ({}));
-                    throw new Error(data.error || `AI request failed: ${response.status}`);
+                    throw new Error(data.error || this.i18nValue.ai.requestFailed);
                 }
 
                 while (true) {
@@ -643,7 +623,7 @@ export default class extends Controller {
                     } else if (payload.type === 'error') {
                         // A lost connection leaves the worker running: let finally abort it.
                         finished = !payload.connectionLost;
-                        throw new Error(payload.error || 'AI stream error');
+                        throw new Error(payload.error || this.i18nValue.ai.requestFailed);
                     }
                 }
             } finally {
@@ -670,7 +650,7 @@ export default class extends Controller {
         const response = await this.#postAi('/ai/subscribe', {});
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || `AI subscription failed: ${response.status}`);
+            throw new Error(data.error || this.i18nValue.ai.requestFailed);
         }
 
         await this.#openAiSource();
@@ -704,7 +684,7 @@ export default class extends Controller {
                     return;
                 }
 
-                const error = 'Mercure connection lost';
+                const error = this.i18nValue.ai.requestFailed;
                 reject(new Error(error));
                 this.#aiRequests.forEach((request) => request.push({ type: 'error', error, connectionLost: true }));
             });
