@@ -1,0 +1,156 @@
+/* Document typography, shared by the editor body (.ProseMirror.document)
+   and the print copy (.print-copy.document). Screen A4 mode and print read
+   the same values, so the sheet on screen matches the PDF. */
+
+:root {
+    --doc-font-size: 11pt;
+    --doc-line-height: 1.4;
+    --doc-page-width: 21cm;
+    --doc-page-height: 29.7cm;
+
+    /* Side margins only in print, see print.css. */
+    --doc-page-margin: 2cm;
+    --doc-font-body: "Noto Sans", arial, helvetica, sans-serif;
+    --doc-font-title: "Noto Serif", cambria, "Times New Roman", times, serif;
+    --doc-font-code: "Space Mono", "Fira Code", menlo, monaco, "Courier New", monospace;
+
+    /* Derived from the text color, so they work on dark screen and white paper. */
+    --doc-rule-color: color-mix(in srgb, currentcolor 25%, transparent);
+    --doc-code-bg: color-mix(in srgb, currentcolor 7%, transparent);
+}
+
+.document {
+    font-family: var(--doc-font-body);
+    font-size: var(--doc-font-size);
+    line-height: var(--doc-line-height);
+}
+
+.document > :first-child {
+    margin-top: 0;
+}
+
+.document :is(h1, h2, h3, h4, h5, h6) {
+    margin: 1.2em 0 0.4em;
+    padding: 0;
+    font-family: var(--doc-font-title);
+    font-weight: 400;
+    line-height: 1.25;
+}
+
+.document h1 {
+    font-size: 1.6em;
+}
+
+.document h2 {
+    font-size: 1.35em;
+}
+
+.document h3 {
+    font-size: 1.15em;
+}
+
+.document :is(h4, h5, h6) {
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.document p {
+    margin: 0 0 0.6em;
+    padding: 0;
+    line-height: var(--doc-line-height);
+}
+
+.document li p {
+    margin: 0.15em 0;
+}
+
+.document code {
+    padding: 0 0.2em;
+    border-radius: 3px;
+    background: var(--doc-code-bg);
+    font-family: var(--doc-font-code);
+    font-size: 0.9em;
+}
+
+.document blockquote {
+    margin: 0.6em 0;
+    padding: 0 0 0 1em;
+    border-left: 3px solid var(--doc-rule-color);
+}
+
+/* Crepe draws the quote bar with a pseudo-element; the border above replaces it. */
+.document blockquote::before {
+    content: none;
+}
+
+.document hr {
+    height: 0;
+    margin: 1em 0;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--doc-rule-color);
+    background: none;
+}
+
+.document table {
+    border-collapse: collapse;
+    margin: 0.6em 0;
+}
+
+.document :is(th, td) {
+    padding: 0.25em 0.6em;
+    border: 1px solid var(--doc-rule-color);
+    text-align: left;
+    vertical-align: top;
+}
+
+.document :is(th, td) p {
+    margin: 0;
+}
+
+/* Serialized HTML only: in the editor these nodes are Crepe node views
+   with their own markup. */
+
+.print-copy :is(ul, ol) {
+    margin: 0 0 0.6em;
+    padding-left: 1.5em;
+}
+
+.print-copy li[data-checked] {
+    position: relative;
+    list-style: none;
+}
+
+.print-copy li[data-checked]::before {
+    content: "☐";
+    position: absolute;
+    left: -1.4em;
+}
+
+.print-copy li[data-checked="true"]::before {
+    content: "☑";
+}
+
+.print-copy pre {
+    margin: 0.6em 0;
+    padding: 0.6em 0.8em;
+    border-radius: 3px;
+    background: var(--doc-code-bg);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.print-copy pre code {
+    padding: 0;
+    background: none;
+}
+
+.print-copy img {
+    max-width: 100%;
+    height: auto;
+}
+
+.print-copy a {
+    color: inherit;
+    text-decoration: underline;
+}

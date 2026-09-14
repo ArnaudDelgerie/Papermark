@@ -1,0 +1,46 @@
+/* Print: the editor controller mounts a serialized copy of the document
+   (.print-copy) as a direct child of <body> around printing. Only that copy
+   is printed, whatever the rest of the page looks like. */
+
+/* WebKitGTK always prints inside the GTK page setup margins (6.35mm by
+   default) and scales the @page content area to fit them. Matching that
+   value keeps the scale at 1; the side margins come from padding below.
+   Top/bottom margins between pages stay at the GTK value. */
+@page {
+    size: a4;
+    margin: 6.35mm;
+}
+
+.print-copy {
+    display: none;
+}
+
+@media print {
+    body {
+        background: #fff;
+    }
+
+    body > :not(.print-copy) {
+        display: none;
+    }
+
+    .print-copy {
+        display: block;
+        padding-inline: calc(var(--doc-page-margin) - 6.35mm);
+        color: #000;
+        background: #fff;
+    }
+
+    .print-copy p {
+        orphans: 2;
+        widows: 2;
+    }
+
+    .print-copy :is(h1, h2, h3, h4, h5, h6) {
+        break-after: avoid;
+    }
+
+    .print-copy :is(pre, blockquote, img, tr, li) {
+        break-inside: avoid;
+    }
+}

@@ -10,6 +10,8 @@ templates:
                 save: Save
                 save_as: Save as
                 print: Print
+                a4: A4
+                full_width: Full width
                 toggle:
                     edit: Edit
                     readonly: Read only

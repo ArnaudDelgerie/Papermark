@@ -1,5 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
+import { EditorStatus, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
+import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
 import { replaceAll } from '@milkdown/utils';
 
@@ -14,6 +16,8 @@ export default class extends Controller {
                 placeholder: 'Start writing…',
                 link: { confirm: 'Confirm', inputPlaceholder: 'Paste link…' },
                 toggle: { edit: 'Edit', readonly: 'Read only' },
+                a4: 'A4',
+                full_width: 'Full width',
                 slashMenu: {
                     text: 'Text',
                     paragraph: 'Text',
@@ -38,17 +42,22 @@ export default class extends Controller {
         },
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'toggleButton'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'a4Button', 'toggleButton'];
 
     #crepe = null;
     #currentPath = null;
     #isReadonly = false;
+    #isA4 = true;
     #lastScrollTop = 0;
     #scrollTarget = null;
     #onScroll = null;
+    #printCopy = null;
+    #onBeforePrint = () => this.#mountPrintCopy();
+    #onAfterPrint = () => this.#removePrintCopy();
 
     connect() {
         this.#isReadonly = this.readonlyValue;
+        this.#isA4 = this.element.classList.contains('is-a4');
         this.#crepe = new Crepe({
             root: this.element,
             defaultValue: '',
@@ -135,7 +144,18 @@ export default class extends Controller {
             });
         });
 
+        // Shared typography with the print copy, see styles/document.css.
+        this.#crepe.editor.config((ctx) => {
+            ctx.update(editorViewOptionsCtx, (prev) => ({
+                ...prev,
+                attributes: { class: 'document' },
+            }));
+        });
+
         this.#crepe.create();
+
+        window.addEventListener('beforeprint', this.#onBeforePrint);
+        window.addEventListener('afterprint', this.#onAfterPrint);
 
         if (this.#isReadonly) {
             this.#applyReadonlyState();
@@ -145,11 +165,28 @@ export default class extends Controller {
 
         this.#updateSaveButton('');
         this.#updatePrintButton('');
+
+        if (this.hasA4ButtonTarget) {
+            this.a4ButtonTarget.textContent = this.#isA4
+                ? this.i18nValue.full_width ?? 'Full width'
+                : this.i18nValue.a4 ?? 'A4';
+        }
     }
 
     toggleReadonly() {
         this.#isReadonly = !this.#isReadonly;
         this.#applyReadonlyState();
+    }
+
+    toggleA4() {
+        this.#isA4 = !this.#isA4;
+        this.element.classList.toggle('is-a4', this.#isA4);
+
+        if (this.hasA4ButtonTarget) {
+            this.a4ButtonTarget.textContent = this.#isA4
+                ? this.i18nValue.full_width ?? 'Full width'
+                : this.i18nValue.a4 ?? 'A4';
+        }
     }
 
     #applyReadonlyState() {
@@ -159,14 +196,14 @@ export default class extends Controller {
         }
 
         if (this.#isReadonly) {
-            this.element.classList.add('editor-readonly');
-            this.element.classList.remove('top-bar-hidden');
+            this.element.classList.add('is-readonly');
+            this.element.classList.remove('is-toolbar-hidden');
             if (this.#scrollTarget && this.#onScroll) {
                 this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
                 this.#scrollTarget = null;
             }
         } else {
-            this.element.classList.remove('editor-readonly');
+            this.element.classList.remove('is-readonly');
             this.#setupScrollHide();
         }
 
@@ -192,6 +229,9 @@ export default class extends Controller {
         if (this.#scrollTarget && this.#onScroll) {
             this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
         }
+        window.removeEventListener('beforeprint', this.#onBeforePrint);
+        window.removeEventListener('afterprint', this.#onAfterPrint);
+        this.#removePrintCopy();
         this.#crepe?.destroy();
         this.#crepe = null;
     }
@@ -288,12 +328,36 @@ export default class extends Controller {
     }
 
     printFile() {
-        const prosemirror = this.element.querySelector('.ProseMirror');
-        if (prosemirror) {
-            prosemirror.blur();
+        // beforeprint also mounts it; mounting here too doesn't rely on the
+        // webview firing that event for a scripted print.
+        this.#mountPrintCopy();
+        window.print();
+    }
+
+    /**
+     * Prints a serialized copy of the document instead of the editor DOM:
+     * schema toDOM output (plain h1/p/ul/pre/table/img), none of Crepe's
+     * node views or controls. See styles/print.css.
+     */
+    #mountPrintCopy() {
+        const editor = this.#crepe?.editor;
+        if (!editor || editor.status !== EditorStatus.Created) {
+            return;
         }
 
-        setTimeout(() => window.print(), 50);
+        this.#removePrintCopy();
+
+        const { state } = editor.ctx.get(editorViewCtx);
+        const copy = document.createElement('div');
+        copy.className = 'print-copy document';
+        copy.append(DOMSerializer.fromSchema(state.schema).serializeFragment(state.doc.content));
+        document.body.append(copy);
+        this.#printCopy = copy;
+    }
+
+    #removePrintCopy() {
+        this.#printCopy?.remove();
+        this.#printCopy = null;
     }
 
     #setupScrollHide() {
@@ -303,11 +367,11 @@ export default class extends Controller {
             }
             const scrollTop = this.#scrollTarget.scrollTop;
             if (scrollTop <= 0) {
-                this.element.classList.remove('top-bar-hidden');
+                this.element.classList.remove('is-toolbar-hidden');
             } else if (scrollTop > this.#lastScrollTop + 4) {
-                this.element.classList.add('top-bar-hidden');
+                this.element.classList.add('is-toolbar-hidden');
             } else if (scrollTop < this.#lastScrollTop - 4) {
-                this.element.classList.remove('top-bar-hidden');
+                this.element.classList.remove('is-toolbar-hidden');
             }
             this.#lastScrollTop = scrollTop;
         };

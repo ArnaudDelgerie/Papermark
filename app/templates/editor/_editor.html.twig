@@ -1,6 +1,7 @@
 {% set height = height|default(400) %}
 {% set readonly = readonly|default(false) %}
 <div data-controller="editor"
+     class="editor is-a4"
      data-editor-csrf-token-value="{{ csrf_token('upload') }}"
      data-editor-file-csrf-token-value="{{ csrf_token('file') }}"
      {% if readonly %}data-editor-readonly-value="true"{% endif %}
@@ -14,6 +15,8 @@
         edit: 'templates.home.index.editor.toggle.edit'|trans({}, 'templates'),
         readonly: 'templates.home.index.editor.toggle.readonly'|trans({}, 'templates'),
     },
+    a4: 'templates.home.index.editor.a4'|trans({}, 'templates'),
+    full_width: 'templates.home.index.editor.full_width'|trans({}, 'templates'),
     slashMenu: {
         text: 'templates.home.index.editor.slash_menu.text'|trans({}, 'templates'),
         paragraph: 'templates.home.index.editor.slash_menu.paragraph'|trans({}, 'templates'),
@@ -34,7 +37,7 @@
         code: 'templates.home.index.editor.slash_menu.code'|trans({}, 'templates'),
         table: 'templates.home.index.editor.slash_menu.table'|trans({}, 'templates'),
     },
-}|json_encode }}" style="height: {{ height }}px;">
+}|json_encode }}" style="height: {% if height matches '/^\\d+$/' %}{{ height }}px{% else %}{{ height }}{% endif %};">
     <div class="editor-file-bar">
         <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile">
             {{ 'templates.home.index.editor.open'|trans({}, 'templates') }}
@@ -47,6 +50,9 @@
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled>
             {{ 'templates.home.index.editor.print'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="a4Button" data-action="click->editor#toggleA4">
+            {{ 'templates.home.index.editor.full_width'|trans({}, 'templates') }}
         </button>
         <button type="button" class="editor-filebar-btn editor-toggle-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly">
             {{ readonly

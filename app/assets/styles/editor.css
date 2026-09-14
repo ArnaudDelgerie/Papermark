@@ -1,0 +1,122 @@
+/* Editor on screen: file bar, Crepe top bar, body scroll container, A4 sheet.
+   State classes on .editor only change variables where possible. */
+
+.editor {
+    --toolbar-height: 44px;
+    --toolbar-offset: var(--toolbar-height);
+
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--color-surface);
+}
+
+.editor:is(.is-toolbar-hidden, .is-readonly) {
+    --toolbar-offset: 0px;
+}
+
+/* File bar ---------------------------------------------------------------- */
+
+.editor-file-bar {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.editor-toggle-btn {
+    margin-left: auto;
+}
+
+.editor-filebar-btn {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.editor-filebar-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.editor-filebar-btn:hover:not(:disabled) {
+    background: var(--color-border);
+}
+
+/* Crepe ------------------------------------------------------------------- */
+
+.editor .milkdown {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Overlaid above the scroll area so collapsing it never changes the editor
+   height (prevents scroll feedback loops). */
+.editor .milkdown-top-bar {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 10;
+    min-height: var(--toolbar-height);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.editor:is(.is-toolbar-hidden, .is-readonly) .milkdown-top-bar {
+    transform: translateY(-100%);
+    border-color: transparent;
+}
+
+.editor:is(.is-a4, .is-readonly) .milkdown-block-handle {
+    display: none;
+}
+
+.editor .ProseMirror {
+    /* Scales Crepe node views (code blocks, captions) with the document text. */
+    --crepe-base-font-size: var(--doc-font-size);
+
+    flex: 1;
+    overflow-y: auto;
+    padding: calc(var(--toolbar-offset) + var(--space-3)) var(--space-5) var(--space-4);
+}
+
+/* Align list bullets with the first line of the tighter document text. */
+.editor .milkdown-list-item-block li .label-wrapper,
+.editor .milkdown-list-item-block li .label-wrapper .label {
+    height: calc(var(--doc-font-size) * var(--doc-line-height));
+    padding: 0;
+}
+
+/* A4 sheet: centered page on a darker desk, faint line at each page height.
+   Approximate: page breaks on paper also add top/bottom margins. */
+
+.editor.is-a4 .milkdown {
+    background: var(--color-page);
+}
+
+.editor.is-a4 .ProseMirror {
+    width: 100%;
+    max-width: var(--doc-page-width);
+    margin-inline: auto;
+    padding: calc(var(--toolbar-offset) + var(--space-3)) var(--doc-page-margin) var(--doc-page-margin);
+    background-color: var(--color-surface);
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(var(--doc-page-height) - 1px),
+        rgb(255 255 255 / 6%) calc(var(--doc-page-height) - 1px),
+        rgb(255 255 255 / 6%) var(--doc-page-height)
+    );
+    background-attachment: local;
+}
