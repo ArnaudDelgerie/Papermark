@@ -13,17 +13,21 @@ use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class UploadController extends AbstractController
 {
     private const IMAGES_DIR = 'images';
     private const ALLOWED_MIME_PREFIX = 'image/';
     private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
+    private const TRANSLATION_DOMAIN = 'components';
+    private const TRANSLATION_PREFIX = 'components.editor.error.';
 
     public function __construct(
         #[Autowire('%env(APP_UPLOAD_DIR)%')]
         private readonly string $uploadDir,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -32,37 +36,37 @@ final class UploadController extends AbstractController
     {
         $csrfToken = $request->headers->get('X-CSRF-TOKEN');
         if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('upload', $csrfToken))) {
-            return new JsonResponse(['error' => 'invalid_csrf'], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $file = $request->files->get('file');
         if (!$file instanceof UploadedFile || !$file->isValid()) {
-            return new JsonResponse(['error' => 'no_file'], Response::HTTP_BAD_REQUEST);
+            return $this->errorResponse('no_file', Response::HTTP_BAD_REQUEST);
         }
 
         if ($file->getSize() > self::MAX_FILE_SIZE) {
-            return new JsonResponse(['error' => 'file_too_large'], Response::HTTP_REQUEST_ENTITY_TOO_LARGE);
+            return $this->errorResponse('file_too_large', Response::HTTP_REQUEST_ENTITY_TOO_LARGE);
         }
 
         $mimeType = $file->getMimeType();
         if (!\is_string($mimeType) || !str_starts_with($mimeType, self::ALLOWED_MIME_PREFIX)) {
-            return new JsonResponse(['error' => 'not_an_image'], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            return $this->errorResponse('not_an_image', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
         $extension = $this->getExtensionForMime($mimeType);
         if ($extension === null) {
-            return new JsonResponse(['error' => 'unsupported_image_type'], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            return $this->errorResponse('unsupported_image_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
         $hash = sha1_file($file->getRealPath());
         if ($hash === false) {
-            return new JsonResponse(['error' => 'read_error'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->errorResponse('read_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         $subdir = substr($hash, 0, 2);
         $targetDir = $this->uploadDir . '/' . self::IMAGES_DIR . '/' . $subdir;
         if (!is_dir($targetDir) && !mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
-            return new JsonResponse(['error' => 'storage_error'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->errorResponse('storage_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         $filename = $hash . '.' . $extension;
@@ -83,7 +87,7 @@ final class UploadController extends AbstractController
         $path = $this->uploadDir . '/' . self::IMAGES_DIR . '/' . $subdir . '/' . $filename;
 
         if (!is_file($path)) {
-            return new JsonResponse(['error' => 'not_found'], Response::HTTP_NOT_FOUND);
+            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         $mimeTypes = MimeTypes::getDefault();
@@ -115,25 +119,25 @@ final class UploadController extends AbstractController
     {
         $csrfToken = $request->headers->get('X-CSRF-TOKEN');
         if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('upload', $csrfToken))) {
-            return new JsonResponse(['error' => 'invalid_csrf'], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $url = $request->request->get('url');
         if (!\is_string($url)) {
-            return new JsonResponse(['error' => 'no_url'], Response::HTTP_BAD_REQUEST);
+            return $this->errorResponse('no_url', Response::HTTP_BAD_REQUEST);
         }
 
         $path = $this->resolvePathFromUrl($url);
         if ($path === null) {
-            return new JsonResponse(['error' => 'invalid_url'], Response::HTTP_BAD_REQUEST);
+            return $this->errorResponse('invalid_url', Response::HTTP_BAD_REQUEST);
         }
 
         if (!is_file($path)) {
-            return new JsonResponse(['error' => 'not_found'], Response::HTTP_NOT_FOUND);
+            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         if (!unlink($path)) {
-            return new JsonResponse(['error' => 'delete_failed'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->errorResponse('delete_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         $dir = \dirname($path);
@@ -164,5 +168,13 @@ final class UploadController extends AbstractController
         }
 
         return $realPath;
+    }
+
+    private function errorResponse(string $key, int $status): JsonResponse
+    {
+        return new JsonResponse(
+            ['error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN)],
+            $status,
+        );
     }
 }

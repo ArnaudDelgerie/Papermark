@@ -1,0 +1,30 @@
+/* AI instruction tooltip overrides.
+   The tooltip is relocated to document.body (see #relocateAiTooltip in
+   editor_controller.js) so Floating UI's shift() middleware uses the
+   viewport as its boundary instead of the .milkdown overflow:hidden
+   container. The `milkdown` class is added to the element so Crepe
+   theme's `.milkdown .ai-instruction-*` descendant selectors still apply.
+   These rules replace the `.milkdown .milkdown-ai-instruction` selectors
+   that no longer match (the element is no longer a descendant of .milkdown). */
+
+body > .milkdown-ai-instruction {
+    position: absolute;
+    z-index: 1000;
+}
+
+body > .milkdown-ai-instruction[data-show='false'] {
+    display: none;
+}
+
+body > .milkdown-ai-instruction > .ai-instruction {
+    width: 360px;
+    max-height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+body > .milkdown-ai-instruction .ai-instruction-list {
+    max-height: 320px;
+    overflow-y: auto;
+}

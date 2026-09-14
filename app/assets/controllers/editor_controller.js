@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
+import { ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
 import { EditorStatus, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
@@ -9,6 +10,11 @@ export default class extends Controller {
     static values = {
         csrfToken: String,
         fileCsrfToken: String,
+        aiCsrfToken: String,
+        aiConfig: {
+            type: Object,
+            default: { enabled: false, providers: {} },
+        },
         readonly: { type: Boolean, default: false },
         i18n: {
             type: Object,
@@ -42,12 +48,13 @@ export default class extends Controller {
                     saved: 'File saved',
                     savedAs: 'File saved as {name}',
                     opened: 'File opened',
+                    copiedMarkdown: 'Markdown copied to clipboard',
                 },
             },
         },
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'a4Button', 'toggleButton'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'a4Button', 'toggleButton'];
 
     #crepe = null;
     #currentPath = null;
@@ -131,6 +138,21 @@ export default class extends Controller {
                         if (codeItem) {
                             block.group.items.unshift(codeItem);
                         }
+
+                        if (this.#isAiEnabled()) {
+                            const more = builder.getGroup('more');
+                            more.addItem('ai', {
+                                icon: defaultAIIcon,
+                                label: 'Ask AI',
+                                active: () => false,
+                                onRun: (ctx) => {
+                                    const api = ctx.get('aiInstructionTooltipAPI');
+                                    const view = ctx.get(editorViewCtx);
+                                    const { from, to } = view.state.selection;
+                                    api.show(from, to);
+                                },
+                            });
+                        }
                     },
                 },
             },
@@ -140,12 +162,19 @@ export default class extends Controller {
             editor.use(trailing);
         });
 
+        if (this.#isAiEnabled()) {
+            this.#crepe.addFeature(aiFeature, {
+                provider: this.#createAIProvider(),
+            });
+        }
+
         this.#crepe.on((listener) => {
             listener.markdownUpdated((_ctx, markdown, prevMarkdown) => {
                 const removed = this.#diffImageUrls(prevMarkdown, markdown);
                 removed.forEach((url) => this.#deleteImage(url));
                 this.#updateSaveButton(markdown);
                 this.#updatePrintButton(markdown);
+                this.#updateCopyMarkdownButton(markdown);
             });
         });
 
@@ -157,7 +186,7 @@ export default class extends Controller {
             }));
         });
 
-        this.#crepe.create();
+        this.#crepe.create().then(() => this.#relocateAiTooltip());
 
         window.addEventListener('beforeprint', this.#onBeforePrint);
         window.addEventListener('afterprint', this.#onAfterPrint);
@@ -170,6 +199,7 @@ export default class extends Controller {
 
         this.#updateSaveButton('');
         this.#updatePrintButton('');
+        this.#updateCopyMarkdownButton('');
 
         if (this.hasA4ButtonTarget) {
             this.a4ButtonTarget.textContent = this.#isA4
@@ -347,6 +377,17 @@ export default class extends Controller {
         window.print();
     }
 
+    async copyMarkdown() {
+        const markdown = this.#crepe?.getMarkdown() ?? '';
+        try {
+            await navigator.clipboard.writeText(markdown);
+            this.#toast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
+        } catch (err) {
+            console.error('Failed to copy markdown:', err);
+            this.#toast('error', 'Failed to copy markdown');
+        }
+    }
+
     /**
      * Prints a serialized copy of the document instead of the editor DOM:
      * schema toDOM output (plain h1/p/ul/pre/table/img), none of Crepe's
@@ -443,22 +484,34 @@ export default class extends Controller {
         }
     }
 
-    #uploadFile(file) {
+    #updateCopyMarkdownButton(markdown) {
+        if (this.hasCopyMarkdownButtonTarget) {
+            this.copyMarkdownButtonTarget.disabled = markdown.trim() === '';
+        }
+    }
+
+    async #uploadFile(file) {
         const formData = new FormData();
         formData.append('file', file);
 
-        return fetch('/upload/image', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
-            body: formData,
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error(`Upload failed: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then((data) => data.url);
+        try {
+            const response = await fetch('/upload/image', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Upload failed: ${response.status}`);
+            }
+
+            const { url } = await response.json();
+            return url;
+        } catch (err) {
+            this.#toast('error', err.message || 'Upload failed');
+            throw err;
+        }
     }
 
     #deleteImage(url) {
@@ -492,5 +545,173 @@ export default class extends Controller {
             }
         }
         return removed;
+    }
+
+    #isAiEnabled() {
+        const config = this.aiConfigValue;
+        if (!config?.enabled) {
+            return false;
+        }
+        const providers = config.providers ?? {};
+        return Object.values(providers).some((hasKey) => hasKey === true);
+    }
+
+    /**
+     * Moves the AI instruction tooltip from the editor's scroll container
+     * to document.body so Floating UI's shift() middleware uses the viewport
+     * as its boundary instead of the .milkdown overflow:hidden container.
+     * Without this the tooltip can appear under the TopBar or off-screen.
+     *
+     * The `milkdown` class is added to the relocated element so the Crepe
+     * theme's `.milkdown .ai-instruction-*` descendant selectors still apply.
+     * The `.milkdown-ai-instruction`-level styles are overridden in
+     * ai-tooltip.css since those selectors require a .milkdown ancestor.
+     */
+    #relocateAiTooltip() {
+        if (!this.#isAiEnabled()) {
+            return;
+        }
+        const tooltip = this.element.querySelector('.milkdown-ai-instruction');
+        if (!tooltip) {
+            return;
+        }
+        tooltip.classList.add('milkdown');
+        document.body.append(tooltip);
+
+        // Floating UI's flip() can switch placement to "top" when the
+        // selection covers the whole document, and shift() (without padding)
+        // doesn't fully correct the resulting negative top. Clamp it so the
+        // tooltip never escapes the viewport.
+        new MutationObserver(() => {
+            if (tooltip.dataset.show !== 'true') {
+                return;
+            }
+            const top = parseFloat(tooltip.style.top);
+            if (!isNaN(top) && top < 8) {
+                tooltip.style.top = '8px';
+            }
+        }).observe(tooltip, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    #selectProvider() {
+        return this.aiConfigValue.selected_provider ?? null;
+    }
+
+    /**
+     * Creates the AIProvider that Crepe calls when the user triggers an AI action.
+     *
+     * The provider posts the instruction to our Symfony endpoint, which dispatches
+     * a Messenger message and returns a Mercure topic. It then opens an EventSource
+     * on that topic and yields streamed chunks until "done" or "error".
+     */
+    #createAIProvider() {
+        return async function* aiProvider(context, signal) {
+            const provider = this.#selectProvider();
+            if (!provider) {
+                return;
+            }
+
+            const response = await fetch('/ai/instruct', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': this.aiCsrfTokenValue,
+                },
+                body: JSON.stringify({
+                    provider,
+                    instruction: context.instruction,
+                    document: context.document,
+                    selection: context.selection,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `AI request failed: ${response.status}`);
+            }
+
+            const { topic } = await response.json();
+
+            // The Mercure hub URL comes from MERCURE_PUBLIC_URL, injected by the hub.
+            const mercureUrl = this.#mercureSubscribeUrl(topic);
+
+            yield* this.#streamFromMercure(mercureUrl, signal);
+        }.bind(this);
+    }
+
+    #mercureSubscribeUrl(topic) {
+        // The hub mounts Mercure at /.well-known/mercure on the app's own origin.
+        const base = window.location.origin + '/.well-known/mercure';
+        return base + '?topic=' + encodeURIComponent(topic);
+    }
+
+    async *#streamFromMercure(url, signal) {
+        const eventSource = new EventSource(url, { withCredentials: true });
+
+        try {
+            while (true) {
+                if (signal?.aborted) {
+                    eventSource.close();
+                    return;
+                }
+
+                const event = await this.#nextMercureEvent(eventSource, signal);
+                if (event === null) {
+                    return;
+                }
+
+                const payload = JSON.parse(event.data);
+                if (payload.type === 'chunk') {
+                    yield payload.content;
+                } else if (payload.type === 'done') {
+                    eventSource.close();
+                    return;
+                } else if (payload.type === 'error') {
+                    eventSource.close();
+                    throw new Error(payload.error || 'AI stream error');
+                }
+            }
+        } finally {
+            eventSource.close();
+        }
+    }
+
+    #nextMercureEvent(eventSource, signal) {
+        return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+                resolve(null);
+                return;
+            }
+
+            const onMessage = (event) => {
+                cleanup();
+                resolve(event);
+            };
+
+            const onError = () => {
+                cleanup();
+                // EventSource auto-reconnects; treat an error during abort as clean exit.
+                if (signal?.aborted) {
+                    resolve(null);
+                } else {
+                    reject(new Error('Mercure connection lost'));
+                }
+            };
+
+            const onAbort = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            function cleanup() {
+                eventSource.removeEventListener('message', onMessage);
+                eventSource.removeEventListener('error', onError);
+                signal?.removeEventListener('abort', onAbort);
+            }
+
+            eventSource.addEventListener('message', onMessage);
+            eventSource.addEventListener('error', onError);
+            signal?.addEventListener('abort', onAbort);
+        });
     }
 }

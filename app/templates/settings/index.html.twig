@@ -1,0 +1,57 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+<div class="page-settings">
+    <div class="settings-header">
+        <a href="{{ path('app_home') }}" class="settings-back">{{ 'components.settings.back'|trans({}, 'components') }}</a>
+        <h1>{{ 'components.settings.title'|trans({}, 'components') }}</h1>
+    </div>
+
+    {% for label, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="settings-flash settings-flash-{{ label }}">{{ message }}</div>
+        {% endfor %}
+    {% endfor %}
+
+    {% if bridge_available %}
+    <form class="settings-form" data-controller="settings">
+        <input type="hidden" name="settings_csrf_token" value="{{ settings_csrf_token }}" data-settings-target="csrfToken">
+
+        <fieldset class="settings-fieldset">
+            <legend>{{ 'components.settings.provider_label'|trans({}, 'components') }}</legend>
+            {% for name, info in providers %}
+            <label class="settings-provider{% if name == selected_provider %} is-selected{% endif %}">
+                <input type="radio" name="provider" value="{{ name }}" data-settings-target="providerRadio"{% if name == selected_provider %} checked{% endif %}>
+                <span class="settings-provider-name">{{ info.label }}</span>
+                {% if info.has_key %}
+                <span class="settings-provider-badge">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
+                {% endif %}
+            </label>
+            {% endfor %}
+        </fieldset>
+
+        <fieldset class="settings-fieldset">
+            <legend>{{ 'components.settings.api_keys_label'|trans({}, 'components') }}</legend>
+            {% for name, info in providers %}
+            <div class="settings-key-row">
+                <label for="key_{{ name }}">{{ info.label }}</label>
+                <input type="password" name="key_{{ name }}" id="key_{{ name }}" placeholder="{{ 'components.settings.key_placeholder'|trans({}, 'components') }}" autocomplete="off">
+                {% if info.has_key %}
+                <span class="settings-key-status">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </fieldset>
+
+        <button type="submit" class="settings-submit" data-action="click->settings#submit">
+            {{ 'components.settings.save'|trans({}, 'components') }}
+        </button>
+    </form>
+    {% else %}
+    <div class="settings-notice">
+        <p>{{ 'components.settings.bridge_unavailable'|trans({}, 'components') }}</p>
+        <p>{{ 'components.settings.env_hint'|trans({}, 'components') }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -2,6 +2,8 @@
 
 namespace App\Twig\Components;
 
+use App\Ai\ApiKeyResolver;
+use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
@@ -12,6 +14,7 @@ final class Editor
 {
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.';
+    private const AI_PROVIDERS = ['openai', 'anthropic', 'mistral'];
 
     public string $height = '400';
     public bool $readonly = false;
@@ -19,6 +22,8 @@ final class Editor
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly StationContextInterface $stationContext,
+        private readonly ApiKeyResolver $apiKeyResolver,
     ) {
     }
 
@@ -64,6 +69,7 @@ final class Editor
                 'saved' => $this->trans('toast.saved'),
                 'savedAs' => $this->trans('toast.saved_as'),
                 'opened' => $this->trans('toast.opened'),
+                'copiedMarkdown' => $this->trans('toast.copied_markdown'),
             ],
         ];
     }
@@ -78,6 +84,30 @@ final class Editor
     public function getFileCsrfToken(): string
     {
         return $this->csrfTokenManager->getToken('file')->getValue();
+    }
+
+    #[ExposeInTemplate(name: 'ai_csrf_token')]
+    public function getAiCsrfToken(): string
+    {
+        return $this->csrfTokenManager->getToken('ai')->getValue();
+    }
+
+    /**
+     * @return array{enabled: bool, providers: array<string, bool>, selected_provider: ?string}
+     */
+    #[ExposeInTemplate(name: 'ai_config')]
+    public function getAiConfig(): array
+    {
+        $providers = [];
+        foreach (self::AI_PROVIDERS as $provider) {
+            $providers[$provider] = $this->apiKeyResolver->resolve($provider) !== null;
+        }
+
+        return [
+            'enabled' => $this->stationContext->isAsyncWorker(),
+            'providers' => $providers,
+            'selected_provider' => $this->apiKeyResolver->resolveProvider(),
+        ];
     }
 
     #[ExposeInTemplate(name: 'css_height')]

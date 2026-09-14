@@ -5,6 +5,8 @@ components:
         save: Save
         save_as: Save as
         print: Print
+        copy_markdown: Copy as Markdown
+        settings: Settings
         a4: A4
         full_width: Full width
         toggle:
@@ -36,6 +38,7 @@ components:
             saved: File saved
             saved_as: 'File saved as {name}'
             opened: File opened
+            copied_markdown: Markdown copied to clipboard
         error:
             invalid_csrf: Invalid security token, please reload the page
             no_path: No file path provided
@@ -45,3 +48,31 @@ components:
             no_content: No content provided
             not_writable: File or directory is not writable
             write_error: Could not write the file
+            no_file: No file provided
+            file_too_large: File is too large (max 10 MiB)
+            not_an_image: Only image files are supported
+            unsupported_image_type: This image format is not supported
+            storage_error: Could not store the file
+            no_url: No image URL provided
+            invalid_url: Invalid image URL
+            delete_failed: Could not delete the image
+            invalid_provider: Unknown AI provider
+            no_instruction: No instruction provided
+            invalid_body: Invalid request body
+            bridge_unavailable: The keyring bridge is not available
+            save_failed: Could not save the setting
+    settings:
+        title: Settings
+        back: ← Back
+        provider_label: AI Provider
+        api_keys_label: API Keys
+        key_placeholder: Enter API key…
+        key_set: Set
+        save: Save
+        saved: Settings saved
+        bridge_unavailable: The TFSApp keyring bridge is not available. In development without the hub, set your API key in .env.local.
+        env_hint: "Use OPENAI_API_KEY, ANTHROPIC_API_KEY, or MISTRAL_API_KEY."
+        provider:
+            openai: OpenAI
+            anthropic: Anthropic
+            mistral: Mistral

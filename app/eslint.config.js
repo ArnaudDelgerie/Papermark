@@ -23,6 +23,8 @@ export default [
                 setTimeout: 'readonly',
                 requestAnimationFrame: 'readonly',
                 URL: 'readonly',
+                MutationObserver: 'readonly',
+                EventSource: 'readonly',
             },
         },
     },

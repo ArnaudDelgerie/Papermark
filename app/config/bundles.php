@@ -16,4 +16,6 @@ return [
     Symfony\UX\Turbo\TurboBundle::class => ['all' => true],
     ArnaudDelgerie\TFSAppBundle\TFSAppBundle::class => ['all' => true],
     Symfony\UX\TwigComponent\TwigComponentBundle::class => ['all' => true],
+    Symfony\AI\AiBundle\AiBundle::class => ['all' => true],
+    Symfony\Bundle\MercureBundle\MercureBundle::class => ['all' => true],
 ];

@@ -25,8 +25,8 @@
   "actions": {
     "secrets": {
       "ipc": false,
-      "bridge": false,
-      "keys": []
+      "bridge": true,
+      "keys": ["openai", "anthropic", "mistral", "ai_provider"]
     },
     "update": {
       "ipc": true,

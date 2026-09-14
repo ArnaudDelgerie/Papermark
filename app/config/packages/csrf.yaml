@@ -11,3 +11,5 @@ framework:
             - logout
             - upload
             - file
+            - ai
+            - settings

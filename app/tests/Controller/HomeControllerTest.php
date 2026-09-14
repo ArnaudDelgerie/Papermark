@@ -29,16 +29,35 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame('Heading 1', $i18n['slashMenu']['h1']);
         self::assertSame('Full width', $i18n['full_width']);
         self::assertSame('File saved', $i18n['toast']['saved']);
+        self::assertSame('Markdown copied to clipboard', $i18n['toast']['copiedMarkdown']);
 
         // Both CSRF tokens are present.
         self::assertNotEmpty($editor->attr('data-editor-csrf-token-value'));
         self::assertNotEmpty($editor->attr('data-editor-file-csrf-token-value'));
+        self::assertNotEmpty($editor->attr('data-editor-ai-csrf-token-value'));
+
+        // The AI config is exposed to the front-end.
+        $aiConfig = json_decode((string) $editor->attr('data-editor-ai-config-value'), true);
+        self::assertArrayHasKey('enabled', $aiConfig);
+        self::assertArrayHasKey('providers', $aiConfig);
+        self::assertArrayHasKey('openai', $aiConfig['providers']);
+        self::assertArrayHasKey('anthropic', $aiConfig['providers']);
+        self::assertArrayHasKey('mistral', $aiConfig['providers']);
 
         // The file bar buttons are present.
-        self::assertSame(6, $editor->filter('button.editor-filebar-btn')->count());
+        self::assertSame(7, $editor->filter('button.editor-filebar-btn')->count());
+
+        // The settings link is present in the file bar.
+        $settingsLink = $editor->filter('a.editor-settings-btn');
+        self::assertSame(1, $settingsLink->count());
+        self::assertSame('Settings', trim($settingsLink->text()));
         self::assertSame(
             'Save as',
             $editor->filter('button[data-editor-target="saveAsButton"]')->text()
+        );
+        self::assertSame(
+            'Copy as Markdown',
+            $editor->filter('button[data-editor-target="copyMarkdownButton"]')->text()
         );
 
         // The toast container is rendered in the base layout.
