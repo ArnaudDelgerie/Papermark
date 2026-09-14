@@ -8,6 +8,7 @@ templates:
                 placeholder: Start writing…
                 open: Open
                 save: Save
+                save_as: Save as
                 print: Print
                 toggle:
                     edit: Edit

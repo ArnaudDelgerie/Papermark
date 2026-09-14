@@ -38,7 +38,7 @@ export default class extends Controller {
         },
     };
 
-    static targets = ['saveButton', 'printButton', 'toggleButton'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'toggleButton'];
 
     #crepe = null;
     #currentPath = null;
@@ -170,8 +170,15 @@ export default class extends Controller {
             this.#setupScrollHide();
         }
 
-        if (this.hasSaveButtonTarget) {
-            this.saveButtonTarget.disabled = this.#isReadonly;
+        if (this.#isReadonly) {
+            if (this.hasSaveButtonTarget) {
+                this.saveButtonTarget.disabled = true;
+            }
+            if (this.hasSaveAsButtonTarget) {
+                this.saveAsButtonTarget.disabled = true;
+            }
+        } else {
+            this.#updateSaveButton(this.#crepe?.getMarkdown());
         }
 
         if (this.hasToggleButtonTarget) {
@@ -211,20 +218,48 @@ export default class extends Controller {
             }
 
             const { content } = await response.json();
-            this.#crepe.editor.action(replaceAll(content));
             this.#currentPath = path;
+            this.#crepe.editor.action(replaceAll(content));
+            this.#updateSaveButton(this.#crepe.getMarkdown());
         } catch (err) {
             console.error('Failed to open file:', err);
         }
     }
 
     async saveFile() {
-        let path = this.#currentPath;
-        if (path === null) {
-            path = await this.#savePath();
-            if (path === null) {
-                return;
+        if (this.#currentPath === null) {
+            return;
+        }
+
+        const markdown = this.#crepe.getMarkdown();
+
+        const formData = new FormData();
+        formData.append('path', this.#currentPath);
+        formData.append('content', markdown);
+
+        try {
+            const response = await fetch('/file/save', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Save failed: ${response.status}`);
             }
+        } catch (err) {
+            console.error('Failed to save file:', err);
+        }
+    }
+
+    async saveFileAs() {
+        const defaultName = this.#currentPath !== null
+            ? this.#currentPath.split('/').pop()
+            : 'untitled.md';
+        const path = await this.#savePath(defaultName);
+        if (path === null) {
+            return;
         }
 
         const markdown = this.#crepe.getMarkdown();
@@ -246,6 +281,7 @@ export default class extends Controller {
             }
 
             this.#currentPath = path;
+            this.#updateSaveButton(markdown);
         } catch (err) {
             console.error('Failed to save file:', err);
         }
@@ -294,7 +330,7 @@ export default class extends Controller {
         return tauri.core.invoke('pick_path', { kind });
     }
 
-    #savePath() {
+    #savePath(fileName = 'untitled.md') {
         const tauri = window.__TAURI__;
         if (!tauri?.core?.invoke) {
             console.warn('Tauri IPC is not available — save dialog requires the TFSApp hub.');
@@ -306,14 +342,17 @@ export default class extends Controller {
                 { name: 'Markdown', extensions: ['md'] },
                 { name: 'Text', extensions: ['txt'] },
             ],
-            fileName: 'untitled.md',
+            fileName,
         });
     }
 
     #updateSaveButton(markdown) {
+        const hasContent = markdown !== undefined ? markdown.trim() !== '' : false;
         if (this.hasSaveButtonTarget) {
-            const hasContent = markdown !== undefined ? markdown.trim() !== '' : false;
-            this.saveButtonTarget.disabled = !hasContent;
+            this.saveButtonTarget.disabled = !hasContent || this.#currentPath === null;
+        }
+        if (this.hasSaveAsButtonTarget) {
+            this.saveAsButtonTarget.disabled = !hasContent;
         }
     }
 
