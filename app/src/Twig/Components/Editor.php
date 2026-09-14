@@ -1,0 +1,88 @@
+<?php
+
+namespace App\Twig\Components;
+
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
+use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
+use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
+
+#[AsTwigComponent('editor')]
+final class Editor
+{
+    private const TRANSLATION_DOMAIN = 'templates';
+    private const TRANSLATION_PREFIX = 'templates.home.index.editor.';
+
+    public string $height = '400';
+    public bool $readonly = false;
+
+    public function __construct(
+        private readonly TranslatorInterface $translator,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
+    ) {
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[ExposeInTemplate(name: 'i18n')]
+    public function getI18n(): array
+    {
+        return [
+            'placeholder' => $this->trans('placeholder'),
+            'link' => [
+                'confirm' => $this->trans('link.confirm'),
+                'inputPlaceholder' => $this->trans('link.input_placeholder'),
+            ],
+            'toggle' => [
+                'edit' => $this->trans('toggle.edit'),
+                'readonly' => $this->trans('toggle.readonly'),
+            ],
+            'a4' => $this->trans('a4'),
+            'full_width' => $this->trans('full_width'),
+            'slashMenu' => [
+                'text' => $this->trans('slash_menu.text'),
+                'paragraph' => $this->trans('slash_menu.paragraph'),
+                'h1' => $this->trans('slash_menu.h1'),
+                'h2' => $this->trans('slash_menu.h2'),
+                'h3' => $this->trans('slash_menu.h3'),
+                'h4' => $this->trans('slash_menu.h4'),
+                'h5' => $this->trans('slash_menu.h5'),
+                'h6' => $this->trans('slash_menu.h6'),
+                'quote' => $this->trans('slash_menu.quote'),
+                'divider' => $this->trans('slash_menu.divider'),
+                'list' => $this->trans('slash_menu.list'),
+                'bulletList' => $this->trans('slash_menu.bullet_list'),
+                'orderedList' => $this->trans('slash_menu.ordered_list'),
+                'taskList' => $this->trans('slash_menu.task_list'),
+                'advanced' => $this->trans('slash_menu.advanced'),
+                'image' => $this->trans('slash_menu.image'),
+                'code' => $this->trans('slash_menu.code'),
+                'table' => $this->trans('slash_menu.table'),
+            ],
+        ];
+    }
+
+    #[ExposeInTemplate(name: 'upload_csrf_token')]
+    public function getUploadCsrfToken(): string
+    {
+        return $this->csrfTokenManager->getToken('upload')->getValue();
+    }
+
+    #[ExposeInTemplate(name: 'file_csrf_token')]
+    public function getFileCsrfToken(): string
+    {
+        return $this->csrfTokenManager->getToken('file')->getValue();
+    }
+
+    #[ExposeInTemplate(name: 'css_height')]
+    public function getCssHeight(): string
+    {
+        return preg_match('/^\d+$/', $this->height) ? $this->height . 'px' : $this->height;
+    }
+
+    private function trans(string $key): string
+    {
+        return $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN);
+    }
+}

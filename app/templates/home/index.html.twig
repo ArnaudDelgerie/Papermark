@@ -3,6 +3,6 @@
 {% block body %}
 <div class="page-editor">
     <h1>{{ 'templates.home.index.title'|trans({}, 'templates') }}</h1>
-    {% include 'editor/_editor.html.twig' with { height: '100%' } %}
+    {{ component('editor', { height: '100%' }) }}
 </div>
 {% endblock %}

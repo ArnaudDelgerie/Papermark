@@ -1,0 +1,30 @@
+<div data-controller="editor"
+     class="editor is-a4"
+     data-editor-csrf-token-value="{{ upload_csrf_token }}"
+     data-editor-file-csrf-token-value="{{ file_csrf_token }}"
+     {% if readonly %}data-editor-readonly-value="true"{% endif %}
+     data-editor-i18n-value="{{ i18n|json_encode }}"
+     style="height: {{ css_height }};">
+    <div class="editor-file-bar">
+        <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile">
+            {{ 'templates.home.index.editor.open'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>
+            {{ 'templates.home.index.editor.save'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>
+            {{ 'templates.home.index.editor.save_as'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled>
+            {{ 'templates.home.index.editor.print'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn" data-editor-target="a4Button" data-action="click->editor#toggleA4">
+            {{ 'templates.home.index.editor.full_width'|trans({}, 'templates') }}
+        </button>
+        <button type="button" class="editor-filebar-btn editor-toggle-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly">
+            {{ readonly
+                ? 'templates.home.index.editor.toggle.edit'|trans({}, 'templates')
+                : 'templates.home.index.editor.toggle.readonly'|trans({}, 'templates') }}
+        </button>
+    </div>
+</div>
