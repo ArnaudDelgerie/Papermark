@@ -28,6 +28,7 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame('Start writing…', $i18n['placeholder']);
         self::assertSame('Heading 1', $i18n['slashMenu']['h1']);
         self::assertSame('Full width', $i18n['full_width']);
+        self::assertSame('File saved', $i18n['toast']['saved']);
 
         // Both CSRF tokens are present.
         self::assertNotEmpty($editor->attr('data-editor-csrf-token-value'));
@@ -39,6 +40,9 @@ final class HomeControllerTest extends WebTestCase
             'Save as',
             $editor->filter('button[data-editor-target="saveAsButton"]')->text()
         );
+
+        // The toast container is rendered in the base layout.
+        self::assertSame(1, $crawler->filter('div[data-controller="toast"]')->count());
     }
 
 }

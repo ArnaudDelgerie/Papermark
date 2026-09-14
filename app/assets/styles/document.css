@@ -141,7 +141,7 @@
     border-radius: 3px;
     background: var(--doc-code-bg);
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 .print-copy pre code {

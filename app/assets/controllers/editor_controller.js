@@ -38,6 +38,11 @@ export default class extends Controller {
                     code: 'Code',
                     table: 'Table',
                 },
+                toast: {
+                    saved: 'File saved',
+                    savedAs: 'File saved as {name}',
+                    opened: 'File opened',
+                },
             },
         },
     };
@@ -260,8 +265,10 @@ export default class extends Controller {
             this.#currentPath = path;
             this.#crepe.editor.action(replaceAll(content));
             this.#updateSaveButton(this.#crepe.getMarkdown());
+            this.#toast('success', this.i18nValue.toast?.opened ?? 'File opened');
         } catch (err) {
             console.error('Failed to open file:', err);
+            this.#toast('error', err.message || 'Failed to open file');
         }
     }
 
@@ -287,8 +294,11 @@ export default class extends Controller {
                 const data = await response.json().catch(() => ({}));
                 throw new Error(data.error || `Save failed: ${response.status}`);
             }
+
+            this.#toast('success', this.i18nValue.toast?.saved ?? 'File saved');
         } catch (err) {
             console.error('Failed to save file:', err);
+            this.#toast('error', err.message || 'Failed to save file');
         }
     }
 
@@ -321,8 +331,12 @@ export default class extends Controller {
 
             this.#currentPath = path;
             this.#updateSaveButton(markdown);
+            const name = path.split('/').pop();
+            const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
+            this.#toast('success', template.replace('{name}', name));
         } catch (err) {
             console.error('Failed to save file:', err);
+            this.#toast('error', err.message || 'Failed to save file');
         }
     }
 
@@ -357,6 +371,10 @@ export default class extends Controller {
     #removePrintCopy() {
         this.#printCopy?.remove();
         this.#printCopy = null;
+    }
+
+    #toast(type, message) {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: { type, message } }));
     }
 
     #setupScrollHide() {

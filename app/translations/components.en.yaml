@@ -32,3 +32,16 @@ components:
             image: Image
             code: Code
             table: Table
+        toast:
+            saved: File saved
+            saved_as: 'File saved as {name}'
+            opened: File opened
+        error:
+            invalid_csrf: Invalid security token, please reload the page
+            no_path: No file path provided
+            unsupported_file_type: Only Markdown and text files are supported
+            not_found: File not found
+            read_error: Could not read the file
+            no_content: No content provided
+            not_writable: File or directory is not writable
+            write_error: Could not write the file

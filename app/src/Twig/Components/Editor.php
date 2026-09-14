@@ -60,6 +60,11 @@ final class Editor
                 'code' => $this->trans('slash_menu.code'),
                 'table' => $this->trans('slash_menu.table'),
             ],
+            'toast' => [
+                'saved' => $this->trans('toast.saved'),
+                'savedAs' => $this->trans('toast.saved_as'),
+                'opened' => $this->trans('toast.opened'),
+            ],
         ];
     }
 
