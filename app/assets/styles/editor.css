@@ -79,11 +79,6 @@
     background: rgb(0 0 0 / 50%);
 }
 
-.editor-confirm-dialog p {
-    margin: 0 0 var(--space-3);
-    font-size: 0.875rem;
-}
-
 .editor-confirm-dialog-actions {
     display: flex;
     justify-content: flex-end;
