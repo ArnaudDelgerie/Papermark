@@ -87,4 +87,70 @@ final class FileControllerTest extends WebTestCase
         $data = json_decode((string) $client->getResponse()->getContent(), true);
         self::assertSame('Invalid security token, please reload the page', $data['error']);
     }
+
+    public function testImageServesFileAtAbsolutePath(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+        $path = $this->createTestImage();
+
+        $client->request('GET', '/file/image', ['path' => $path]);
+
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('Content-Type', 'image/png');
+    }
+
+    public function testImageResolvesRelativePathAgainstAnchor(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+        $path = $this->createTestImage();
+        $anchor = \dirname($path) . '/document.md';
+
+        $client->request('GET', '/file/image', ['path' => basename($path), 'anchor' => $anchor]);
+
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testImageReturns404WithoutPath(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+
+        $client->request('GET', '/file/image');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testImageReturns404ForMissingFile(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+
+        $client->request('GET', '/file/image', ['path' => '/tmp/this_image_does_not_exist_12345.png']);
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testImageReturns404ForUnsupportedExtension(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.txt';
+        file_put_contents($path, 'not an image');
+
+        $client->request('GET', '/file/image', ['path' => $path]);
+
+        self::assertResponseStatusCodeSame(404);
+
+        unlink($path);
+    }
+
+    /**
+     * A 1x1 transparent PNG, written under a real extension so it round-trips
+     * through PathResolver's realpath() + File constraint.
+     */
+    private function createTestImage(): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.png';
+        file_put_contents($path, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true));
+
+        return $path;
+    }
 }

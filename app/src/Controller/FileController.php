@@ -2,24 +2,33 @@
 
 namespace App\Controller;
 
+use App\File\PathResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Validator\Constraints\File as FileConstraint;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class FileController extends AbstractController
 {
     private const ALLOWED_EXTENSIONS = ['md', 'markdown', 'txt'];
+    private const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'];
+    private const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/avif'];
+    private const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MiB
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.error.';
 
     public function __construct(
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
+        private readonly PathResolver $pathResolver,
     ) {
     }
 
@@ -51,6 +60,42 @@ final class FileController extends AbstractController
         }
 
         return new JsonResponse(['content' => $content]);
+    }
+
+    /**
+     * Serves an image referenced from an opened document: `path` as written
+     * in the markdown (relative or absolute), `anchor` the document's own
+     * path (used to resolve a relative `path`). No containment under a
+     * parent directory: trust comes from having opened the document, not
+     * from a per-image gesture — see EDITOR_IMAGES.md.
+     */
+    #[Route('/file/image', name: 'app_file_image', methods: ['GET'])]
+    public function image(Request $request): Response
+    {
+        $path = $request->query->get('path');
+        if (!\is_string($path) || $path === '') {
+            throw new NotFoundHttpException();
+        }
+
+        $anchor = $request->query->get('anchor');
+
+        $realPath = $this->pathResolver->resolve($path, \is_string($anchor) ? $anchor : null, new FileConstraint(
+            extensions: self::IMAGE_EXTENSIONS,
+            mimeTypes: self::IMAGE_MIME_TYPES,
+            maxSize: self::MAX_IMAGE_SIZE,
+        ));
+
+        if ($realPath === null) {
+            throw new NotFoundHttpException();
+        }
+
+        $contentType = MimeTypes::getDefault()->guessMimeType($realPath) ?? 'application/octet-stream';
+
+        $response = new BinaryFileResponse($realPath);
+        $response->headers->set('Content-Type', $contentType);
+        $response->headers->set('Content-Disposition', 'inline; filename="' . basename($realPath) . '"');
+
+        return $response;
     }
 
     #[Route('/file/save', name: 'app_file_save', methods: ['POST'])]
