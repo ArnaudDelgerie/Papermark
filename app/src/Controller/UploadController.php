@@ -23,6 +23,11 @@ final class UploadController extends AbstractController
     // Destination for clipboard/drag-drop images: the browser never gives a
     // real source path for those, so they're written inside a dedicated
     // subfolder of the user's images folder — see EDITOR_IMAGES.md.
+    // @todo Verified 2026-09-15: neither path reaches this in the TFSApp hub's
+    // webview (WebKitGTK/Tauri never exposes a real File for paste or drop),
+    // making uploadImage() below dead code from the UI's point of view.
+    // Remove this constant along with uploadImage() if nothing else needs it
+    // by project end.
     private const CLIPBOARD_DIR = 'clipboard';
     private const ALLOWED_MIME_PREFIX = 'image/';
     private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
@@ -39,6 +44,8 @@ final class UploadController extends AbstractController
     ) {
     }
 
+    // @todo See the @todo on CLIPBOARD_DIR above: unreachable from the editor
+    // in the TFSApp hub's webview, kept only in case another caller shows up.
     #[Route('/upload/image', name: 'app_upload_image', methods: ['POST'])]
     public function uploadImage(Request $request): JsonResponse
     {
