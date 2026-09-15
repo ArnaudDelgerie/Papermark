@@ -128,12 +128,33 @@ final class AiControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(403);
     }
 
-    public function testSubscribeSetsMercureCookie(): void
+    public function testSubscribeMintsCookieOnFirstCallThenSkipsWhileFresh(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
         $this->post($client, '/ai/subscribe', $csrfToken);
+        self::assertResponseStatusCodeSame(204);
+        self::assertResponseHasCookie('mercureAuthorization', '/.well-known/mercure');
 
+        // The cookie is still fresh: the server must not re-mint it.
+        $this->post($client, '/ai/subscribe', $csrfToken);
+        self::assertResponseStatusCodeSame(204);
+        self::assertResponseNotHasCookie('mercureAuthorization', '/.well-known/mercure');
+    }
+
+    public function testSubscribeReMintCookieWhenNearExpiry(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $this->post($client, '/ai/subscribe', $csrfToken);
+        self::assertResponseHasCookie('mercureAuthorization', '/.well-known/mercure');
+
+        // Simulate a cookie about to expire: less than 30 min remaining.
+        $session = $client->getRequest()->getSession();
+        $session->set('_ai_mercure_cookie_expires_at', time() + 60);
+        $session->save();
+
+        $this->post($client, '/ai/subscribe', $csrfToken);
         self::assertResponseStatusCodeSame(204);
         self::assertResponseHasCookie('mercureAuthorization', '/.well-known/mercure');
     }

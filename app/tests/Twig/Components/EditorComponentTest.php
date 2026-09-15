@@ -82,11 +82,11 @@ final class EditorComponentTest extends KernelTestCase
 
         self::assertTrue($aiConfig['enabled']);
         self::assertSame('http://localhost/.well-known/mercure', $aiConfig['mercureUrl']);
-        // Subscribed on display: the topic is the session's one.
+        // The topic is the session's one; the cookie is minted on demand by /ai/subscribe.
         self::assertSame(self::getContainer()->get(AiTopicResolver::class)->resolve($request), $aiConfig['topic']);
     }
 
-    public function testTwoEditorsOnOnePageShareTheSubscription(): void
+    public function testTwoEditorsOnOnePageShareTheTopic(): void
     {
         $this->configureAi(selected: ProviderName::Anthropic, secrets: ['anthropic' => 'key']);
 
@@ -103,7 +103,7 @@ final class EditorComponentTest extends KernelTestCase
      */
     private function configureAi(?ProviderName $selected, array $secrets): Request
     {
-        // Same host as the Mercure hub, so the subscriber cookie can be minted.
+        // Same host as the Mercure hub.
         $request = Request::create('http://localhost/');
         $request->setSession(new Session(new MockArraySessionStorage()));
         self::getContainer()->get(RequestStack::class)->push($request);

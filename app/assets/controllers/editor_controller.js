@@ -6,9 +6,6 @@ import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
 import { replaceAll } from '@milkdown/utils';
 
-// Below the 1-hour Mercure cookie lifetime, so a running generation is never cut.
-const AI_SUBSCRIPTION_MAX_AGE = 30 * 60 * 1000;
-
 export default class extends Controller {
     static values = {
         csrfToken: String,
@@ -79,7 +76,6 @@ export default class extends Controller {
     #onScroll = null;
     #printCopy = null;
     #aiSource = null;
-    #aiSourceOpenedAt = 0;
     #aiRequests = new Map();
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
@@ -191,8 +187,6 @@ export default class extends Controller {
                 // Crepe prefixes the message ("AI provider error: ..."); show the original one.
                 onError: (error) => this.#toast('error', error.cause?.message ?? error.message),
             });
-            // Subscribe on display with the cookie minted at render.
-            this.#openAiSource().catch((err) => console.error('Failed to subscribe to AI events:', err));
         }
 
         this.#crepe.on((listener) => {
@@ -583,8 +577,11 @@ export default class extends Controller {
     /**
      * Creates the AIProvider that Crepe calls when the user triggers an AI action.
      *
-     * The editor is already subscribed to the session's Mercure topic (renewed here
-     * when needed), so no event can be published before we listen. Each request
+     * The EventSource is opened per request: /ai/subscribe is called first (the
+     * server decides whether to re-mint the cookie), then the connection waits
+     * for `open` before the instruction is sent. The connection is closed in the
+     * finally block, so no permanent subscription is kept. Crepe allows only one
+     * generation at a time, so there is never a second connection. Each request
      * has its own id: the worker echoes it and events of other requests are ignored.
      */
     #createAIProvider() {
@@ -628,6 +625,7 @@ export default class extends Controller {
                 }
             } finally {
                 this.#aiRequests.delete(id);
+                this.#closeAiSource();
                 // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
                 if (!finished) {
                     this.#postAi('/ai/abort', { id }).catch((err) => console.error('Failed to abort AI request:', err));
@@ -637,16 +635,10 @@ export default class extends Controller {
     }
 
     /**
-     * The hub closes a subscription when its cookie expires (1 hour) and a closed
-     * EventSource never retries, so renew it before a request once it gets old.
+     * Asks the server to ensure the subscriber cookie is fresh (it re-mints only
+     * if needed), then opens the EventSource and resolves once the hub accepts it.
      */
     async #ensureAiSubscription() {
-        const isFresh = this.#aiSource?.readyState === EventSource.OPEN
-            && Date.now() - this.#aiSourceOpenedAt < AI_SUBSCRIPTION_MAX_AGE;
-        if (isFresh) {
-            return;
-        }
-
         const response = await this.#postAi('/ai/subscribe', {});
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -674,7 +666,6 @@ export default class extends Controller {
 
         return new Promise((resolve, reject) => {
             source.addEventListener('open', () => {
-                this.#aiSourceOpenedAt = Date.now();
                 resolve();
             }, { once: true });
 
