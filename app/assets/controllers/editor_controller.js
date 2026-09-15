@@ -28,6 +28,8 @@ export default class extends Controller {
                 full_width: 'Full width',
                 unsaved: {
                     confirm: 'Continue and lose unsaved changes?',
+                    cancel: 'Cancel',
+                    continue: 'Continue',
                 },
                 slashMenu: {
                     text: 'Text',
@@ -86,6 +88,7 @@ export default class extends Controller {
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
     #onGuardedClick = (event) => this.#guardLeave(event);
+    #leaveConfirmed = false;
 
     async connect() {
         this.#isReadonly = this.readonlyValue;
@@ -570,23 +573,69 @@ export default class extends Controller {
 
     /**
      * Guards clicks on elements marked data-editor-leave-guard, links and JS
-     * actions alike: confirm() is synchronous, so a refusal stops the click
-     * before the element's own handlers or navigation, and an acceptance lets
-     * it through once any AI generation or review is discarded.
+     * actions alike. The click is stopped before the element's own handlers or
+     * navigation; once confirmed, any AI generation or review is discarded and
+     * the click is replayed, skipping the guard.
      */
     #guardLeave(event) {
-        if (!event.target.closest('[data-editor-leave-guard]') || !this.#shouldConfirmLeave()) {
+        const guarded = event.target.closest('[data-editor-leave-guard]');
+        if (!guarded || this.#leaveConfirmed || !this.#shouldConfirmLeave()) {
             return;
         }
 
-        if (!window.confirm(this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?')) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            this.#restoreFocus();
-            return;
-        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
 
-        this.#discardAi();
+        this.#confirmLeave().then((confirmed) => {
+            if (!confirmed) {
+                this.#restoreFocus();
+                return;
+            }
+
+            this.#discardAi();
+            // click() dispatches synchronously, so the flag only covers the replay.
+            this.#leaveConfirmed = true;
+            try {
+                guarded.click();
+            } finally {
+                this.#leaveConfirmed = false;
+            }
+        });
+    }
+
+    // The webview shows no native confirm(): the hub doesn't handle JS dialogs.
+    #confirmLeave() {
+        return new Promise((resolve) => {
+            const dialog = document.createElement('dialog');
+            dialog.className = 'editor-confirm-dialog';
+            dialog.textContent = this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?';
+
+            const actions = document.createElement('div');
+            actions.className = 'editor-confirm-dialog-actions';
+
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.textContent = this.i18nValue.unsaved?.cancel ?? 'Cancel';
+            cancel.addEventListener('click', () => dialog.close('cancel'));
+
+            const cont = document.createElement('button');
+            cont.type = 'button';
+            cont.className = 'editor-confirm-continue';
+            cont.textContent = this.i18nValue.unsaved?.continue ?? 'Continue';
+            cont.addEventListener('click', () => dialog.close('continue'));
+
+            // Escape closes it too, with an empty returnValue.
+            dialog.addEventListener('close', () => {
+                dialog.remove();
+                resolve(dialog.returnValue === 'continue');
+            });
+
+            actions.append(cancel, cont);
+            dialog.append(actions);
+            document.body.append(dialog);
+            dialog.showModal();
+            cancel.focus();
+        });
     }
 
     // Aborting ends the provider's generator, whose finally tells the worker to stop.
