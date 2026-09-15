@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\File\MarkdownImageUrls;
 use App\File\PathResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -29,6 +30,7 @@ final class FileController extends AbstractController
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
         private readonly PathResolver $pathResolver,
+        private readonly MarkdownImageUrls $markdownImageUrls,
     ) {
     }
 
@@ -59,7 +61,28 @@ final class FileController extends AbstractController
             return $this->errorResponse('read_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return new JsonResponse(['content' => $content]);
+        return new JsonResponse(['content' => $this->markdownImageUrls->toServiceUrls($content, $realPath)]);
+    }
+
+    /**
+     * Converts /file/image service URLs back to their raw path just before
+     * the markdown leaves the editor via copy — the same conversion applied
+     * to the content written by save(), see EDITOR_IMAGES.md.
+     */
+    #[Route('/file/copy', name: 'app_file_copy', methods: ['POST'])]
+    public function copy(Request $request): JsonResponse
+    {
+        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
+        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $content = $request->request->get('content');
+        if (!\is_string($content)) {
+            return $this->errorResponse('no_content', Response::HTTP_BAD_REQUEST);
+        }
+
+        return new JsonResponse(['content' => $this->markdownImageUrls->toRawPaths($content)]);
     }
 
     /**
@@ -118,6 +141,7 @@ final class FileController extends AbstractController
         }
 
         $content = $this->sanitizeMarkdown($content);
+        $content = $this->markdownImageUrls->toRawPaths($content);
 
         if (!$this->isAllowedExtension($path)) {
             return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);

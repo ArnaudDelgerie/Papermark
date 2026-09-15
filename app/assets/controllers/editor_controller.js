@@ -427,12 +427,36 @@ export default class extends Controller {
     async copyMarkdown() {
         const markdown = this.#crepe?.getMarkdown() ?? '';
         try {
-            await navigator.clipboard.writeText(markdown);
+            const content = await this.#convertImageUrlsForCopy(markdown);
+            await navigator.clipboard.writeText(content);
             this.#toast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
         } catch (err) {
             console.error('Failed to copy markdown:', err);
             this.#toast('error', this.i18nValue.toast.copyMarkdownFailed);
         }
+    }
+
+    /**
+     * The editor only ever holds /file/image service URLs for local images
+     * (see EDITOR_IMAGES.md); the server converts them back to their raw
+     * path before the markdown leaves the editor, same as save().
+     */
+    async #convertImageUrlsForCopy(markdown) {
+        const formData = new FormData();
+        formData.append('content', markdown);
+
+        const response = await fetch('/file/copy', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Copy failed: ${response.status}`);
+        }
+
+        const { content } = await response.json();
+        return content;
     }
 
     /**

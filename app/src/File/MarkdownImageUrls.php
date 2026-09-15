@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\File;
+
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+
+/**
+ * Rewrites markdown image references between the raw path written on disk
+ * and the /file/image service URL the editor displays (see
+ * EDITOR_IMAGES.md): toServiceUrls() runs when a document is opened,
+ * toRawPaths() runs just before its markdown leaves the editor (save, copy).
+ *
+ * Only local-looking paths are touched: a scheme (http:, data:, …) means an
+ * external image, which this app doesn't manage — left untouched.
+ */
+final class MarkdownImageUrls
+{
+    private const IMAGE_PATTERN = '/!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/';
+
+    public function __construct(
+        private readonly UrlGeneratorInterface $urlGenerator,
+    ) {
+    }
+
+    public function toServiceUrls(string $markdown, string $anchor): string
+    {
+        return preg_replace_callback(
+            self::IMAGE_PATTERN,
+            function (array $match) use ($anchor): string {
+                [, $alt, $path, $title] = $match + [2 => '', 3 => ''];
+
+                if (!$this->isLocalPath($path)) {
+                    return $match[0];
+                }
+
+                $url = $this->urlGenerator->generate('app_file_image', ['path' => $path, 'anchor' => $anchor]);
+
+                return "![{$alt}]({$url}{$title})";
+            },
+            $markdown,
+        ) ?? $markdown;
+    }
+
+    public function toRawPaths(string $markdown): string
+    {
+        return preg_replace_callback(
+            self::IMAGE_PATTERN,
+            function (array $match): string {
+                [, $alt, $url, $title] = $match + [2 => '', 3 => ''];
+
+                $path = $this->extractPath($url);
+                if ($path === null) {
+                    return $match[0];
+                }
+
+                return "![{$alt}]({$path}{$title})";
+            },
+            $markdown,
+        ) ?? $markdown;
+    }
+
+    private function isLocalPath(string $path): bool
+    {
+        return preg_match('/^[a-zA-Z][a-zA-Z0-9+.\-]*:/', $path) !== 1;
+    }
+
+    private function extractPath(string $url): ?string
+    {
+        $prefix = '/file/image?';
+        if (!str_starts_with($url, $prefix)) {
+            return null;
+        }
+
+        parse_str(substr($url, \strlen($prefix)), $query);
+
+        return \is_string($query['path'] ?? null) ? $query['path'] : null;
+    }
+}

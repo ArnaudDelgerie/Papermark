@@ -142,6 +142,76 @@ final class FileControllerTest extends WebTestCase
         unlink($path);
     }
 
+    public function testOpenConvertsLocalImagePathsToServiceUrls(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $docPath = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($docPath, '![alt](./photo.png)');
+
+        $client->request('POST', '/file/open', [
+            'path' => $docPath,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(
+            '![alt](/file/image?path=./photo.png&anchor=' . $docPath . ')',
+            $data['content'],
+        );
+
+        unlink($docPath);
+    }
+
+    public function testSaveConvertsServiceUrlsBackToRawPaths(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $docPath = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+
+        $client->request('POST', '/file/save', [
+            'path' => $docPath,
+            'content' => '![alt](/file/image?path=./photo.png&anchor=' . $docPath . ')',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('![alt](./photo.png)', file_get_contents($docPath));
+
+        unlink($docPath);
+    }
+
+    public function testCopyConvertsServiceUrlsBackToRawPaths(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $client->request('POST', '/file/copy', [
+            'content' => '![alt](/file/image?path=/home/user/photo.png&anchor=/home/user/doc.md)',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('![alt](/home/user/photo.png)', $data['content']);
+    }
+
+    public function testCopyRejectsInvalidCsrf(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/file/copy', [
+            'content' => '![alt](photo.png)',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => 'invalid',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
     /**
      * A 1x1 transparent PNG, written under a real extension so it round-trips
      * through PathResolver's realpath() + File constraint.
