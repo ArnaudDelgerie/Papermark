@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Repository\SettingRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -11,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -18,6 +20,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class UploadController extends AbstractController
 {
     private const IMAGES_DIR = 'images';
+    // Destination for clipboard/drag-drop images: the browser never gives a
+    // real source path for those, so they're written inside a dedicated
+    // subfolder of the user's images folder — see EDITOR_IMAGES.md.
+    private const CLIPBOARD_DIR = 'clipboard';
     private const ALLOWED_MIME_PREFIX = 'image/';
     private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
     private const TRANSLATION_DOMAIN = 'components';
@@ -28,6 +34,8 @@ final class UploadController extends AbstractController
         private readonly string $uploadDir,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
+        private readonly SettingRepository $settings,
+        private readonly UrlGeneratorInterface $urlGenerator,
     ) {
     }
 
@@ -58,25 +66,25 @@ final class UploadController extends AbstractController
             return $this->errorResponse('unsupported_image_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
-        $hash = sha1_file($file->getRealPath());
-        if ($hash === false) {
-            return $this->errorResponse('read_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+        $imageFolder = $this->settings->getOrCreate()->getImageFolder();
+        if ($imageFolder === null) {
+            return $this->errorResponse('storage_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $subdir = substr($hash, 0, 2);
-        $targetDir = $this->uploadDir . '/' . self::IMAGES_DIR . '/' . $subdir;
+        $targetDir = $imageFolder . '/' . self::CLIPBOARD_DIR;
         if (!is_dir($targetDir) && !mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
             return $this->errorResponse('storage_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $filename = $hash . '.' . $extension;
-        $targetPath = $targetDir . '/' . $filename;
+        $filename = (new \DateTimeImmutable())->format('Y-m-d_His-u') . '.' . $extension;
+        $file->move($targetDir, $filename);
 
-        if (!file_exists($targetPath)) {
-            $file->move($targetDir, $filename);
+        $realPath = realpath($targetDir . '/' . $filename);
+        if ($realPath === false) {
+            return $this->errorResponse('storage_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $url = '/uploads/images/' . $subdir . '/' . $filename;
+        $url = $this->urlGenerator->generate('app_file_image', ['path' => $realPath]);
 
         return new JsonResponse(['url' => $url], Response::HTTP_CREATED);
     }
