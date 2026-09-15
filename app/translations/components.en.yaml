@@ -10,8 +10,6 @@ components:
         unsaved:
             indicator: Unsaved
             confirm: Continue and lose unsaved changes?
-            cancel: Cancel
-            continue: Continue
         a4: A4
         full_width: Full width
         toggle:

@@ -8,7 +8,7 @@
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">
     <div class="editor-file-bar">
-        <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile">
+        <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile" data-editor-leave-guard>
             {{ 'components.editor.open'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>
@@ -34,7 +34,7 @@
                 ? 'components.editor.toggle.edit'|trans({}, 'components')
                 : 'components.editor.toggle.readonly'|trans({}, 'components') }}
         </button>
-        <a href="{{ path('app_settings') }}" class="editor-filebar-btn editor-settings-btn" data-action="click->editor#confirmLeave">
+        <a href="{{ path('app_settings') }}" class="editor-filebar-btn editor-settings-btn" data-editor-leave-guard>
             {{ 'components.editor.settings'|trans({}, 'components') }}
         </a>
     </div>

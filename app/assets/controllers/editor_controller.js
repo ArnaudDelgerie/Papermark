@@ -1,8 +1,8 @@
 import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
-import { ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
-import { EditorStatus, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
-import { diffPluginKey } from '@milkdown/kit/plugin/diff';
+import { abortAICmd, ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
+import { EditorStatus, commandsCtx, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
+import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
@@ -27,10 +27,7 @@ export default class extends Controller {
                 a4: 'A4',
                 full_width: 'Full width',
                 unsaved: {
-                    indicator: 'Unsaved',
                     confirm: 'Continue and lose unsaved changes?',
-                    cancel: 'Cancel',
-                    continue: 'Continue',
                 },
                 slashMenu: {
                     text: 'Text',
@@ -88,6 +85,7 @@ export default class extends Controller {
     #aiRequests = new Map();
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
+    #onGuardedClick = (event) => this.#guardLeave(event);
 
     async connect() {
         this.#isReadonly = this.readonlyValue;
@@ -225,6 +223,8 @@ export default class extends Controller {
 
         window.addEventListener('beforeprint', this.#onBeforePrint);
         window.addEventListener('afterprint', this.#onAfterPrint);
+        // Capture phase: runs before the guarded element's own click handlers.
+        this.element.addEventListener('click', this.#onGuardedClick, true);
 
         if (this.#isReadonly) {
             this.#applyReadonlyState();
@@ -301,6 +301,7 @@ export default class extends Controller {
         }
         window.removeEventListener('beforeprint', this.#onBeforePrint);
         window.removeEventListener('afterprint', this.#onAfterPrint);
+        this.element.removeEventListener('click', this.#onGuardedClick, true);
         this.#removePrintCopy();
         this.#closeAiSource();
         this.#crepe?.destroy();
@@ -308,11 +309,6 @@ export default class extends Controller {
     }
 
     async openFile() {
-        if (this.#shouldConfirmLeave() && !await this.#confirmLeave()) {
-            this.#restoreFocus();
-            return;
-        }
-
         const path = await this.#pickPath('file');
         if (path === null) {
             return;
@@ -572,57 +568,39 @@ export default class extends Controller {
         return this.#isDirty() || this.#isAiInProgress();
     }
 
-    #confirmLeave() {
-        return new Promise((resolve) => {
-            let resolved = false;
-            const settle = (value) => {
-                if (!resolved) {
-                    resolved = true;
-                    resolve(value);
-                }
-            };
-
-            const dialog = document.createElement('dialog');
-            dialog.className = 'editor-confirm-dialog';
-            dialog.textContent = this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?';
-
-            const actions = document.createElement('div');
-            actions.className = 'editor-confirm-dialog-actions';
-
-            const cancel = document.createElement('button');
-            cancel.type = 'button';
-            cancel.textContent = this.i18nValue.unsaved?.cancel ?? 'Cancel';
-            cancel.addEventListener('click', () => { dialog.close(); settle(false); });
-
-            const cont = document.createElement('button');
-            cont.type = 'button';
-            cont.className = 'editor-confirm-continue';
-            cont.textContent = this.i18nValue.unsaved?.continue ?? 'Continue';
-            cont.addEventListener('click', () => { dialog.close(); settle(true); });
-
-            actions.append(cancel, cont);
-            dialog.append(actions);
-            document.body.append(dialog);
-            dialog.showModal();
-
-            // Escape or clicking backdrop closes the dialog without confirming.
-            dialog.addEventListener('close', () => {
-                dialog.remove();
-                settle(false);
-            });
-        });
-    }
-
-    confirmLeave(event) {
-        if (!this.#shouldConfirmLeave()) {
+    /**
+     * Guards clicks on elements marked data-editor-leave-guard, links and JS
+     * actions alike: confirm() is synchronous, so a refusal stops the click
+     * before the element's own handlers or navigation, and an acceptance lets
+     * it through once any AI generation or review is discarded.
+     */
+    #guardLeave(event) {
+        if (!event.target.closest('[data-editor-leave-guard]') || !this.#shouldConfirmLeave()) {
             return;
         }
-        event.preventDefault();
-        this.#confirmLeave().then((confirmed) => {
-            if (confirmed) {
-                window.location.href = event.currentTarget.href;
-            } else {
-                this.#restoreFocus();
+
+        if (!window.confirm(this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            this.#restoreFocus();
+            return;
+        }
+
+        this.#discardAi();
+    }
+
+    // Aborting ends the provider's generator, whose finally tells the worker to stop.
+    #discardAi() {
+        const editor = this.#crepe?.editor;
+        if (!editor || editor.status !== EditorStatus.Created) {
+            return;
+        }
+
+        editor.action((ctx) => {
+            const commands = ctx.get(commandsCtx);
+            commands.call(abortAICmd.key, { keep: false });
+            if (diffPluginKey.getState(ctx.get(editorViewCtx).state)?.active) {
+                commands.call(clearDiffReviewCmd.key);
             }
         });
     }
@@ -746,8 +724,9 @@ export default class extends Controller {
                 }
                 this.#closeAiSource();
                 // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
-                if (!finished) {
-                    this.#postAi('/ai/abort', { id }).catch((err) => console.error('Failed to abort AI request:', err));
+                // keepalive: the abort must survive leaving the page right after a confirm.
+                if (!finished && id !== null) {
+                    this.#postAi('/ai/abort', { id }, { keepalive: true }).catch((err) => console.error('Failed to abort AI request:', err));
                 }
             }
         }.bind(this);
@@ -845,8 +824,9 @@ export default class extends Controller {
         return request;
     }
 
-    #postAi(url, body) {
+    #postAi(url, body, options = {}) {
         return fetch(url, {
+            ...options,
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
