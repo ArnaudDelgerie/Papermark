@@ -5,6 +5,7 @@ namespace App\Tests\Twig\Components;
 use App\Ai\AiTopicResolver;
 use App\Ai\ProviderName;
 use App\Entity\Provider;
+use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
@@ -102,11 +103,17 @@ final class EditorComponentTest extends KernelTestCase
         self::getContainer()->set(SecretStoreInterface::class, new InMemorySecretStore($secrets));
 
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        $selectedProvider = null;
         foreach (ProviderName::cases() as $name) {
             $provider = new Provider($name);
-            $provider->setSelected($name === $selected);
             $entityManager->persist($provider);
+            if ($name === $selected) {
+                $selectedProvider = $provider;
+            }
         }
+
+        $setting = self::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setSelectedProvider($selectedProvider);
         $entityManager->flush();
 
         return $request;

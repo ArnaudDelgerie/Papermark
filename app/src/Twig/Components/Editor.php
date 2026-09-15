@@ -4,7 +4,7 @@ namespace App\Twig\Components;
 
 use App\Ai\AiTopicResolver;
 use App\Ai\ApiKeyResolver;
-use App\Repository\ProviderRepository;
+use App\Repository\SettingRepository;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
@@ -27,7 +27,7 @@ final class Editor
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly StationContextInterface $stationContext,
         private readonly ApiKeyResolver $apiKeyResolver,
-        private readonly ProviderRepository $providers,
+        private readonly SettingRepository $settings,
         private readonly RequestStack $requestStack,
         private readonly AiTopicResolver $topicResolver,
         private readonly HubInterface $hub,
@@ -124,7 +124,7 @@ final class Editor
     #[ExposeInTemplate(name: 'ai_config')]
     public function getAiConfig(): array
     {
-        $provider = $this->providers->findSelected();
+        $provider = $this->settings->getOrCreate()->getSelectedProvider();
         $request = $this->requestStack->getMainRequest();
 
         $enabled = $request !== null

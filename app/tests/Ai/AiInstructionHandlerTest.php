@@ -11,7 +11,7 @@ use App\Ai\AiPlatformFactory;
 use App\Ai\ApiKeyResolver;
 use App\Ai\ProviderName;
 use App\Entity\Provider;
-use App\Repository\ProviderRepository;
+use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -126,12 +126,18 @@ final class AiInstructionHandlerTest extends KernelTestCase
     private function seedProviders(?ProviderName $selected, ?string $model = 'claude-test'): void
     {
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        $selectedProvider = null;
         foreach (ProviderName::cases() as $name) {
             $provider = new Provider($name);
-            $provider->setSelected($name === $selected);
             $provider->setModel($model);
             $entityManager->persist($provider);
+            if ($name === $selected) {
+                $selectedProvider = $provider;
+            }
         }
+
+        $setting = self::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setSelectedProvider($selectedProvider);
         $entityManager->flush();
     }
 
@@ -168,7 +174,7 @@ final class AiInstructionHandlerTest extends KernelTestCase
         $handler = new AiInstructionHandler(
             new AiPlatformFactory($httpClient),
             $container->get(ApiKeyResolver::class),
-            $container->get(ProviderRepository::class),
+            $container->get(SettingRepository::class),
             $hub,
             $container->get(TranslatorInterface::class),
             $this->logger,

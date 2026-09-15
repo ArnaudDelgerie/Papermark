@@ -2,13 +2,17 @@
 
 namespace App\Tests\Controller;
 
+use App\Tests\Support\ConfiguresImageFolder;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 final class HomeControllerTest extends WebTestCase
 {
+    use ConfiguresImageFolder;
+
     public function testEditorComponentRendersOnHome(): void
     {
         $client = static::createClient();
+        $this->configureImageFolder($client);
         $client->request('GET', '/');
 
         self::assertResponseIsSuccessful();
@@ -60,4 +64,11 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame(1, $crawler->filter('div[data-controller="toast"]')->count());
     }
 
+    public function testRedirectsToSettingsWhenImageFolderIsNotSet(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/');
+
+        self::assertResponseRedirects('/settings');
+    }
 }

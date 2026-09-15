@@ -19,11 +19,6 @@ class ProviderRepository extends ServiceEntityRepository
         parent::__construct($registry, Provider::class);
     }
 
-    public function findSelected(): ?Provider
-    {
-        return $this->findOneBy(['selected' => true]);
-    }
-
     /**
      * Providers keyed by name, in ProviderName declaration order.
      *

@@ -83,6 +83,12 @@ components:
         key_placeholder: Enter API key…
         key_set: Key set
         save: Save
+        image_folder:
+            title: Images folder
+            placeholder: Choose a folder…
+            choose: Choose a folder
+        error:
+            image_folder_required: Choose an images folder before continuing
         provider:
             openai: OpenAI
             anthropic: Anthropic

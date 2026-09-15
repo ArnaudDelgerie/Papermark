@@ -28,7 +28,6 @@ final class SeedProvidersCommandTest extends KernelTestCase
         self::assertSame(array_map(static fn (ProviderName $name) => $name->value, ProviderName::cases()), array_keys($providers));
 
         foreach ($providers as $provider) {
-            self::assertFalse($provider->isSelected());
             self::assertNull($provider->getModel());
         }
     }

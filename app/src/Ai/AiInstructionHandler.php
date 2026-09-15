@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
-use App\Repository\ProviderRepository;
+use App\Repository\SettingRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\Execution\Update\Progress;
@@ -47,7 +47,7 @@ final class AiInstructionHandler
     public function __construct(
         private readonly AiPlatformFactory $platformFactory,
         private readonly ApiKeyResolver $apiKeyResolver,
-        private readonly ProviderRepository $providers,
+        private readonly SettingRepository $settings,
         private readonly HubInterface $hub,
         private readonly TranslatorInterface $translator,
         private readonly LoggerInterface $logger,
@@ -57,7 +57,7 @@ final class AiInstructionHandler
 
     public function __invoke(AiInstructionMessage $message): void
     {
-        $provider = $this->providers->findSelected();
+        $provider = $this->settings->getOrCreate()->getSelectedProvider();
         if ($provider === null) {
             $this->publishOwnError($message, 'provider_not_selected');
             return;

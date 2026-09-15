@@ -2,18 +2,22 @@
 
 namespace App\Tests\Controller;
 
+use App\Tests\Support\ConfiguresImageFolder;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class UploadControllerTest extends WebTestCase
 {
+    use ConfiguresImageFolder;
+
     /**
      * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
      */
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
+        $this->configureImageFolder($client);
         $client->request('GET', '/');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
