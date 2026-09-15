@@ -43,7 +43,6 @@
         "symfony/string": "8.1.*",
         "symfony/translation": "8.1.*",
         "symfony/twig-bundle": "8.1.*",
-        "symfony/ux-turbo": "^3.4",
         "symfony/ux-twig-component": "^3.4",
         "symfony/validator": "8.1.*",
         "symfony/web-link": "8.1.*",
