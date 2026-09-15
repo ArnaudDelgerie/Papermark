@@ -211,9 +211,7 @@ export default class extends Controller {
         }
 
         this.#crepe.on((listener) => {
-            listener.markdownUpdated((_ctx, markdown, prevMarkdown) => {
-                const removed = this.#diffImageUrls(prevMarkdown, markdown);
-                removed.forEach((url) => this.#deleteImage(url));
+            listener.markdownUpdated((_ctx, markdown) => {
                 this.#updateSaveButton(markdown);
                 this.#updatePrintButton(markdown);
                 this.#updateCopyMarkdownButton(markdown);
@@ -730,39 +728,6 @@ export default class extends Controller {
             this.#toast('error', err.message || 'Upload failed');
             throw err;
         }
-    }
-
-    #deleteImage(url) {
-        const formData = new FormData();
-        formData.append('url', url);
-
-        fetch('/upload/image', {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
-            body: formData,
-        }).catch(() => {});
-    }
-
-    #extractImageUrls(markdown) {
-        const urls = new Set();
-        const regex = /\/uploads\/images\/[0-9a-f]{2}\/[0-9a-f]+\.[a-z]+/g;
-        let match;
-        while ((match = regex.exec(markdown)) !== null) {
-            urls.add(match[0]);
-        }
-        return urls;
-    }
-
-    #diffImageUrls(prevMarkdown, markdown) {
-        const prev = this.#extractImageUrls(prevMarkdown);
-        const current = this.#extractImageUrls(markdown);
-        const removed = [];
-        for (const url of prev) {
-            if (!current.has(url)) {
-                removed.push(url);
-            }
-        }
-        return removed;
     }
 
     // The server enables AI only with a worker, a selected provider and its key.

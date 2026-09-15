@@ -122,62 +122,6 @@ final class UploadController extends AbstractController
         };
     }
 
-    #[Route('/upload/image', name: 'app_delete_image', methods: ['DELETE'])]
-    public function deleteImage(Request $request): JsonResponse
-    {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('upload', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
-        $url = $request->request->get('url');
-        if (!\is_string($url)) {
-            return $this->errorResponse('no_url', Response::HTTP_BAD_REQUEST);
-        }
-
-        $path = $this->resolvePathFromUrl($url);
-        if ($path === null) {
-            return $this->errorResponse('invalid_url', Response::HTTP_BAD_REQUEST);
-        }
-
-        if (!is_file($path)) {
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
-        }
-
-        if (!unlink($path)) {
-            return $this->errorResponse('delete_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-
-        $dir = \dirname($path);
-        if (is_dir($dir) && count(scandir($dir)) <= 2) {
-            @rmdir($dir);
-        }
-
-        return new JsonResponse(['ok' => true]);
-    }
-
-    private function resolvePathFromUrl(string $url): ?string
-    {
-        $prefix = '/uploads/images/';
-        if (!str_starts_with($url, $prefix)) {
-            return null;
-        }
-
-        $relative = substr($url, \strlen($prefix));
-        if (!preg_match('/^([0-9a-f]{2})\/([0-9a-f]+\.[a-z]+)$/', $relative, $matches)) {
-            return null;
-        }
-
-        $path = $this->uploadDir . '/' . self::IMAGES_DIR . '/' . $matches[1] . '/' . $matches[2];
-        $realPath = realpath($path);
-
-        if ($realPath === false || !str_starts_with($realPath, realpath($this->uploadDir . '/' . self::IMAGES_DIR))) {
-            return null;
-        }
-
-        return $realPath;
-    }
-
     private function errorResponse(string $key, int $status): JsonResponse
     {
         return new JsonResponse(

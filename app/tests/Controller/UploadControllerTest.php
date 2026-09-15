@@ -70,21 +70,6 @@ final class UploadControllerTest extends WebTestCase
         self::assertSame('Only image files are supported', $data['error']);
     }
 
-    public function testDeleteRejectsInvalidCsrf(): void
-    {
-        $client = static::createClient();
-
-        $client->request('DELETE', '/upload/image', [
-            'url' => '/uploads/images/ab/test.png',
-        ], [], [
-            'HTTP_X-CSRF-TOKEN' => 'invalid',
-        ]);
-
-        self::assertResponseStatusCodeSame(403);
-        $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('Invalid security token, please reload the page', $data['error']);
-    }
-
     public function testUploadWritesUnderClipboardSubfolderOfImageFolderAndReturnsServiceUrl(): void
     {
         $imageFolder = sys_get_temp_dir() . '/' . uniqid('images_', true);
