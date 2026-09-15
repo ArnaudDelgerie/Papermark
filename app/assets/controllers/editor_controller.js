@@ -2,6 +2,8 @@ import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
 import { ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
 import { EditorStatus, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
+import { diffPluginKey } from '@milkdown/kit/plugin/diff';
+import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
 import { replaceAll } from '@milkdown/utils';
@@ -24,6 +26,12 @@ export default class extends Controller {
                 toggle: { edit: 'Edit', readonly: 'Read only' },
                 a4: 'A4',
                 full_width: 'Full width',
+                unsaved: {
+                    indicator: 'Unsaved',
+                    confirm: 'Continue and lose unsaved changes?',
+                    cancel: 'Cancel',
+                    continue: 'Continue',
+                },
                 slashMenu: {
                     text: 'Text',
                     paragraph: 'Text',
@@ -65,10 +73,11 @@ export default class extends Controller {
         },
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'a4Button', 'toggleButton'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'a4Button', 'toggleButton', 'dirtyIndicator'];
 
     #crepe = null;
     #currentPath = null;
+    #savedRef = '';
     #isReadonly = false;
     #isA4 = true;
     #lastScrollTop = 0;
@@ -80,7 +89,7 @@ export default class extends Controller {
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
 
-    connect() {
+    async connect() {
         this.#isReadonly = this.readonlyValue;
         this.#isA4 = this.element.classList.contains('is-a4');
         this.#crepe = new Crepe({
@@ -196,6 +205,7 @@ export default class extends Controller {
                 this.#updateSaveButton(markdown);
                 this.#updatePrintButton(markdown);
                 this.#updateCopyMarkdownButton(markdown);
+                this.#updateDirtyIndicator(markdown);
             });
         });
 
@@ -207,7 +217,11 @@ export default class extends Controller {
             }));
         });
 
-        this.#crepe.create();
+        await this.#crepe.create();
+
+        // A new document is clean: capture the empty editor's markdown as the
+        // reference so the indicator doesn't fire on the initial content.
+        this.#savedRef = this.#crepe.getMarkdown();
 
         window.addEventListener('beforeprint', this.#onBeforePrint);
         window.addEventListener('afterprint', this.#onAfterPrint);
@@ -221,6 +235,7 @@ export default class extends Controller {
         this.#updateSaveButton('');
         this.#updatePrintButton('');
         this.#updateCopyMarkdownButton('');
+        this.#updateDirtyIndicator(this.#savedRef);
 
         if (this.hasA4ButtonTarget) {
             this.a4ButtonTarget.textContent = this.#isA4
@@ -293,6 +308,11 @@ export default class extends Controller {
     }
 
     async openFile() {
+        if (this.#shouldConfirmLeave() && !await this.#confirmLeave()) {
+            this.#restoreFocus();
+            return;
+        }
+
         const path = await this.#pickPath('file');
         if (path === null) {
             return;
@@ -316,7 +336,9 @@ export default class extends Controller {
             const { content } = await response.json();
             this.#currentPath = path;
             this.#crepe.editor.action(replaceAll(content));
-            this.#updateSaveButton(this.#crepe.getMarkdown());
+            this.#savedRef = this.#crepe.getMarkdown();
+            this.#updateSaveButton(this.#savedRef);
+            this.#updateDirtyIndicator(this.#savedRef);
             this.#toast('success', this.i18nValue.toast?.opened ?? 'File opened');
         } catch (err) {
             console.error('Failed to open file:', err);
@@ -347,6 +369,8 @@ export default class extends Controller {
                 throw new Error(data.error || `Save failed: ${response.status}`);
             }
 
+            this.#savedRef = markdown;
+            this.#updateDirtyIndicator(markdown);
             this.#toast('success', this.i18nValue.toast?.saved ?? 'File saved');
         } catch (err) {
             console.error('Failed to save file:', err);
@@ -382,7 +406,9 @@ export default class extends Controller {
             }
 
             this.#currentPath = path;
+            this.#savedRef = markdown;
             this.#updateSaveButton(markdown);
+            this.#updateDirtyIndicator(markdown);
             const name = path.split('/').pop();
             const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
             this.#toast('success', template.replace('{name}', name));
@@ -510,6 +536,95 @@ export default class extends Controller {
         if (this.hasCopyMarkdownButtonTarget) {
             this.copyMarkdownButtonTarget.disabled = markdown.trim() === '';
         }
+    }
+
+    #updateDirtyIndicator(markdown) {
+        if (!this.hasDirtyIndicatorTarget) {
+            return;
+        }
+        this.dirtyIndicatorTarget.hidden = !this.#isDirty(markdown);
+    }
+
+    #isDirty(markdown) {
+        const current = markdown ?? this.#crepe?.getMarkdown() ?? '';
+        return current !== this.#savedRef;
+    }
+
+    #restoreFocus() {
+        const prosemirror = this.element.querySelector('.ProseMirror');
+        if (prosemirror) {
+            prosemirror.focus();
+        }
+    }
+
+    #isAiInProgress() {
+        const editor = this.#crepe?.editor;
+        if (!editor || editor.status !== EditorStatus.Created) {
+            return false;
+        }
+        const view = editor.ctx.get(editorViewCtx);
+        const streaming = streamingPluginKey.getState(view.state);
+        const diff = diffPluginKey.getState(view.state);
+        return (streaming?.active ?? false) || (diff?.active ?? false);
+    }
+
+    #shouldConfirmLeave() {
+        return this.#isDirty() || this.#isAiInProgress();
+    }
+
+    #confirmLeave() {
+        return new Promise((resolve) => {
+            let resolved = false;
+            const settle = (value) => {
+                if (!resolved) {
+                    resolved = true;
+                    resolve(value);
+                }
+            };
+
+            const dialog = document.createElement('dialog');
+            dialog.className = 'editor-confirm-dialog';
+            dialog.textContent = this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?';
+
+            const actions = document.createElement('div');
+            actions.className = 'editor-confirm-dialog-actions';
+
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.textContent = this.i18nValue.unsaved?.cancel ?? 'Cancel';
+            cancel.addEventListener('click', () => { dialog.close(); settle(false); });
+
+            const cont = document.createElement('button');
+            cont.type = 'button';
+            cont.className = 'editor-confirm-continue';
+            cont.textContent = this.i18nValue.unsaved?.continue ?? 'Continue';
+            cont.addEventListener('click', () => { dialog.close(); settle(true); });
+
+            actions.append(cancel, cont);
+            dialog.append(actions);
+            document.body.append(dialog);
+            dialog.showModal();
+
+            // Escape or clicking backdrop closes the dialog without confirming.
+            dialog.addEventListener('close', () => {
+                dialog.remove();
+                settle(false);
+            });
+        });
+    }
+
+    confirmLeave(event) {
+        if (!this.#shouldConfirmLeave()) {
+            return;
+        }
+        event.preventDefault();
+        this.#confirmLeave().then((confirmed) => {
+            if (confirmed) {
+                window.location.href = event.currentTarget.href;
+            } else {
+                this.#restoreFocus();
+            }
+        });
     }
 
     async #uploadFile(file) {

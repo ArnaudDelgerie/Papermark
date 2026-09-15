@@ -11,8 +11,7 @@ use Symfony\Component\Uid\Uuid;
  * Mints (and remembers) the unguessable Mercure topic AI events are published on.
  *
  * One topic per session, never taken from the client: a browser holds a single
- * Mercure cookie, so every editor of the session shares it. Streams are told
- * apart by their request id.
+ * Mercure cookie. Streams are told apart by their request id.
  */
 final class AiTopicResolver
 {

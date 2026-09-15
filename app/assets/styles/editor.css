@@ -50,6 +50,64 @@
     background: var(--color-border);
 }
 
+/* Dirty indicator: small label to the right of A4/Full-width. */
+
+.editor-dirty-indicator {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--color-danger);
+    white-space: nowrap;
+}
+
+.editor-dirty-indicator[hidden] {
+    display: none;
+}
+
+/* Confirmation dialog (native confirm() is unavailable in WebKitGTK). */
+
+.editor-confirm-dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-4);
+    max-width: 24rem;
+}
+
+.editor-confirm-dialog::backdrop {
+    background: rgb(0 0 0 / 50%);
+}
+
+.editor-confirm-dialog p {
+    margin: 0 0 var(--space-3);
+    font-size: 0.875rem;
+}
+
+.editor-confirm-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.editor-confirm-dialog button {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.editor-confirm-dialog button:hover {
+    background: var(--color-border);
+}
+
+.editor-confirm-dialog .editor-confirm-continue {
+    border-color: var(--color-danger);
+}
+
 /* Crepe ------------------------------------------------------------------- */
 
 .editor .milkdown {

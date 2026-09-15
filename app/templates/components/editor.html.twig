@@ -26,12 +26,15 @@
         <button type="button" class="editor-filebar-btn" data-editor-target="a4Button" data-action="click->editor#toggleA4">
             {{ 'components.editor.full_width'|trans({}, 'components') }}
         </button>
+        <span class="editor-dirty-indicator" data-editor-target="dirtyIndicator" hidden>
+            {{ 'components.editor.unsaved.indicator'|trans({}, 'components') }}
+        </span>
         <button type="button" class="editor-filebar-btn editor-toggle-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly">
             {{ readonly
                 ? 'components.editor.toggle.edit'|trans({}, 'components')
                 : 'components.editor.toggle.readonly'|trans({}, 'components') }}
         </button>
-        <a href="{{ path('app_settings') }}" class="editor-filebar-btn editor-settings-btn">
+        <a href="{{ path('app_settings') }}" class="editor-filebar-btn editor-settings-btn" data-action="click->editor#confirmLeave">
             {{ 'components.editor.settings'|trans({}, 'components') }}
         </a>
     </div>

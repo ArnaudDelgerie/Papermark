@@ -52,6 +52,12 @@ final class Editor
             ],
             'a4' => $this->trans('a4'),
             'full_width' => $this->trans('full_width'),
+            'unsaved' => [
+                'indicator' => $this->trans('unsaved.indicator'),
+                'confirm' => $this->trans('unsaved.confirm'),
+                'cancel' => $this->trans('unsaved.cancel'),
+                'continue' => $this->trans('unsaved.continue'),
+            ],
             'slashMenu' => [
                 'text' => $this->trans('slash_menu.text'),
                 'paragraph' => $this->trans('slash_menu.paragraph'),
