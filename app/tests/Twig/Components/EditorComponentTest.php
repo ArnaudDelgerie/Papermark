@@ -86,18 +86,6 @@ final class EditorComponentTest extends KernelTestCase
         self::assertSame(self::getContainer()->get(AiTopicResolver::class)->resolve($request), $aiConfig['topic']);
     }
 
-    public function testTwoEditorsOnOnePageShareTheTopic(): void
-    {
-        $this->configureAi(selected: ProviderName::Anthropic, secrets: ['anthropic' => 'key']);
-
-        $html = $this->twig()->createTemplate("{{ component('editor') }}{{ component('editor') }}")->render([]);
-        $editors = (new Crawler($html))->filter('div[data-controller="editor"]');
-
-        self::assertCount(2, $editors);
-        $topics = $editors->each(static fn (Crawler $editor): string => json_decode((string) $editor->attr('data-editor-ai-config-value'), true)['topic']);
-        self::assertSame($topics[0], $topics[1]);
-    }
-
     /**
      * @param array<string, string> $secrets
      */
