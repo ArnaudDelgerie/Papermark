@@ -2,7 +2,9 @@ import { Controller } from '@hotwired/stimulus';
 import { Crepe } from '@milkdown/crepe';
 import { abortAICmd, ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
 import { EditorStatus, commandsCtx, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
+import { imageBlockSchema } from '@milkdown/kit/component/image-block';
 import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
+import { addBlockTypeCommand, clearTextInCurrentBlockCommand } from '@milkdown/kit/preset/commonmark';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
@@ -142,6 +144,15 @@ export default class extends Controller {
                         image: { label: this.i18nValue.slashMenu.image },
                         codeBlock: { label: this.i18nValue.slashMenu.code },
                         table: { label: this.i18nValue.slashMenu.table },
+                    },
+                    // Replaces the default "Image" action (which opens Crepe's own
+                    // upload/placeholder UI) with the hub's file picker, see EDITOR_IMAGES.md.
+                    buildMenu: (builder) => {
+                        const advanced = builder.getGroup('advanced');
+                        const imageItem = advanced.group.items.find((item) => item.key === 'image');
+                        if (imageItem) {
+                            imageItem.onRun = (ctx) => this.#insertImageFromPicker(ctx);
+                        }
                     },
                 },
                 [Crepe.Feature.TopBar]: {
@@ -510,6 +521,25 @@ export default class extends Controller {
             if (this.#scrollTarget) {
                 this.#scrollTarget.addEventListener('scroll', this.#onScroll);
             }
+        });
+    }
+
+    /**
+     * Picked paths are always absolute and never rewritten to relative,
+     * whether the document is new or already open — see EDITOR_IMAGES.md.
+     */
+    async #insertImageFromPicker(ctx) {
+        const path = await this.#pickPath('file');
+        if (path === null) {
+            return;
+        }
+
+        const commands = ctx.get(commandsCtx);
+        const imageBlock = imageBlockSchema.type(ctx);
+        commands.call(clearTextInCurrentBlockCommand.key);
+        commands.call(addBlockTypeCommand.key, {
+            nodeType: imageBlock,
+            attrs: { src: `/file/image?path=${encodeURIComponent(path)}` },
         });
     }
 
