@@ -157,6 +157,14 @@ export default class extends Controller {
                 },
                 [Crepe.Feature.TopBar]: {
                     buildTopBar: (builder) => {
+                        // Same replacement as the slash menu's "Image" entry: the hub's
+                        // file picker instead of Crepe's own upload/placeholder UI.
+                        const insert = builder.getGroup('insert');
+                        const imageItem = insert.group.items.find((item) => item.key === 'image');
+                        if (imageItem) {
+                            imageItem.onRun = (ctx) => this.#insertImageFromPicker(ctx);
+                        }
+
                         const formatting = builder.getGroup('formatting');
                         const codeItem = formatting.group.items.find(
                             (item) => item.key === 'code'
