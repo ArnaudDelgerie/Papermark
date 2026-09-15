@@ -701,13 +701,15 @@ export default class extends Controller {
      */
     #createAIProvider() {
         return async function* aiProvider(context, signal) {
-            await this.#ensureAiSubscription();
-
-            const id = window.crypto.randomUUID();
-            const request = this.#createAiRequest(id);
+            let id = null;
             let finished = false;
 
             try {
+                await this.#ensureAiSubscription();
+
+                id = window.crypto.randomUUID();
+                const request = this.#createAiRequest(id);
+
                 const response = await this.#postAi('/ai/instruct', {
                     id,
                     instruction: context.instruction,
@@ -739,7 +741,9 @@ export default class extends Controller {
                     }
                 }
             } finally {
-                this.#aiRequests.delete(id);
+                if (id !== null) {
+                    this.#aiRequests.delete(id);
+                }
                 this.#closeAiSource();
                 // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
                 if (!finished) {
@@ -787,6 +791,10 @@ export default class extends Controller {
             source.addEventListener('error', () => {
                 // Transient errors reconnect on their own; only a closed source is lost.
                 if (source.readyState !== EventSource.CLOSED) {
+                    return;
+                }
+                // Ignore errors from a source we already replaced or closed.
+                if (this.#aiSource !== source) {
                     return;
                 }
 
