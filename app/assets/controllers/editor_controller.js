@@ -722,6 +722,10 @@ export default class extends Controller {
 
     // Aborting ends the provider's generator, whose finally tells the worker to stop.
     #discardAi() {
+        if (!this.#isAiEnabled()) {
+            return;
+        }
+
         const editor = this.#crepe?.editor;
         if (!editor || editor.status !== EditorStatus.Created) {
             return;
