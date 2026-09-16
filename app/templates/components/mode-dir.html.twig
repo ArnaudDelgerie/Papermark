@@ -17,6 +17,10 @@
         <span class="mode-dir-open-label">{{ 'components.mode.open_directory'|trans({}, 'components') }}</span>
     </button>
 
+    {% if open_directory %}
+        <p class="mode-dir-open-path" title="{{ open_directory }}">{{ open_directory }}</p>
+    {% endif %}
+
     <div data-mode-dir-target="tree">
         {% include 'components/_mode_dir_tree.html.twig' with { tree_result: tree_result } only %}
     </div>

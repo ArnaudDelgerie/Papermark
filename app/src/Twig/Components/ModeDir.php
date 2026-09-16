@@ -27,6 +27,12 @@ final class ModeDir
     ) {
     }
 
+    #[ExposeInTemplate(name: 'open_directory')]
+    public function getOpenDirectory(): ?string
+    {
+        return $this->openDirectory->get();
+    }
+
     #[ExposeInTemplate(name: 'tree_result')]
     public function getTreeResult(): ?DirectoryTreeResult
     {

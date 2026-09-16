@@ -77,6 +77,16 @@
     }
 }
 
+.mode-dir-open-path {
+    margin: 0;
+    padding: 0 var(--space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}
+
 .mode-history,
 .mode-tree {
     list-style: none;
