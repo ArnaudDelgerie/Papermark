@@ -2,19 +2,12 @@
    State classes on .editor only change variables where possible. */
 
 .editor {
-    --toolbar-height: 44px;
-    --toolbar-offset: var(--toolbar-height);
-
     display: flex;
     flex-direction: column;
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     overflow: hidden;
     background: var(--color-surface);
-}
-
-.editor:is(.is-toolbar-hidden, .is-readonly) {
-    --toolbar-offset: 0px;
 }
 
 /* File bar ------------------------------------------------------------------
@@ -44,8 +37,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
@@ -64,8 +57,8 @@
 }
 
 .editor-filebar-icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     background-color: currentcolor;
     mask-repeat: no-repeat;
     mask-position: center;
@@ -197,19 +190,37 @@
     overflow: hidden;
 }
 
-/* Overlaid above the scroll area so collapsing it never changes the editor
-   height (prevents scroll feedback loops). */
 .editor .milkdown-top-bar {
-    position: absolute;
-    inset: 0 0 auto;
-    z-index: 10;
-    min-height: var(--toolbar-height);
+    position: relative;
+    min-height: 36px;
+    margin-bottom: 2px;
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    transition: transform 0.2s ease, border-color 0.2s ease;
     flex-wrap: nowrap;
     overflow: auto hidden;
     scrollbar-width: none;
+}
+
+/* Crepe's own editable check doesn't see our readonly toggle (it flips the
+   ProseMirror contenteditable attribute directly, not Crepe's editable()),
+   so it never hides the bar itself — do it here instead. */
+.editor.is-readonly .milkdown-top-bar {
+    display: none;
+}
+
+/* The heading selector and divider are Crepe's tallest default items
+   (44px); shrink them to match the 36px row below. */
+.editor .milkdown-top-bar .top-bar-heading-selector {
+    padding: 4px;
+}
+
+.editor .milkdown-top-bar .top-bar-heading-button {
+    height: 28px;
+}
+
+.editor .milkdown-top-bar .top-bar-divider {
+    height: 20px;
+    margin: 8px;
 }
 
 /* Keep the toolbar on one line: scroll sideways instead of wrapping onto a
@@ -224,24 +235,19 @@
     display: none;
 }
 
-.editor:is(.is-toolbar-hidden, .is-readonly) .milkdown-top-bar {
-    transform: translateY(-100%);
-    border-color: transparent;
-}
-
 /* Crepe's default buttons (32px + 4px padding + 6px margin = 40px+ visible,
-   24px icon) run bigger than the file-bar's (16px icon in a plain 32px
+   24px icon) run bigger than the file-bar's (14px icon in a plain 28px
    button) — match that scale so both bars read at the same size. */
 .editor .milkdown-top-bar .top-bar-item {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     margin: 4px;
     padding: 0;
 }
 
 .editor .milkdown-top-bar .top-bar-item svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
 }
 
 .editor:is(.is-a4, .is-readonly) .milkdown-block-handle {
@@ -254,7 +260,7 @@
 
     flex: 1;
     overflow-y: auto;
-    padding: calc(var(--toolbar-offset) + var(--space-3)) var(--space-5) var(--space-4);
+    padding: var(--space-5) var(--space-5) var(--space-4);
 }
 
 /* Align list bullets with the first line of the tighter document text. */
@@ -275,7 +281,7 @@
     width: 100%;
     max-width: var(--doc-page-width);
     margin-inline: auto;
-    padding: calc(var(--toolbar-offset) + var(--space-3)) var(--doc-page-margin) var(--doc-page-margin);
+    padding: var(--space-5) var(--doc-page-margin) var(--doc-page-margin);
     background-color: var(--color-surface);
 }
 

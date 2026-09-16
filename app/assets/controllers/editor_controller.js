@@ -37,9 +37,6 @@ export default class extends Controller {
     #currentPath = null;
     #savedRef = '';
     #isReadonly = false;
-    #lastScrollTop = 0;
-    #scrollTarget = null;
-    #onScroll = null;
     #printCopy = null;
     #aiClient = null;
     #onBeforePrint = () => this.#mountPrintCopy();
@@ -93,8 +90,6 @@ export default class extends Controller {
 
         if (this.#isReadonly) {
             this.#applyReadonlyState();
-        } else {
-            this.#setupScrollHide();
         }
 
         this.#updateSaveButton('');
@@ -117,13 +112,8 @@ export default class extends Controller {
 
         if (this.#isReadonly) {
             this.element.classList.add('is-readonly');
-            this.element.classList.remove('is-toolbar-hidden');
-            if (this.#scrollTarget && this.#onScroll) {
-                this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
-            }
         } else {
             this.element.classList.remove('is-readonly');
-            this.#setupScrollHide();
         }
 
         if (this.#isReadonly) {
@@ -145,9 +135,6 @@ export default class extends Controller {
     }
 
     disconnect() {
-        if (this.#scrollTarget && this.#onScroll) {
-            this.#scrollTarget.removeEventListener('scroll', this.#onScroll);
-        }
         window.removeEventListener('beforeprint', this.#onBeforePrint);
         window.removeEventListener('afterprint', this.#onAfterPrint);
         window.removeEventListener('click', this.#onGuardedClick, true);
@@ -344,30 +331,6 @@ export default class extends Controller {
     #removePrintCopy() {
         this.#printCopy?.remove();
         this.#printCopy = null;
-    }
-
-    #setupScrollHide() {
-        this.#onScroll = () => {
-            if (!this.#scrollTarget) {
-                return;
-            }
-            const scrollTop = this.#scrollTarget.scrollTop;
-            if (scrollTop <= 0) {
-                this.element.classList.remove('is-toolbar-hidden');
-            } else if (scrollTop > this.#lastScrollTop + 4) {
-                this.element.classList.add('is-toolbar-hidden');
-            } else if (scrollTop < this.#lastScrollTop - 4) {
-                this.element.classList.remove('is-toolbar-hidden');
-            }
-            this.#lastScrollTop = scrollTop;
-        };
-
-        requestAnimationFrame(() => {
-            this.#scrollTarget = this.element.querySelector('.ProseMirror');
-            if (this.#scrollTarget) {
-                this.#scrollTarget.addEventListener('scroll', this.#onScroll);
-            }
-        });
     }
 
     /**
