@@ -6,6 +6,7 @@ namespace App\Entity;
 
 use App\Editor\EditorMode;
 use App\Repository\SettingRepository;
+use App\Theme\ThemeMode;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -26,6 +27,9 @@ class Setting
 
     #[ORM\Column(length: 16, enumType: EditorMode::class)]
     private EditorMode $defaultMode = EditorMode::Single;
+
+    #[ORM\Column(length: 16, enumType: ThemeMode::class)]
+    private ThemeMode $themeMode = ThemeMode::Dark;
 
     public function getId(): ?int
     {
@@ -50,5 +54,15 @@ class Setting
     public function setDefaultMode(EditorMode $defaultMode): void
     {
         $this->defaultMode = $defaultMode;
+    }
+
+    public function getThemeMode(): ThemeMode
+    {
+        return $this->themeMode;
+    }
+
+    public function setThemeMode(ThemeMode $themeMode): void
+    {
+        $this->themeMode = $themeMode;
     }
 }

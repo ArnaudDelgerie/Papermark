@@ -2,6 +2,9 @@ import { Crepe } from '@milkdown/crepe';
 import { ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
 import { editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
 import { trailing } from '@milkdown/plugin-trailing';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { crepeLightTheme } from './codemirror-light-theme.js';
+import { isLightTheme } from '../utils/theme.js';
 
 const DEFAULT_I18N = {
     placeholder: 'Start writing…',
@@ -48,6 +51,7 @@ export default class EditorFactory {
     /**
      * @param {Object} options
      * @param {Element} options.root
+     * @param {string} [options.defaultValue]
      * @param {Object} [options.i18n] Partial translations; missing keys fall back to DEFAULT_I18N.
      * @param {(ctx: import('@milkdown/kit/ctx').Ctx) => void} options.onInsertImage
      * @param {boolean} [options.aiEnabled]
@@ -55,7 +59,7 @@ export default class EditorFactory {
      * @param {(error: Error) => void} [options.onAiError]
      * @returns {Promise<Crepe>}
      */
-    static async create({ root, i18n = {}, onInsertImage, aiEnabled = false, aiProvider, onAiError }) {
+    static async create({ root, defaultValue = '', i18n = {}, onInsertImage, aiEnabled = false, aiProvider, onAiError }) {
         const t = {
             placeholder: i18n.placeholder ?? DEFAULT_I18N.placeholder,
             link: {
@@ -95,7 +99,7 @@ export default class EditorFactory {
 
         const crepe = new Crepe({
             root,
-            defaultValue: '',
+            defaultValue,
             features: {
                 [Crepe.Feature.Toolbar]: false,
                 [Crepe.Feature.TopBar]: true,
@@ -147,6 +151,11 @@ export default class EditorFactory {
                             imageItem.onRun = onInsertImage;
                         }
                     },
+                },
+                [Crepe.Feature.CodeMirror]: {
+                    // Crepe defaults this to oneDark regardless of the app's
+                    // theme (see EDITOR_THEME.md); pick explicitly instead.
+                    theme: isLightTheme() ? crepeLightTheme : oneDark,
                 },
                 [Crepe.Feature.TopBar]: {
                     buildTopBar: (builder) => {

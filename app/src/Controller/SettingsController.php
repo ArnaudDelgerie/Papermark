@@ -48,6 +48,7 @@ final class SettingsController extends AbstractController
             'providers' => $providersByName,
             'selected' => $setting->getSelectedProvider()?->getName(),
             'defaultMode' => $setting->getDefaultMode(),
+            'themeMode' => $setting->getThemeMode(),
         ]);
         $form->handleRequest($request);
 
@@ -66,6 +67,7 @@ final class SettingsController extends AbstractController
 
                 $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
                 $setting->setDefaultMode($form->get('defaultMode')->getData());
+                $setting->setThemeMode($form->get('themeMode')->getData());
 
                 $this->entityManager->flush();
 

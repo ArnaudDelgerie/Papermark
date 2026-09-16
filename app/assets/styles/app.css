@@ -1,8 +1,8 @@
 /* Crepe lives in its own layer: any unlayered rule below wins over it,
    whatever its specificity, so our selectors stay short. */
 @import url("@milkdown/crepe/theme/common/style.css") layer(crepe);
-@import url("@milkdown/crepe/theme/frame-dark.css") layer(crepe);
 @import url("./tokens.css");
+@import url("./crepe-theme.css");
 @import url("./layout.css");
 @import url("./sidebar.css");
 @import url("./document.css");

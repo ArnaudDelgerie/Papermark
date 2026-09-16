@@ -13,6 +13,7 @@ import { confirmDialog } from '../utils/confirm-dialog.js';
 import { FILE_DELETED_EVENT, FILE_RENAMED_EVENT, OPEN_FILE_EVENT, dispatchFileSavedAs } from '../utils/editor-open.js';
 import { pickPath, savePath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
+import { watchAutoTheme } from '../utils/theme.js';
 
 export default class extends Controller {
     static values = {
@@ -49,6 +50,8 @@ export default class extends Controller {
     #onOpenFileRequested = (event) => this.#loadFile(event.detail.path);
     #onFileDeleted = (event) => this.#handleFileDeleted(event.detail.path);
     #onFileRenamed = (event) => this.#handleFileRenamed(event.detail.oldPath, event.detail.newPath);
+    #onSystemThemeChange = () => this.#reloadForThemeChange();
+    #unwatchAutoTheme = () => {};
     #leaveConfirmed = false;
 
     async connect() {
@@ -64,24 +67,7 @@ export default class extends Controller {
             });
         }
 
-        this.#crepe = await EditorFactory.create({
-            root: this.element,
-            i18n: this.i18nValue,
-            onInsertImage: (ctx) => this.#insertImageFromPicker(ctx),
-            aiEnabled: this.#isAiEnabled(),
-            aiProvider: this.#aiClient?.createProvider(),
-            // Crepe prefixes the message ("AI provider error: ..."); show the original one.
-            onAiError: (error) => showToast('error', error.cause?.message ?? error.message),
-        });
-
-        this.#crepe.on((listener) => {
-            listener.markdownUpdated((_ctx, markdown) => {
-                this.#updateSaveButton(markdown);
-                this.#updatePrintButton(markdown);
-                this.#updateCopyMarkdownButton(markdown);
-                this.#updateDirtyIndicator(markdown);
-            });
-        });
+        this.#crepe = await this.#createCrepe();
 
         // A new document is clean: capture the empty editor's markdown as the
         // reference so the indicator doesn't fire on the initial content.
@@ -95,6 +81,10 @@ export default class extends Controller {
         window.addEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
         window.addEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
         window.addEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
+        // No-op outside "auto" mode (see utils/theme.js): the editor's
+        // CodeMirror theme is picked once at creation, so following the OS
+        // live means recreating it — see #reloadForThemeChange.
+        this.#unwatchAutoTheme = watchAutoTheme(this.#onSystemThemeChange);
 
         if (this.#isReadonly) {
             this.#applyReadonlyState();
@@ -109,6 +99,52 @@ export default class extends Controller {
         if (this.initialPathValue) {
             this.#applyLoadedFile(this.initialPathValue, this.initialContentValue);
         }
+    }
+
+    async #createCrepe(defaultValue = '') {
+        const crepe = await EditorFactory.create({
+            root: this.element,
+            defaultValue,
+            i18n: this.i18nValue,
+            onInsertImage: (ctx) => this.#insertImageFromPicker(ctx),
+            aiEnabled: this.#isAiEnabled(),
+            aiProvider: this.#aiClient?.createProvider(),
+            // Crepe prefixes the message ("AI provider error: ..."); show the original one.
+            onAiError: (error) => showToast('error', error.cause?.message ?? error.message),
+        });
+
+        crepe.on((listener) => {
+            listener.markdownUpdated((_ctx, markdown) => {
+                this.#updateSaveButton(markdown);
+                this.#updatePrintButton(markdown);
+                this.#updateCopyMarkdownButton(markdown);
+                this.#updateDirtyIndicator(markdown);
+            });
+        });
+
+        return crepe;
+    }
+
+    // "Auto" mode picks CodeMirror's theme once at creation (see
+    // editor-factory.js); the crude but simple way to follow a live OS
+    // theme switch is to recreate the editor in place rather than reach
+    // into CodeMirror internals to reconfigure it. Skipped mid-AI-generation
+    // to avoid cutting off a stream; it'll catch up on the next OS switch or
+    // page reload.
+    async #reloadForThemeChange() {
+        if (this.#isAiInProgress()) {
+            return;
+        }
+
+        const markdown = this.#crepe?.getMarkdown() ?? '';
+        this.#crepe?.destroy();
+        this.#crepe = await this.#createCrepe(markdown);
+        // Also updates the save button correctly for the readonly case,
+        // unlike a plain #updateSaveButton(markdown) call here would.
+        this.#applyReadonlyState();
+        this.#updatePrintButton(markdown);
+        this.#updateCopyMarkdownButton(markdown);
+        this.#updateDirtyIndicator(markdown);
     }
 
     toggleReadonly() {
@@ -153,6 +189,7 @@ export default class extends Controller {
         window.removeEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
         window.removeEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
         window.removeEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
+        this.#unwatchAutoTheme();
         this.#removePrintCopy();
         this.#aiClient?.close();
         this.#crepe?.destroy();

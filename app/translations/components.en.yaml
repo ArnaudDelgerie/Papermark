@@ -71,6 +71,10 @@ components:
             invalid_name: Invalid file name
             rename_target_exists: A file with that name already exists
             delete_error: Could not delete the file
+    theme:
+        light: Light
+        dark: Dark
+        auto: Auto
     mode:
         single: Single file
         dir: Folder
@@ -102,6 +106,7 @@ components:
         save_and_close: Save and close
         saved: Settings saved
         mode_title: Default mode
+        theme_title: Theme
         delete_key: Delete key
         delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
         delete_key_confirm_question: Delete this API key?

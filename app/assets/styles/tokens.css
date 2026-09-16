@@ -1,14 +1,4 @@
-/* --color-page and --color-text are also written as literal hex in
-   app/tfsapp.config.json (splash_bg / splash_text), which the host
-   reads instead of this file. Change one, change the other. */
 :root {
-    --color-page: #121212;
-    --color-surface: #1e1e1e;
-    --color-border: #2c2c2c;
-    --color-text: #e0e0e0;
-    --color-muted: #a0a0a0;
-    --color-accent: #6ba8d4;
-    --color-danger: #d47070;
     --space-1: 0.25rem;
     --space-2: 0.5rem;
     --space-3: 0.75rem;
@@ -17,4 +7,44 @@
     --space-6: 2rem;
     --radius: 0.25rem;
     --font-sans: sans-serif;
+}
+
+/* --color-page and --color-text (dark) are also written as literal hex in
+   app/tfsapp.config.json (splash_bg / splash_text), which the host reads
+   instead of this file for the splash screen shown before CSS loads. Change
+   one, change the other. */
+:root[data-theme="dark"] {
+    --color-page: #121212;
+    --color-surface: #1e1e1e;
+    --color-border: #2c2c2c;
+    --color-text: #e0e0e0;
+    --color-muted: #a0a0a0;
+    --color-accent: #6ba8d4;
+    --color-danger: #d47070;
+}
+
+/* "auto" defaults to the light values below (the CSS spec's own fallback
+   when no system preference is detected) and is overridden to the dark
+   values above, duplicated, when the OS prefers dark. */
+:root[data-theme="light"],
+:root[data-theme="auto"] {
+    --color-page: #fff;
+    --color-surface: #f7f7f7;
+    --color-border: #dcdcdc;
+    --color-text: #1c1c1c;
+    --color-muted: #6b6b6b;
+    --color-accent: #2f6fa8;
+    --color-danger: #ba1a1a;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root[data-theme="auto"] {
+        --color-page: #121212;
+        --color-surface: #1e1e1e;
+        --color-border: #2c2c2c;
+        --color-text: #e0e0e0;
+        --color-muted: #a0a0a0;
+        --color-accent: #6ba8d4;
+        --color-danger: #d47070;
+    }
 }

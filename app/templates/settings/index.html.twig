@@ -44,6 +44,16 @@
             {% endfor %}
         </fieldset>
 
+        <fieldset class="settings-fieldset">
+            <legend>{{ 'components.settings.theme_title'|trans({}, 'components') }}</legend>
+            {% for radio in form.themeMode %}
+            <label class="settings-mode-option">
+                {{ form_widget(radio) }}
+                {{ form_label(radio) }}
+            </label>
+            {% endfor %}
+        </fieldset>
+
         <div class="settings-submit-row">
             {{ form_widget(form.save, {attr: {class: 'settings-submit'}}) }}
             {{ form_widget(form.saveAndClose, {attr: {class: 'settings-submit settings-submit-secondary'}}) }}
