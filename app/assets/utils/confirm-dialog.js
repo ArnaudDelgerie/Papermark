@@ -1,9 +1,22 @@
 // The webview shows no native confirm(): the hub doesn't handle JS dialogs.
-export function confirmDialog({ message, cancelLabel = 'Cancel', continueLabel = 'Continue' }) {
+// `message` is optional informative context (e.g. what's about to happen);
+// `question` is the actual yes/no prompt and is always shown.
+export function confirmDialog({ message, question, cancelLabel = 'Cancel', continueLabel = 'Continue' }) {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.className = 'editor-confirm-dialog';
-        dialog.textContent = message;
+
+        if (message) {
+            const messageEl = document.createElement('p');
+            messageEl.className = 'editor-confirm-dialog-message';
+            messageEl.textContent = message;
+            dialog.append(messageEl);
+        }
+
+        const questionEl = document.createElement('p');
+        questionEl.className = 'editor-confirm-dialog-question';
+        questionEl.textContent = question;
+        dialog.append(questionEl);
 
         const actions = document.createElement('div');
         actions.className = 'editor-confirm-dialog-actions';

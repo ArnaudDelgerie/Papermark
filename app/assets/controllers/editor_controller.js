@@ -445,7 +445,7 @@ export default class extends Controller {
         event.stopImmediatePropagation();
 
         confirmDialog({
-            message: this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?',
+            question: this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?',
             cancelLabel: this.i18nValue.unsaved?.cancel ?? 'Cancel',
             continueLabel: this.i18nValue.unsaved?.continue ?? 'Continue',
         }).then((confirmed) => {

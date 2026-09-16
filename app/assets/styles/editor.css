@@ -145,8 +145,9 @@
     border-radius: var(--radius);
     background: var(--color-surface);
     color: var(--color-text);
-    padding: var(--space-4);
-    max-width: 24rem;
+    padding: var(--space-5);
+    max-width: 50vw;
+    max-height: 50vh;
     font-size: 0.875rem;
 }
 
@@ -154,11 +155,21 @@
     background: rgb(0 0 0 / 50%);
 }
 
+.editor-confirm-dialog-message {
+    margin: 0 0 var(--space-3);
+    color: var(--color-muted);
+}
+
+.editor-confirm-dialog-question {
+    margin: 0;
+    font-size: 1rem;
+}
+
 .editor-confirm-dialog-actions {
     display: flex;
     justify-content: flex-end;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
+    gap: var(--space-3);
+    margin-top: var(--space-5);
 }
 
 .editor-confirm-dialog button {
