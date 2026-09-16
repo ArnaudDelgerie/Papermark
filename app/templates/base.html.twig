@@ -15,6 +15,12 @@
     </head>
     <body>
         {% block body %}{% endblock %}
-        <div data-controller="toast" class="toast-container" aria-live="polite"></div>
+        {% set flash_messages = [] %}
+        {% for type, messages in app.flashes() %}
+            {% for message in messages %}
+                {% set flash_messages = flash_messages|merge([{ type: type, message: message }]) %}
+            {% endfor %}
+        {% endfor %}
+        <div data-controller="toast" data-toast-messages-value="{{ flash_messages|json_encode }}" class="toast-container" aria-live="polite"></div>
     </body>
 </html>

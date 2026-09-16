@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\File\DirectoryTree;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class EditorControllerTest extends WebTestCase
@@ -75,6 +76,35 @@ final class EditorControllerTest extends WebTestCase
 
         $editor = $crawler->filter('div[data-controller="editor"]');
         self::assertNull($editor->attr('data-editor-initial-path-value'));
+    }
+
+    public function testFlashMessagesAreEmbeddedAsInitialToastValues(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+
+        $client->request('GET', '/editor/single');
+        $session = $client->getRequest()->getSession();
+        if (!$session instanceof FlashBagAwareSessionInterface) {
+            self::fail('Session does not support flash messages.');
+        }
+        $session->getFlashBag()->add('success', 'Test message');
+        $session->save();
+
+        $crawler = $client->request('GET', '/editor/single');
+
+        $toast = $crawler->filter('div[data-controller="toast"]');
+        self::assertSame(
+            [['type' => 'success', 'message' => 'Test message']],
+            json_decode((string) $toast->attr('data-toast-messages-value'), true),
+        );
+
+        // Flashes are one-time: gone on the next render.
+        $crawler = $client->request('GET', '/editor/single');
+        self::assertSame(
+            [],
+            json_decode((string) $crawler->filter('div[data-controller="toast"]')->attr('data-toast-messages-value'), true),
+        );
     }
 
     public function testDirModeRendersEditorAndModeDirSidebarWithNoDirectoryOpen(): void

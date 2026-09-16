@@ -3,11 +3,20 @@ import { Controller } from '@hotwired/stimulus';
 const DEFAULT_TIMEOUT = 4000;
 
 export default class extends Controller {
+    static values = { messages: Array };
+
     #onShow = null;
 
     connect() {
         this.#onShow = (event) => this.#render(event.detail);
         window.addEventListener('toast:show', this.#onShow);
+
+        // Flashes from the last redirect (Symfony's addFlash, see base.html.twig):
+        // rendered directly, not redispatched through toast:show, which is
+        // reserved for runtime JS errors.
+        for (const { type, message } of this.messagesValue) {
+            this.#render({ type, message });
+        }
     }
 
     disconnect() {
