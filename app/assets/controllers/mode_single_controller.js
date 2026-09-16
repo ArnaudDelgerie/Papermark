@@ -84,6 +84,7 @@ export default class extends Controller {
             this.listTarget.append(li);
         }
 
+        this.listTarget.hidden = history.length === 0;
         this.emptyTarget.hidden = history.length > 0;
     }
 }
