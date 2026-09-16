@@ -1,14 +1,13 @@
 import { Controller } from '@hotwired/stimulus';
-import { Crepe } from '@milkdown/crepe';
-import { abortAICmd, ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
-import { EditorStatus, commandsCtx, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
+import { abortAICmd } from '@milkdown/crepe/feature/ai';
+import { EditorStatus, commandsCtx, editorViewCtx } from '@milkdown/kit/core';
 import { imageBlockSchema } from '@milkdown/kit/component/image-block';
 import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
 import { addBlockTypeCommand, clearTextInCurrentBlockCommand } from '@milkdown/kit/preset/commonmark';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
-import { trailing } from '@milkdown/plugin-trailing';
 import { replaceAll } from '@milkdown/utils';
+import EditorFactory from '../editor/editor-factory.js';
 
 export default class extends Controller {
     static values = {
@@ -20,58 +19,9 @@ export default class extends Controller {
             default: { enabled: false },
         },
         readonly: { type: Boolean, default: false },
-        i18n: {
-            type: Object,
-            default: {
-                placeholder: 'Start writing…',
-                link: { confirm: 'Confirm', inputPlaceholder: 'Paste link…' },
-                toggle: { edit: 'Edit', readonly: 'Read only' },
-                a4: 'A4',
-                full_width: 'Full width',
-                unsaved: {
-                    confirm: 'Continue and lose unsaved changes?',
-                    cancel: 'Cancel',
-                    continue: 'Continue',
-                },
-                slashMenu: {
-                    text: 'Text',
-                    paragraph: 'Text',
-                    h1: 'Heading 1',
-                    h2: 'Heading 2',
-                    h3: 'Heading 3',
-                    h4: 'Heading 4',
-                    h5: 'Heading 5',
-                    h6: 'Heading 6',
-                    quote: 'Quote',
-                    divider: 'Divider',
-                    list: 'List',
-                    bulletList: 'Bullet List',
-                    orderedList: 'Ordered List',
-                    taskList: 'Task List',
-                    advanced: 'Advanced',
-                    image: 'Image',
-                    code: 'Code',
-                    table: 'Table',
-                },
-                toast: {
-                    saved: 'File saved',
-                    savedAs: 'File saved as {name}',
-                    opened: 'File opened',
-                    copiedMarkdown: 'Markdown copied to clipboard',
-                    copyMarkdownFailed: 'Failed to copy markdown',
-                },
-                ai: {
-                    askAi: 'Ask AI',
-                    instructionPlaceholder: 'Tell AI what to do with the selection…',
-                    suggestionsHeader: 'SUGGESTIONS',
-                    sendAsPromptHeader: 'SEND AS PROMPT',
-                    sendAsPrompt: 'Ask AI:',
-                    submitButton: 'Send prompt',
-                    listbox: 'AI suggestions',
-                    requestFailed: 'The AI request failed',
-                },
-            },
-        },
+        // Defaults for the editor's own texts (placeholder, slash menu, AI panel)
+        // live in EditorFactory; only controller-owned UI text falls back here.
+        i18n: Object,
     };
 
     static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'a4Button', 'toggleButton', 'dirtyIndicator'];
@@ -95,123 +45,15 @@ export default class extends Controller {
     async connect() {
         this.#isReadonly = this.readonlyValue;
         this.#isA4 = this.element.classList.contains('is-a4');
-        this.#crepe = new Crepe({
+        this.#crepe = await EditorFactory.create({
             root: this.element,
-            defaultValue: '',
-            features: {
-                [Crepe.Feature.Toolbar]: false,
-                [Crepe.Feature.TopBar]: true,
-                [Crepe.Feature.BlockEdit]: true,
-            },
-            featureConfigs: {
-                [Crepe.Feature.Cursor]: {
-                    virtual: false,
-                },
-                [Crepe.Feature.Placeholder]: {
-                    text: this.i18nValue.placeholder,
-                    mode: 'doc',
-                },
-                [Crepe.Feature.LinkTooltip]: {
-                    confirmButton: this.i18nValue.link.confirm,
-                    inputPlaceholder: this.i18nValue.link.inputPlaceholder,
-                },
-                [Crepe.Feature.BlockEdit]: {
-                    textGroup: {
-                        label: this.i18nValue.slashMenu.text,
-                        text: { label: this.i18nValue.slashMenu.paragraph },
-                        h1: { label: this.i18nValue.slashMenu.h1 },
-                        h2: { label: this.i18nValue.slashMenu.h2 },
-                        h3: { label: this.i18nValue.slashMenu.h3 },
-                        h4: { label: this.i18nValue.slashMenu.h4 },
-                        h5: { label: this.i18nValue.slashMenu.h5 },
-                        h6: { label: this.i18nValue.slashMenu.h6 },
-                        quote: { label: this.i18nValue.slashMenu.quote },
-                        divider: { label: this.i18nValue.slashMenu.divider },
-                    },
-                    listGroup: {
-                        label: this.i18nValue.slashMenu.list,
-                        bulletList: { label: this.i18nValue.slashMenu.bulletList },
-                        orderedList: { label: this.i18nValue.slashMenu.orderedList },
-                        taskList: { label: this.i18nValue.slashMenu.taskList },
-                    },
-                    advancedGroup: {
-                        label: this.i18nValue.slashMenu.advanced,
-                        image: { label: this.i18nValue.slashMenu.image },
-                        codeBlock: { label: this.i18nValue.slashMenu.code },
-                        table: { label: this.i18nValue.slashMenu.table },
-                    },
-                    // Replaces the default "Image" action (which opens Crepe's own
-                    // upload/placeholder UI) with the hub's file picker, see EDITOR_IMAGES.md.
-                    buildMenu: (builder) => {
-                        const advanced = builder.getGroup('advanced');
-                        const imageItem = advanced.group.items.find((item) => item.key === 'image');
-                        if (imageItem) {
-                            imageItem.onRun = (ctx) => this.#insertImageFromPicker(ctx);
-                        }
-                    },
-                },
-                [Crepe.Feature.TopBar]: {
-                    buildTopBar: (builder) => {
-                        // Same replacement as the slash menu's "Image" entry: the hub's
-                        // file picker instead of Crepe's own upload/placeholder UI.
-                        const insert = builder.getGroup('insert');
-                        const imageItem = insert.group.items.find((item) => item.key === 'image');
-                        if (imageItem) {
-                            imageItem.onRun = (ctx) => this.#insertImageFromPicker(ctx);
-                        }
-
-                        const formatting = builder.getGroup('formatting');
-                        const codeItem = formatting.group.items.find(
-                            (item) => item.key === 'code'
-                        );
-                        formatting.group.items = formatting.group.items.filter(
-                            (item) => item.key !== 'code'
-                        );
-
-                        const block = builder.getGroup('block');
-                        block.group.items = block.group.items.filter(
-                            (item) => item.key !== 'math'
-                        );
-                        if (codeItem) {
-                            block.group.items.unshift(codeItem);
-                        }
-
-                        if (this.#isAiEnabled()) {
-                            const more = builder.getGroup('more');
-                            more.addItem('ai', {
-                                icon: defaultAIIcon,
-                                label: this.i18nValue.ai.askAi,
-                                active: () => false,
-                                onRun: (ctx) => {
-                                    const api = ctx.get('aiInstructionTooltipAPI');
-                                    const view = ctx.get(editorViewCtx);
-                                    const { from, to } = view.state.selection;
-                                    api.show(from, to);
-                                },
-                            });
-                        }
-                    },
-                },
-            },
+            i18n: this.i18nValue,
+            onInsertImage: (ctx) => this.#insertImageFromPicker(ctx),
+            aiEnabled: this.#isAiEnabled(),
+            aiProvider: this.#isAiEnabled() ? this.#createAIProvider() : undefined,
+            // Crepe prefixes the message ("AI provider error: ..."); show the original one.
+            onAiError: (error) => this.#toast('error', error.cause?.message ?? error.message),
         });
-
-        this.#crepe.addFeature((editor) => {
-            editor.use(trailing);
-        });
-
-        if (this.#isAiEnabled()) {
-            this.#crepe.addFeature(aiFeature, {
-                provider: this.#createAIProvider(),
-                instructionPlaceholder: this.i18nValue.ai.instructionPlaceholder,
-                suggestionsHeaderLabel: this.i18nValue.ai.suggestionsHeader,
-                sendAsPromptHeaderLabel: this.i18nValue.ai.sendAsPromptHeader,
-                sendAsPromptLabel: this.i18nValue.ai.sendAsPrompt,
-                submitButtonLabel: this.i18nValue.ai.submitButton,
-                listboxLabel: this.i18nValue.ai.listbox,
-                // Crepe prefixes the message ("AI provider error: ..."); show the original one.
-                onError: (error) => this.#toast('error', error.cause?.message ?? error.message),
-            });
-        }
 
         this.#crepe.on((listener) => {
             listener.markdownUpdated((_ctx, markdown) => {
@@ -221,16 +63,6 @@ export default class extends Controller {
                 this.#updateDirtyIndicator(markdown);
             });
         });
-
-        // Shared typography with the print copy, see styles/document.css.
-        this.#crepe.editor.config((ctx) => {
-            ctx.update(editorViewOptionsCtx, (prev) => ({
-                ...prev,
-                attributes: { class: 'document' },
-            }));
-        });
-
-        await this.#crepe.create();
 
         // A new document is clean: capture the empty editor's markdown as the
         // reference so the indicator doesn't fire on the initial content.
@@ -444,7 +276,7 @@ export default class extends Controller {
             this.#toast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
         } catch (err) {
             console.error('Failed to copy markdown:', err);
-            this.#toast('error', this.i18nValue.toast.copyMarkdownFailed);
+            this.#toast('error', this.i18nValue.toast?.copyMarkdownFailed ?? 'Failed to copy markdown');
         }
     }
 
@@ -749,7 +581,7 @@ export default class extends Controller {
                 if (!response.ok) {
                     finished = true;
                     const data = await response.json().catch(() => ({}));
-                    throw new Error(data.error || this.i18nValue.ai.requestFailed);
+                    throw new Error(data.error || (this.i18nValue.ai?.requestFailed ?? 'The AI request failed'));
                 }
 
                 while (true) {
@@ -766,7 +598,7 @@ export default class extends Controller {
                     } else if (payload.type === 'error') {
                         // A lost connection leaves the worker running: let finally abort it.
                         finished = !payload.connectionLost;
-                        throw new Error(payload.error || this.i18nValue.ai.requestFailed);
+                        throw new Error(payload.error || (this.i18nValue.ai?.requestFailed ?? 'The AI request failed'));
                     }
                 }
             } finally {
@@ -791,7 +623,7 @@ export default class extends Controller {
         const response = await this.#postAi(this.urlsValue.aiSubscribe, {});
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || this.i18nValue.ai.requestFailed);
+            throw new Error(data.error || (this.i18nValue.ai?.requestFailed ?? 'The AI request failed'));
         }
 
         await this.#openAiSource();
@@ -828,7 +660,7 @@ export default class extends Controller {
                     return;
                 }
 
-                const error = this.i18nValue.ai.requestFailed;
+                const error = this.i18nValue.ai?.requestFailed ?? 'The AI request failed';
                 reject(new Error(error));
                 this.#aiRequests.forEach((request) => request.push({ type: 'error', error, connectionLost: true }));
             });
