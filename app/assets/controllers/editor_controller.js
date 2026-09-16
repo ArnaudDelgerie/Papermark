@@ -9,6 +9,7 @@ import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { replaceAll } from '@milkdown/utils';
 import AiClient from '../editor/ai-client.js';
 import EditorFactory from '../editor/editor-factory.js';
+import { confirmDialog } from '../utils/confirm-dialog.js';
 import { pickPath, savePath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
 
@@ -456,7 +457,11 @@ export default class extends Controller {
         event.preventDefault();
         event.stopImmediatePropagation();
 
-        this.#confirmLeave().then((confirmed) => {
+        confirmDialog({
+            message: this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?',
+            cancelLabel: this.i18nValue.unsaved?.cancel ?? 'Cancel',
+            continueLabel: this.i18nValue.unsaved?.continue ?? 'Continue',
+        }).then((confirmed) => {
             if (!confirmed) {
                 this.#restoreFocus();
                 return;
@@ -470,41 +475,6 @@ export default class extends Controller {
             } finally {
                 this.#leaveConfirmed = false;
             }
-        });
-    }
-
-    // The webview shows no native confirm(): the hub doesn't handle JS dialogs.
-    #confirmLeave() {
-        return new Promise((resolve) => {
-            const dialog = document.createElement('dialog');
-            dialog.className = 'editor-confirm-dialog';
-            dialog.textContent = this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?';
-
-            const actions = document.createElement('div');
-            actions.className = 'editor-confirm-dialog-actions';
-
-            const cancel = document.createElement('button');
-            cancel.type = 'button';
-            cancel.textContent = this.i18nValue.unsaved?.cancel ?? 'Cancel';
-            cancel.addEventListener('click', () => dialog.close('cancel'));
-
-            const cont = document.createElement('button');
-            cont.type = 'button';
-            cont.className = 'editor-confirm-continue';
-            cont.textContent = this.i18nValue.unsaved?.continue ?? 'Continue';
-            cont.addEventListener('click', () => dialog.close('continue'));
-
-            // Escape closes it too, with an empty returnValue.
-            dialog.addEventListener('close', () => {
-                dialog.remove();
-                resolve(dialog.returnValue === 'continue');
-            });
-
-            actions.append(cancel, cont);
-            dialog.append(actions);
-            document.body.append(dialog);
-            dialog.showModal();
-            cancel.focus();
         });
     }
 
