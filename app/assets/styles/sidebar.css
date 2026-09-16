@@ -5,6 +5,14 @@
     overflow-y: auto;
 }
 
+/* Narrower panel widths (half-page and up): give the editor more room back.
+   Below this, layout is not covered. */
+@media (width <= 960px) {
+    .editor-sidebar {
+        flex-basis: 200px;
+    }
+}
+
 .editor-sidebar-panel {
     display: flex;
     flex-direction: column;

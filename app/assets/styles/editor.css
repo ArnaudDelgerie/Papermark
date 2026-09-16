@@ -248,3 +248,11 @@
     padding: calc(var(--toolbar-offset) + var(--space-3)) var(--doc-page-margin) var(--doc-page-margin);
     background-color: var(--color-surface);
 }
+
+/* Narrower panel widths (half-page and up): the fixed A4 margin eats too
+   much of the available text width, shrink it. Below this, not covered. */
+@media (width <= 960px) {
+    .editor.is-a4 .ProseMirror {
+        padding-inline: var(--space-4);
+    }
+}
