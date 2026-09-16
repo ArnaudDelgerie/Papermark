@@ -1,7 +1,7 @@
 /* Left column: mode selector, Open, then history (single) or tree (dir). */
 
 .editor-sidebar {
-    flex: 0 0 220px;
+    flex: 0 0 260px;
     overflow-y: auto;
 }
 
