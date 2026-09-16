@@ -1,4 +1,8 @@
-<div class="editor-sidebar-panel" data-controller="mode-dir" data-mode-dir-tree-url-value="{{ path('app_dir_tree') }}">
+<div class="editor-sidebar-panel" data-controller="mode-dir" data-mode-dir-tree-url-value="{{ path('app_dir_tree') }}"
+     data-mode-dir-delete-url-value="{{ path('app_file_delete') }}"
+     data-mode-dir-rename-url-value="{{ path('app_file_rename') }}"
+     data-mode-dir-file-csrf-token-value="{{ file_csrf_token }}"
+     data-mode-dir-i18n-value="{{ i18n|json_encode }}">
     <nav class="mode-selector">
         <a href="{{ path('app_editor_single') }}" class="mode-selector-link" data-editor-leave-guard>
             {{ 'components.mode.single'|trans({}, 'components') }}

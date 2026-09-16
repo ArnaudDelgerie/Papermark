@@ -1,4 +1,8 @@
-<div class="editor-sidebar-panel" data-controller="mode-single">
+<div class="editor-sidebar-panel" data-controller="mode-single"
+     data-mode-single-delete-url-value="{{ path('app_file_delete') }}"
+     data-mode-single-rename-url-value="{{ path('app_file_rename') }}"
+     data-mode-single-file-csrf-token-value="{{ file_csrf_token }}"
+     data-mode-single-i18n-value="{{ i18n|json_encode }}">
     <nav class="mode-selector">
         <a href="{{ path('app_editor_single') }}" class="mode-selector-link is-active" data-editor-leave-guard>
             {{ 'components.mode.single'|trans({}, 'components') }}

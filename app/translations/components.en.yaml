@@ -69,6 +69,9 @@ components:
             ai_failed: The AI request failed
             invalid_directory: Folder not found
             key_delete_failed: Could not delete the API key
+            invalid_name: Invalid file name
+            rename_target_exists: A file with that name already exists
+            delete_error: Could not delete the file
     mode:
         single: Single file
         dir: Folder
@@ -79,6 +82,16 @@ components:
             empty: No folder open
             too_large: This folder is too large to display
             no_markdown: No Markdown files in this folder
+        file:
+            rename: Rename
+            delete: Delete
+            rename_prompt: 'Enter a new name for "{name}"'
+            delete_confirm_message: This permanently deletes the file from disk. Images referenced in it are not affected.
+            delete_confirm_question: 'Delete "{name}"?'
+            deleted: File deleted
+            renamed: File renamed
+            rename_failed: Failed to rename file
+            delete_failed: Failed to delete file
     settings:
         title: Settings
         back: ← Back

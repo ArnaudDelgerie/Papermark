@@ -3,6 +3,18 @@
         <a href="#" data-action="click->mode-dir#openFile" data-path="{{ file.path }}" data-editor-leave-guard>
             <span class="mode-tree-label">{{ file.name }}</span>
         </a>
+        <span class="mode-entry-actions">
+            <button type="button" class="mode-entry-action mode-entry-action--rename"
+                    data-action="click->mode-dir#renameEntry" data-path="{{ file.path }}"
+                    title="{{ 'components.mode.file.rename'|trans({}, 'components') }}">
+                <span class="visually-hidden">{{ 'components.mode.file.rename'|trans({}, 'components') }}</span>
+            </button>
+            <button type="button" class="mode-entry-action mode-entry-action--delete"
+                    data-action="click->mode-dir#deleteEntry" data-path="{{ file.path }}"
+                    title="{{ 'components.mode.file.delete'|trans({}, 'components') }}">
+                <span class="visually-hidden">{{ 'components.mode.file.delete'|trans({}, 'components') }}</span>
+            </button>
+        </span>
     </li>
 {% endmacro %}
 

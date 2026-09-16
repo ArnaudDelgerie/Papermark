@@ -182,6 +182,89 @@ final class FileController extends AbstractController
         return new JsonResponse(['ok' => true]);
     }
 
+    /**
+     * No image cleanup: images referenced from the markdown may belong to the
+     * user and be used elsewhere, they're left untouched (see EDITOR_FIX.md).
+     */
+    #[Route('/file/delete', name: 'app_file_delete', methods: ['POST'])]
+    public function delete(Request $request): JsonResponse
+    {
+        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
+        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $path = $request->request->get('path');
+        if (!\is_string($path) || $path === '') {
+            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+        }
+
+        $realPath = realpath($path);
+        if ($realPath === false || !is_file($realPath)) {
+            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        if (!@unlink($realPath)) {
+            return $this->errorResponse('delete_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $mode = $this->modeSession->getCurrentMode();
+        if ($mode !== null && $this->modeSession->getFile($mode) === $realPath) {
+            $this->modeSession->setFile($mode, null);
+        }
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    /**
+     * Renames a file in place: only the last path segment changes, the file
+     * stays in the same directory (see EDITOR_FIX.md).
+     */
+    #[Route('/file/rename', name: 'app_file_rename', methods: ['POST'])]
+    public function rename(Request $request): JsonResponse
+    {
+        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
+        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $path = $request->request->get('path');
+        $name = $request->request->get('name');
+
+        if (!\is_string($path) || $path === '') {
+            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+        }
+
+        if (!\is_string($name) || $name === '' || $name !== basename($name)) {
+            return $this->errorResponse('invalid_name', Response::HTTP_BAD_REQUEST);
+        }
+
+        if (!$this->isAllowedExtension($name)) {
+            return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+        }
+
+        $realPath = realpath($path);
+        if ($realPath === false || !is_file($realPath)) {
+            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        $newPath = \dirname($realPath) . '/' . $name;
+        if (file_exists($newPath)) {
+            return $this->errorResponse('rename_target_exists', Response::HTTP_CONFLICT);
+        }
+
+        if (!@rename($realPath, $newPath)) {
+            return $this->errorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $mode = $this->modeSession->getCurrentMode();
+        if ($mode !== null && $this->modeSession->getFile($mode) === $realPath) {
+            $this->modeSession->setFile($mode, $newPath);
+        }
+
+        return new JsonResponse(['path' => $newPath]);
+    }
+
     private function isAllowedExtension(string $path): bool
     {
         $extension = strtolower(pathinfo($path, \PATHINFO_EXTENSION));
