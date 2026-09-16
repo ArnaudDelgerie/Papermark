@@ -207,6 +207,21 @@
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
     transition: transform 0.2s ease, border-color 0.2s ease;
+    flex-wrap: nowrap;
+    overflow: auto hidden;
+    scrollbar-width: none;
+}
+
+/* Keep the toolbar on one line: scroll sideways instead of wrapping onto a
+   second line (which used to cover the document's first line). Scrollbar
+   hidden rather than restyled: WebKitGTK (this app's webview) doesn't
+   reliably honor custom ::-webkit-scrollbar painting. */
+.editor .milkdown-top-bar .top-bar-inner {
+    flex-wrap: nowrap;
+}
+
+.editor .milkdown-top-bar::-webkit-scrollbar {
+    display: none;
 }
 
 .editor:is(.is-toolbar-hidden, .is-readonly) .milkdown-top-bar {
