@@ -138,6 +138,38 @@ final class FileControllerTest extends WebTestCase
         unlink($path);
     }
 
+    public function testOpenRemembersTheFileForTheCurrentModeInSession(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+
+        $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        self::assertResponseIsSuccessful();
+
+        self::assertSame($path, $client->getRequest()->getSession()->get('singleModeFile'));
+
+        unlink($path);
+    }
+
+    public function testOpenClearsSessionFileWhenItIsTheOneThatFailedToOpen(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+        $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        unlink($path);
+
+        $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        self::assertResponseStatusCodeSame(404);
+
+        self::assertNull($client->getRequest()->getSession()->get('singleModeFile'));
+    }
+
     public function testOpenConvertsLocalImagePathsToServiceUrls(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();

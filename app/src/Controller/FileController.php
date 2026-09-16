@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Editor\ModeSession;
 use App\File\MarkdownImageUrls;
 use App\File\PathResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,6 +32,7 @@ final class FileController extends AbstractController
         private readonly TranslatorInterface $translator,
         private readonly PathResolver $pathResolver,
         private readonly MarkdownImageUrls $markdownImageUrls,
+        private readonly ModeSession $modeSession,
     ) {
     }
 
@@ -51,14 +53,27 @@ final class FileController extends AbstractController
             return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
+        $mode = $this->modeSession->getCurrentMode();
+
         $realPath = realpath($path);
         if ($realPath === false || !is_file($realPath) || !is_readable($realPath)) {
+            // Only drop the mode's remembered file if this failed open *is*
+            // that file — a manual open of an unrelated bad path must not
+            // wipe out an already-valid association (see EDITOR_FIX.md).
+            if ($mode !== null && $this->modeSession->getFile($mode) === $path) {
+                $this->modeSession->setFile($mode, null);
+            }
+
             return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         $content = file_get_contents($realPath);
         if ($content === false) {
             return $this->errorResponse('read_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        if ($mode !== null) {
+            $this->modeSession->setFile($mode, $realPath);
         }
 
         return new JsonResponse(['content' => $this->markdownImageUrls->toServiceUrls($content, $realPath)]);

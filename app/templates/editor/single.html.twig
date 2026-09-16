@@ -5,6 +5,6 @@
     <aside class="editor-sidebar">
         {{ component('mode-single') }}
     </aside>
-    {{ component('editor', { height: '100%' }) }}
+    {{ component('editor', { height: '100%', initialPath: initial_path, initialContent: initial_content }) }}
 </div>
 {% endblock %}

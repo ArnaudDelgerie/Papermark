@@ -29,4 +29,15 @@ final class HomeControllerTest extends WebTestCase
 
         self::assertResponseRedirects('/editor/dir');
     }
+
+    public function testRedirectsToModeRememberedInSessionOverTheDefault(): void
+    {
+        $client = static::createClient();
+        // The default stays Single; visiting dir mode once should still win.
+        $client->request('GET', '/editor/dir');
+
+        $client->request('GET', '/');
+
+        self::assertResponseRedirects('/editor/dir');
+    }
 }

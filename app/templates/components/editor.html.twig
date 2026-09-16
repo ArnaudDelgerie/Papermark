@@ -13,6 +13,8 @@
      }|json_encode }}"
      data-editor-ai-config-value="{{ ai_config|json_encode }}"
      data-editor-directory-value="{{ directory }}"
+     {% if initialPath %}data-editor-initial-path-value="{{ initialPath }}"
+     data-editor-initial-content-value="{{ initialContent }}"{% endif %}
      {% if readonly %}data-editor-readonly-value="true"{% endif %}
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">

@@ -22,6 +22,8 @@ final class Editor
     public string $height = '400';
     public bool $readonly = false;
     public ?string $directory = null;
+    public ?string $initialPath = null;
+    public ?string $initialContent = null;
 
     public function __construct(
         private readonly TranslatorInterface $translator,

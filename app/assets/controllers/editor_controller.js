@@ -26,6 +26,10 @@ export default class extends Controller {
         readonly: { type: Boolean, default: false },
         // Set from the dir-mode session directory; empty in single mode.
         directory: { type: String, default: '' },
+        // Path + content remembered in session for this mode (see ModeSession),
+        // embedded server-side so restoring it needs no extra round trip.
+        initialPath: { type: String, default: '' },
+        initialContent: { type: String, default: '' },
         // Defaults for the editor's own texts (placeholder, slash menu, AI panel)
         // live in EditorFactory; only controller-owned UI text falls back here.
         i18n: Object,
@@ -97,6 +101,10 @@ export default class extends Controller {
         this.#updateCopyMarkdownButton('');
         this.#updateDirtyIndicator(this.#savedRef);
         this.#updateFilePath();
+
+        if (this.initialPathValue) {
+            this.#applyLoadedFile(this.initialPathValue, this.initialContentValue);
+        }
     }
 
     toggleReadonly() {
@@ -164,17 +172,21 @@ export default class extends Controller {
             }
 
             const { content } = await response.json();
-            this.#currentPath = path;
-            this.#crepe.editor.action(replaceAll(content));
-            this.#savedRef = this.#crepe.getMarkdown();
-            this.#updateSaveButton(this.#savedRef);
-            this.#updateDirtyIndicator(this.#savedRef);
-            this.#updateFilePath();
+            this.#applyLoadedFile(path, content);
             showToast('success', this.i18nValue.toast?.opened ?? 'File opened');
         } catch (err) {
             console.error('Failed to open file:', err);
             showToast('error', err.message || 'Failed to open file');
         }
+    }
+
+    #applyLoadedFile(path, content) {
+        this.#currentPath = path;
+        this.#crepe.editor.action(replaceAll(content));
+        this.#savedRef = this.#crepe.getMarkdown();
+        this.#updateSaveButton(this.#savedRef);
+        this.#updateDirtyIndicator(this.#savedRef);
+        this.#updateFilePath();
     }
 
     newFile() {

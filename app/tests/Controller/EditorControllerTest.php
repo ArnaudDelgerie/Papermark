@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\File\DirectoryTree;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class EditorControllerTest extends WebTestCase
 {
@@ -30,6 +31,50 @@ final class EditorControllerTest extends WebTestCase
 
         // Open (file) lives in the sidebar now.
         self::assertSame('Open', trim($crawler->filter('button[data-action="click->mode-single#openFile"]')->text()));
+    }
+
+    public function testSingleModeEmbedsSessionRememberedFileOnNextRender(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+
+        $client->request('GET', '/editor/single');
+        $csrfToken = static::getContainer()->get(CsrfTokenManagerInterface::class)
+            ->getToken('file')->getValue();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+
+        $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        self::assertResponseIsSuccessful();
+
+        $crawler = $client->request('GET', '/editor/single');
+
+        $editor = $crawler->filter('div[data-controller="editor"]');
+        self::assertSame($path, $editor->attr('data-editor-initial-path-value'));
+        self::assertSame('# Hello', $editor->attr('data-editor-initial-content-value'));
+
+        unlink($path);
+    }
+
+    public function testSingleModeSilentlyDropsStaleSessionFile(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+
+        $client->request('GET', '/editor/single');
+        $csrfToken = static::getContainer()->get(CsrfTokenManagerInterface::class)
+            ->getToken('file')->getValue();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+        $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        unlink($path);
+
+        $crawler = $client->request('GET', '/editor/single');
+
+        $editor = $crawler->filter('div[data-controller="editor"]');
+        self::assertNull($editor->attr('data-editor-initial-path-value'));
     }
 
     public function testDirModeRendersEditorAndModeDirSidebarWithNoDirectoryOpen(): void
