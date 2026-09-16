@@ -1,0 +1,42 @@
+{% macro tree_file(file) %}
+    <li class="mode-tree-file">
+        <a href="#" data-action="click->mode-dir#openFile" data-path="{{ file.path }}" data-editor-leave-guard>
+            <span class="mode-tree-label">{{ file.name }}</span>
+        </a>
+    </li>
+{% endmacro %}
+
+{% macro tree_dir(node) %}
+    <li class="mode-tree-dir">
+        <details>
+            <summary class="mode-tree-dir-name">
+                <span class="mode-tree-label">{{ node.name }}</span>
+            </summary>
+            <ul>
+                {% for dir in node.directories %}
+                    {{ _self.tree_dir(dir) }}
+                {% endfor %}
+                {% for file in node.files %}
+                    {{ _self.tree_file(file) }}
+                {% endfor %}
+            </ul>
+        </details>
+    </li>
+{% endmacro %}
+
+{% if tree_result is null %}
+    <p class="mode-tree-empty">{{ 'components.mode.tree.empty'|trans({}, 'components') }}</p>
+{% elseif tree_result.tooLarge %}
+    <p class="mode-tree-error">{{ 'components.mode.tree.too_large'|trans({}, 'components') }}</p>
+{% elseif tree_result.root.directories is empty and tree_result.root.files is empty %}
+    <p class="mode-tree-empty">{{ 'components.mode.tree.no_markdown'|trans({}, 'components') }}</p>
+{% else %}
+    <ul class="mode-tree">
+        {% for dir in tree_result.root.directories %}
+            {{ _self.tree_dir(dir) }}
+        {% endfor %}
+        {% for file in tree_result.root.files %}
+            {{ _self.tree_file(file) }}
+        {% endfor %}
+    </ul>
+{% endif %}

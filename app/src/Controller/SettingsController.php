@@ -40,6 +40,7 @@ final class SettingsController extends AbstractController
         $form = $this->createForm(SettingsType::class, [
             'providers' => $providersByName,
             'selected' => $setting->getSelectedProvider()?->getName(),
+            'defaultMode' => $setting->getDefaultMode(),
         ]);
         $form->handleRequest($request);
 
@@ -57,6 +58,7 @@ final class SettingsController extends AbstractController
                 }
 
                 $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
+                $setting->setDefaultMode($form->get('defaultMode')->getData());
 
                 $this->entityManager->flush();
 

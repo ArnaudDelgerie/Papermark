@@ -1,0 +1,17 @@
+<div class="editor-sidebar-panel" data-controller="mode-single">
+    <nav class="mode-selector">
+        <a href="{{ path('app_editor_single') }}" class="mode-selector-link is-active" data-editor-leave-guard>
+            {{ 'components.mode.single'|trans({}, 'components') }}
+        </a>
+        <a href="{{ path('app_editor_dir') }}" class="mode-selector-link" data-editor-leave-guard>
+            {{ 'components.mode.dir'|trans({}, 'components') }}
+        </a>
+    </nav>
+    <button type="button" class="editor-sidebar-btn" data-action="click->mode-single#openFile" data-editor-leave-guard>
+        {{ 'components.editor.open'|trans({}, 'components') }}
+    </button>
+    <ul class="mode-history" data-mode-single-target="list"></ul>
+    <p class="mode-history-empty" data-mode-single-target="empty">
+        {{ 'components.mode.history.empty'|trans({}, 'components') }}
+    </p>
+</div>

@@ -1,8 +1,10 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-<div class="page-editor">
-    <h1>{{ 'templates.home.index.title'|trans({}, 'templates') }}</h1>
+<div class="editor-page">
+    <aside class="editor-sidebar">
+        {{ component('mode-single') }}
+    </aside>
     {{ component('editor', { height: '100%' }) }}
 </div>
 {% endblock %}

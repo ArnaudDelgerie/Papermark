@@ -13,10 +13,10 @@ final class FileControllerTest extends WebTestCase
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
-        // The home page renders the Editor component which generates CSRF
-        // tokens, setting the stateless CSRF cookie in the response. The
-        // test client stores it and sends it on subsequent requests.
-        $client->request('GET', '/');
+        // The single-mode editor page renders the Editor component which
+        // generates CSRF tokens, setting the stateless CSRF cookie in the
+        // response. The test client stores it and sends it on subsequent requests.
+        $client->request('GET', '/editor/single');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('file')->getValue();

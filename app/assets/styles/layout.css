@@ -6,15 +6,15 @@ body {
     font-family: var(--font-sans);
 }
 
-.page-editor {
+.editor-page {
     display: flex;
-    flex-direction: column;
     height: 100vh;
     padding: var(--space-3);
+    gap: var(--space-3);
     box-sizing: border-box;
 }
 
-.page-editor > h1 {
-    flex: 0 0 auto;
-    margin: 0 0 var(--space-2);
+.editor-page > [data-controller="editor"] {
+    flex: 1 1 auto;
+    min-width: 0;
 }

@@ -4,6 +4,7 @@
 @import url("@milkdown/crepe/theme/frame-dark.css") layer(crepe);
 @import url("./tokens.css");
 @import url("./layout.css");
+@import url("./sidebar.css");
 @import url("./document.css");
 @import url("./editor.css");
 @import url("./print.css");

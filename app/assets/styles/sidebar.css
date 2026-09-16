@@ -1,0 +1,161 @@
+/* Left column: mode selector, Open, then history (single) or tree (dir). */
+
+.editor-sidebar {
+    flex: 0 0 220px;
+    overflow-y: auto;
+}
+
+.editor-sidebar-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.mode-selector {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.mode-selector-link {
+    flex: 1;
+    text-align: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius);
+    color: var(--color-muted);
+    text-decoration: none;
+    font-size: 0.8rem;
+}
+
+.mode-selector-link.is-active {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.editor-sidebar-btn {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.editor-sidebar-btn:hover {
+    background: var(--color-border);
+}
+
+/* Spinner replaces the label while a directory is being opened (full page
+   navigation follows on success, so this never needs to be cleared). */
+.editor-sidebar-btn.is-loading {
+    position: relative;
+}
+
+.editor-sidebar-btn.is-loading .mode-dir-open-label {
+    visibility: hidden;
+}
+
+.editor-sidebar-btn.is-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-text);
+    border-radius: 50%;
+    animation: sidebar-spin 0.6s linear infinite;
+}
+
+@keyframes sidebar-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.mode-history,
+.mode-tree {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.875rem;
+}
+
+.mode-tree-file a,
+.mode-history li a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    color: var(--color-text);
+    text-decoration: none;
+    border-radius: var(--radius);
+}
+
+.mode-tree-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mode-tree-file a:hover,
+.mode-history li a:hover {
+    background: var(--color-surface);
+}
+
+.mode-history-empty,
+.mode-tree-empty {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}
+
+.mode-tree-error {
+    color: var(--color-danger);
+    font-size: 0.8rem;
+}
+
+.mode-tree-dir ul {
+    list-style: none;
+    margin: 0;
+    padding-left: var(--space-3);
+}
+
+.mode-tree-dir-name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.mode-tree-dir-name::marker {
+    color: var(--color-muted);
+}
+
+/* Folder/file icons: a masked SVG so they pick up the theme color, one shape
+   for both — no icon library for two glyphs. */
+.mode-tree-dir-name::before,
+.mode-tree-file a::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    background-color: var(--color-muted);
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+}
+
+.mode-tree-dir-name::before {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 3.5A1.5 1.5 0 0 1 2.5 2h3.379a1.5 1.5 0 0 1 1.06.44L7.56 3.06a.5.5 0 0 0 .354.147H13.5A1.5 1.5 0 0 1 15 4.71V12.5A1.5 1.5 0 0 1 13.5 14h-11A1.5 1.5 0 0 1 1 12.5v-9z'/%3E%3C/svg%3E");
+}
+
+.mode-tree-file a::before {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1.5A1.5 1.5 0 0 1 5.5 0h4.086a1.5 1.5 0 0 1 1.06.44l2.915 2.914A1.5 1.5 0 0 1 14 4.414V14.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 4 14.5v-13z'/%3E%3C/svg%3E");
+}

@@ -8,7 +8,7 @@ export function pickPath(kind) {
     return tauri.core.invoke('pick_path', { kind });
 }
 
-export function savePath(fileName = 'untitled.md') {
+export function savePath(fileName = 'untitled.md', directory) {
     const tauri = window.__TAURI__;
     if (!tauri?.core?.invoke) {
         console.warn('Tauri IPC is not available — save dialog requires the TFSApp hub.');
@@ -21,5 +21,6 @@ export function savePath(fileName = 'untitled.md') {
             { name: 'Text', extensions: ['txt'] },
         ],
         fileName,
+        ...(directory ? { directory } : {}),
     });
 }

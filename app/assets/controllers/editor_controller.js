@@ -10,6 +10,7 @@ import { replaceAll } from '@milkdown/utils';
 import AiClient from '../editor/ai-client.js';
 import EditorFactory from '../editor/editor-factory.js';
 import { confirmDialog } from '../utils/confirm-dialog.js';
+import { OPEN_FILE_EVENT, dispatchFileSavedAs } from '../utils/editor-open.js';
 import { pickPath, savePath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
 
@@ -23,6 +24,8 @@ export default class extends Controller {
             default: { enabled: false },
         },
         readonly: { type: Boolean, default: false },
+        // Set from the dir-mode session directory; empty in single mode.
+        directory: { type: String, default: '' },
         // Defaults for the editor's own texts (placeholder, slash menu, AI panel)
         // live in EditorFactory; only controller-owned UI text falls back here.
         i18n: Object,
@@ -43,6 +46,7 @@ export default class extends Controller {
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
     #onGuardedClick = (event) => this.#guardLeave(event);
+    #onOpenFileRequested = (event) => this.#loadFile(event.detail.path);
     #leaveConfirmed = false;
 
     async connect() {
@@ -84,8 +88,10 @@ export default class extends Controller {
 
         window.addEventListener('beforeprint', this.#onBeforePrint);
         window.addEventListener('afterprint', this.#onAfterPrint);
-        // Capture phase: runs before the guarded element's own click handlers.
-        this.element.addEventListener('click', this.#onGuardedClick, true);
+        // Capture phase, on window: covers the sidebar (mode-single / mode-dir),
+        // not just this element, since navigation there also drops unsaved work.
+        window.addEventListener('click', this.#onGuardedClick, true);
+        window.addEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
 
         if (this.#isReadonly) {
             this.#applyReadonlyState();
@@ -162,19 +168,17 @@ export default class extends Controller {
         }
         window.removeEventListener('beforeprint', this.#onBeforePrint);
         window.removeEventListener('afterprint', this.#onAfterPrint);
-        this.element.removeEventListener('click', this.#onGuardedClick, true);
+        window.removeEventListener('click', this.#onGuardedClick, true);
+        window.removeEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
         this.#removePrintCopy();
         this.#aiClient?.close();
         this.#crepe?.destroy();
         this.#crepe = null;
     }
 
-    async openFile() {
-        const path = await pickPath('file');
-        if (path === null) {
-            return;
-        }
-
+    // The path comes from the sidebar (Open, a history entry or a tree file),
+    // already past the leave guard by the time this event fires.
+    async #loadFile(path) {
         const formData = new FormData();
         formData.append('path', path);
 
@@ -201,6 +205,16 @@ export default class extends Controller {
             console.error('Failed to open file:', err);
             showToast('error', err.message || 'Failed to open file');
         }
+    }
+
+    newFile() {
+        this.#crepe.editor.action(replaceAll(''));
+        this.#currentPath = null;
+        this.#savedRef = this.#crepe.getMarkdown();
+        this.#updateSaveButton(this.#savedRef);
+        this.#updatePrintButton(this.#savedRef);
+        this.#updateCopyMarkdownButton(this.#savedRef);
+        this.#updateDirtyIndicator(this.#savedRef);
     }
 
     async saveFile() {
@@ -239,7 +253,9 @@ export default class extends Controller {
         const defaultName = this.#currentPath !== null
             ? this.#currentPath.split('/').pop()
             : 'untitled.md';
-        const path = await savePath(defaultName);
+        // In dir mode, the save dialog opens in the current directory without
+        // constraining where the file actually gets saved (see EDITOR_FOLDER_MODE.md).
+        const path = await savePath(defaultName, this.directoryValue || undefined);
         if (path === null) {
             return;
         }
@@ -269,6 +285,8 @@ export default class extends Controller {
             const name = path.split('/').pop();
             const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
             showToast('success', template.replace('{name}', name));
+            // Harmless no-op outside dir mode: nothing listens for it.
+            dispatchFileSavedAs(path);
         } catch (err) {
             console.error('Failed to save file:', err);
             showToast('error', err.message || 'Failed to save file');

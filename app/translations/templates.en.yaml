@@ -1,6 +1,3 @@
 templates:
     base:
         title: Papermark
-    home:
-        index:
-            title: Papermark

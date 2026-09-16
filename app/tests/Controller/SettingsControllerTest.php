@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Ai\ProviderName;
+use App\Editor\EditorMode;
 use App\Entity\Provider;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
@@ -42,8 +43,9 @@ final class SettingsControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Settings');
         self::assertSelectorExists('a.settings-back');
-        // One fieldset per provider.
-        self::assertSelectorCount(3, 'fieldset.settings-fieldset');
+        // One fieldset per provider, plus one for the default mode.
+        self::assertSelectorCount(4, 'fieldset.settings-fieldset');
+        self::assertSelectorCount(3, '.settings-provider');
         self::assertSelectorCount(3, 'input[type="radio"][name="settings[selected]"]');
 
         // Only the provider with a stored key shows the badge.
@@ -54,6 +56,26 @@ final class SettingsControllerTest extends WebTestCase
         // reject the editor's fetch requests, which rely on the origin check only.
         self::assertSelectorExists('input[name="settings[_token]"]');
         self::assertSelectorNotExists('input[name="settings[_token]"][data-controller="csrf-protection"]');
+
+        // Single is the default mode.
+        self::assertSelectorCount(2, 'input[type="radio"][name="settings[defaultMode]"]');
+        self::assertSelectorExists('input[type="radio"][name="settings[defaultMode]"][value="single"][checked]');
+    }
+
+    public function testSaveStoresDefaultMode(): void
+    {
+        $this->client->request('GET', '/settings');
+        $this->client->submitForm('Save', [
+            'settings[providers][anthropic][model]' => 'claude-sonnet-4-5',
+            'settings[defaultMode]' => 'dir',
+        ], 'POST', ['HTTP_ORIGIN' => 'http://localhost']);
+
+        self::assertResponseRedirects('/settings');
+
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+
+        self::assertSame(EditorMode::Dir, $setting->getDefaultMode());
     }
 
     public function testSaveStoresSelectionAndModelInDatabaseAndKeyInKeyring(): void

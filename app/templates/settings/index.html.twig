@@ -25,6 +25,16 @@
         </fieldset>
         {% endfor %}
 
+        <fieldset class="settings-fieldset">
+            <legend>{{ 'components.settings.mode_title'|trans({}, 'components') }}</legend>
+            {% for radio in form.defaultMode %}
+            <label class="settings-mode-option">
+                {{ form_widget(radio) }}
+                {{ form_label(radio) }}
+            </label>
+            {% endfor %}
+        </fieldset>
+
         <button type="submit" class="settings-submit">
             {{ 'components.settings.save'|trans({}, 'components') }}
         </button>

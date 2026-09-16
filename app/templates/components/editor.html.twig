@@ -12,12 +12,13 @@
          aiAbort: path('app_ai_abort'),
      }|json_encode }}"
      data-editor-ai-config-value="{{ ai_config|json_encode }}"
+     data-editor-directory-value="{{ directory }}"
      {% if readonly %}data-editor-readonly-value="true"{% endif %}
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">
     <div class="editor-file-bar">
-        <button type="button" class="editor-filebar-btn" data-action="click->editor#openFile" data-editor-leave-guard>
-            {{ 'components.editor.open'|trans({}, 'components') }}
+        <button type="button" class="editor-filebar-btn" data-action="click->editor#newFile" data-editor-leave-guard>
+            {{ 'components.editor.new'|trans({}, 'components') }}
         </button>
         <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>
             {{ 'components.editor.save'|trans({}, 'components') }}

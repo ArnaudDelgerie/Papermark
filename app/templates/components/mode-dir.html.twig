@@ -1,0 +1,23 @@
+<div class="editor-sidebar-panel" data-controller="mode-dir" data-mode-dir-tree-url-value="{{ path('app_dir_tree') }}">
+    <nav class="mode-selector">
+        <a href="{{ path('app_editor_single') }}" class="mode-selector-link" data-editor-leave-guard>
+            {{ 'components.mode.single'|trans({}, 'components') }}
+        </a>
+        <a href="{{ path('app_editor_dir') }}" class="mode-selector-link is-active" data-editor-leave-guard>
+            {{ 'components.mode.dir'|trans({}, 'components') }}
+        </a>
+    </nav>
+
+    <form method="post" action="{{ path('app_dir_open') }}" data-mode-dir-target="form" hidden>
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="path" data-mode-dir-target="pathInput">
+    </form>
+    <button type="button" class="editor-sidebar-btn" data-mode-dir-target="openButton"
+            data-action="click->mode-dir#openDirectory" data-editor-leave-guard>
+        <span class="mode-dir-open-label">{{ 'components.mode.open_directory'|trans({}, 'components') }}</span>
+    </button>
+
+    <div data-mode-dir-target="tree">
+        {% include 'components/_mode_dir_tree.html.twig' with { tree_result: tree_result } only %}
+    </div>
+</div>

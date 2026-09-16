@@ -2,6 +2,7 @@ components:
     editor:
         placeholder: Start writing…
         open: Open
+        new: New
         save: Save
         save_as: Save as
         print: Print
@@ -67,6 +68,17 @@ components:
             model_missing: No model set for the selected AI provider
             api_key_missing: No API key set for the selected AI provider
             ai_failed: The AI request failed
+            invalid_directory: Folder not found
+    mode:
+        single: Single file
+        dir: Folder
+        open_directory: Open folder
+        history:
+            empty: No recent files
+        tree:
+            empty: No folder open
+            too_large: This folder is too large to display
+            no_markdown: No Markdown files in this folder
     settings:
         title: Settings
         back: ← Back
@@ -75,6 +87,7 @@ components:
         key_placeholder: Enter API key…
         key_set: Key set
         save: Save
+        mode_title: Default mode
         provider:
             openai: OpenAI
             anthropic: Anthropic
