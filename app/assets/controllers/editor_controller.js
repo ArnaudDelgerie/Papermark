@@ -8,6 +8,8 @@ import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { replaceAll } from '@milkdown/utils';
 import EditorFactory from '../editor/editor-factory.js';
+import { pickPath, savePath } from '../utils/tauri.js';
+import { showToast } from '../utils/toast.js';
 
 export default class extends Controller {
     static values = {
@@ -52,7 +54,7 @@ export default class extends Controller {
             aiEnabled: this.#isAiEnabled(),
             aiProvider: this.#isAiEnabled() ? this.#createAIProvider() : undefined,
             // Crepe prefixes the message ("AI provider error: ..."); show the original one.
-            onAiError: (error) => this.#toast('error', error.cause?.message ?? error.message),
+            onAiError: (error) => showToast('error', error.cause?.message ?? error.message),
         });
 
         this.#crepe.on((listener) => {
@@ -156,7 +158,7 @@ export default class extends Controller {
     }
 
     async openFile() {
-        const path = await this.#pickPath('file');
+        const path = await pickPath('file');
         if (path === null) {
             return;
         }
@@ -182,10 +184,10 @@ export default class extends Controller {
             this.#savedRef = this.#crepe.getMarkdown();
             this.#updateSaveButton(this.#savedRef);
             this.#updateDirtyIndicator(this.#savedRef);
-            this.#toast('success', this.i18nValue.toast?.opened ?? 'File opened');
+            showToast('success', this.i18nValue.toast?.opened ?? 'File opened');
         } catch (err) {
             console.error('Failed to open file:', err);
-            this.#toast('error', err.message || 'Failed to open file');
+            showToast('error', err.message || 'Failed to open file');
         }
     }
 
@@ -214,10 +216,10 @@ export default class extends Controller {
 
             this.#savedRef = markdown;
             this.#updateDirtyIndicator(markdown);
-            this.#toast('success', this.i18nValue.toast?.saved ?? 'File saved');
+            showToast('success', this.i18nValue.toast?.saved ?? 'File saved');
         } catch (err) {
             console.error('Failed to save file:', err);
-            this.#toast('error', err.message || 'Failed to save file');
+            showToast('error', err.message || 'Failed to save file');
         }
     }
 
@@ -225,7 +227,7 @@ export default class extends Controller {
         const defaultName = this.#currentPath !== null
             ? this.#currentPath.split('/').pop()
             : 'untitled.md';
-        const path = await this.#savePath(defaultName);
+        const path = await savePath(defaultName);
         if (path === null) {
             return;
         }
@@ -254,10 +256,10 @@ export default class extends Controller {
             this.#updateDirtyIndicator(markdown);
             const name = path.split('/').pop();
             const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
-            this.#toast('success', template.replace('{name}', name));
+            showToast('success', template.replace('{name}', name));
         } catch (err) {
             console.error('Failed to save file:', err);
-            this.#toast('error', err.message || 'Failed to save file');
+            showToast('error', err.message || 'Failed to save file');
         }
     }
 
@@ -273,10 +275,10 @@ export default class extends Controller {
         try {
             const content = await this.#convertImageUrlsForCopy(markdown);
             await navigator.clipboard.writeText(content);
-            this.#toast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
+            showToast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
         } catch (err) {
             console.error('Failed to copy markdown:', err);
-            this.#toast('error', this.i18nValue.toast?.copyMarkdownFailed ?? 'Failed to copy markdown');
+            showToast('error', this.i18nValue.toast?.copyMarkdownFailed ?? 'Failed to copy markdown');
         }
     }
 
@@ -329,10 +331,6 @@ export default class extends Controller {
         this.#printCopy = null;
     }
 
-    #toast(type, message) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: { type, message } }));
-    }
-
     #setupScrollHide() {
         this.#onScroll = () => {
             if (!this.#scrollTarget) {
@@ -362,7 +360,7 @@ export default class extends Controller {
      * whether the document is new or already open — see EDITOR_IMAGES.md.
      */
     async #insertImageFromPicker(ctx) {
-        const path = await this.#pickPath('file');
+        const path = await pickPath('file');
         if (path === null) {
             return;
         }
@@ -373,32 +371,6 @@ export default class extends Controller {
         commands.call(addBlockTypeCommand.key, {
             nodeType: imageBlock,
             attrs: { src: `${this.urlsValue.image}?path=${encodeURIComponent(path)}` },
-        });
-    }
-
-    #pickPath(kind) {
-        const tauri = window.__TAURI__;
-        if (!tauri?.core?.invoke) {
-            console.warn('Tauri IPC is not available — file picker requires the TFSApp hub.');
-            return Promise.resolve(null);
-        }
-
-        return tauri.core.invoke('pick_path', { kind });
-    }
-
-    #savePath(fileName = 'untitled.md') {
-        const tauri = window.__TAURI__;
-        if (!tauri?.core?.invoke) {
-            console.warn('Tauri IPC is not available — save dialog requires the TFSApp hub.');
-            return Promise.resolve(null);
-        }
-
-        return tauri.core.invoke('save_path', {
-            filters: [
-                { name: 'Markdown', extensions: ['md'] },
-                { name: 'Text', extensions: ['txt'] },
-            ],
-            fileName,
         });
     }
 
