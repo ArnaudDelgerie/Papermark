@@ -42,7 +42,6 @@ components:
         toast:
             saved: File saved
             saved_as: 'File saved as {name}'
-            opened: File opened
             copied_markdown: Markdown copied to clipboard
             copy_markdown_failed: Failed to copy markdown
         ai:

@@ -82,7 +82,6 @@ final class Editor
             'toast' => [
                 'saved' => $this->trans('toast.saved'),
                 'savedAs' => $this->trans('toast.saved_as'),
-                'opened' => $this->trans('toast.opened'),
                 'copiedMarkdown' => $this->trans('toast.copied_markdown'),
                 'copyMarkdownFailed' => $this->trans('toast.copy_markdown_failed'),
             ],

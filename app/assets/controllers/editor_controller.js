@@ -179,7 +179,6 @@ export default class extends Controller {
 
             const { content } = await response.json();
             this.#applyLoadedFile(path, content);
-            showToast('success', this.i18nValue.toast?.opened ?? 'File opened');
         } catch (err) {
             console.error('Failed to open file:', err);
             showToast('error', err.message || 'Failed to open file');

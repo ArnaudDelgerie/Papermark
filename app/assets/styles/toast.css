@@ -1,14 +1,18 @@
-/* Toast notifications: fixed bottom-right, auto-dismissed by toast_controller.
-   Minimal styling — a proper design pass will come once all UI elements exist. */
+/* Toast notifications: fixed bottom-center, auto-dismissed by toast_controller.
+   One position for every page (the container lives in base.html.twig), rather
+   than something each page has to account for. */
 
 .toast-container {
     position: fixed;
-    bottom: var(--space-4);
-    right: var(--space-4);
+    bottom: var(--space-5);
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: var(--space-2);
     z-index: 1000;
+    width: min(90vw, 42rem);
     pointer-events: none;
 }
 
@@ -16,13 +20,14 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     color: var(--color-text);
-    font-size: 0.875rem;
-    max-width: 24rem;
+    font-size: 1rem;
     pointer-events: auto;
     opacity: 0;
     transform: translateY(var(--space-2));
