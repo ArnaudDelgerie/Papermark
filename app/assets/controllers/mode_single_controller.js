@@ -1,6 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
-import { dispatchOpenFile } from '../utils/editor-open.js';
+import { FILE_SAVED_AS_EVENT, dispatchFileDeleted, dispatchFileRenamed, dispatchOpenFile } from '../utils/editor-open.js';
 import { deleteFile, renameFile } from '../utils/file-actions.js';
 import { renameDialog } from '../utils/rename-dialog.js';
 import { pickPath } from '../utils/tauri.js';
@@ -26,8 +26,17 @@ export default class extends Controller {
 
     static targets = ['list', 'empty'];
 
+    #onFileSavedAs = (event) => this.#pushHistory(event.detail.path);
+
     connect() {
         this.#render();
+        // Save as: a new path the user just created, not yet in the history
+        // built from Open/history clicks (see EDITOR_FIX.md #5).
+        window.addEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
+    }
+
+    disconnect() {
+        window.removeEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
     }
 
     async openFile() {
@@ -65,6 +74,7 @@ export default class extends Controller {
             showToast('success', this.i18nValue.deleted ?? 'File deleted');
             this.#writeHistory(this.#readHistory().filter((entry) => entry !== path));
             this.#render();
+            dispatchFileDeleted(path);
         } catch (err) {
             console.error('Failed to delete file:', err);
             showToast('error', err.message || this.i18nValue.deleteFailed || 'Failed to delete file');
@@ -91,6 +101,7 @@ export default class extends Controller {
             // In place: renaming isn't a re-open, so it doesn't reorder the history.
             this.#writeHistory(this.#readHistory().map((entry) => (entry === path ? newPath : entry)));
             this.#render();
+            dispatchFileRenamed(path, newPath);
         } catch (err) {
             console.error('Failed to rename file:', err);
             showToast('error', err.message || this.i18nValue.renameFailed || 'Failed to rename file');

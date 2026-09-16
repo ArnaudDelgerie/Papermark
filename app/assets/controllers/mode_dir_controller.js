@@ -1,6 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
-import { FILE_SAVED_AS_EVENT, dispatchOpenFile } from '../utils/editor-open.js';
+import { FILE_SAVED_AS_EVENT, dispatchFileDeleted, dispatchFileRenamed, dispatchOpenFile } from '../utils/editor-open.js';
 import { deleteFile, renameFile } from '../utils/file-actions.js';
 import { renameDialog } from '../utils/rename-dialog.js';
 import { pickPath } from '../utils/tauri.js';
@@ -66,6 +66,7 @@ export default class extends Controller {
             await deleteFile(this.deleteUrlValue, this.fileCsrfTokenValue, path);
             showToast('success', this.i18nValue.deleted ?? 'File deleted');
             this.#refreshTree();
+            dispatchFileDeleted(path);
         } catch (err) {
             console.error('Failed to delete file:', err);
             showToast('error', err.message || this.i18nValue.deleteFailed || 'Failed to delete file');
@@ -87,9 +88,10 @@ export default class extends Controller {
         }
 
         try {
-            await renameFile(this.renameUrlValue, this.fileCsrfTokenValue, path, newName);
+            const newPath = await renameFile(this.renameUrlValue, this.fileCsrfTokenValue, path, newName);
             showToast('success', this.i18nValue.renamed ?? 'File renamed');
             this.#refreshTree();
+            dispatchFileRenamed(path, newPath);
         } catch (err) {
             console.error('Failed to rename file:', err);
             showToast('error', err.message || this.i18nValue.renameFailed || 'Failed to rename file');
