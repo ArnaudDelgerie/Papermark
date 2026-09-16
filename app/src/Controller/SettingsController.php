@@ -13,14 +13,20 @@ use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\BridgeException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\ClickableInterface;
 use Symfony\Component\Form\FormError;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class SettingsController extends AbstractController
 {
+    private const TRANSLATION_DOMAIN = 'components';
+
     public function __construct(
         private readonly SecretStoreInterface $secretStore,
         private readonly ApiKeyResolver $apiKeyResolver,
@@ -28,6 +34,7 @@ final class SettingsController extends AbstractController
         private readonly SettingRepository $settings,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
     ) {
     }
 
@@ -62,7 +69,12 @@ final class SettingsController extends AbstractController
 
                 $this->entityManager->flush();
 
-                return $this->redirectToRoute('app_settings');
+                $this->addFlash('success', $this->translator->trans('components.settings.saved', [], self::TRANSLATION_DOMAIN));
+
+                $saveAndClose = $form->get('saveAndClose');
+                $closeAfterSave = $saveAndClose instanceof ClickableInterface && $saveAndClose->isClicked();
+
+                return $this->redirectToRoute($closeAfterSave ? 'app_home' : 'app_settings');
             } catch (BridgeException) {
                 $form->addError(new FormError(
                     $this->translator->trans('components.editor.error.save_failed', [], 'components'),
@@ -78,6 +90,47 @@ final class SettingsController extends AbstractController
         return $this->render('settings/index.html.twig', [
             'form' => $form,
             'has_key' => $hasKey,
+            'delete_key_csrf_token' => $this->csrfTokenManager->getToken('delete_key')->getValue(),
         ]);
+    }
+
+    /**
+     * Removes a provider's stored API key from the keyring. Fetch-based, like
+     * the rest of this app's write actions (see FileController) — the CSRF
+     * token travels in a header, not a form field.
+     */
+    #[Route('/settings/provider/{name}/key', name: 'app_settings_delete_key', methods: ['POST'])]
+    public function deleteKey(ProviderName $name, Request $request): JsonResponse
+    {
+        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
+        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('delete_key', $csrfToken))) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        try {
+            $this->secretStore->delete($name->value);
+        } catch (BridgeException) {
+            return $this->errorResponse('key_delete_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $setting = $this->settings->getOrCreate();
+        if ($setting->getSelectedProvider()?->getName() === $name) {
+            $setting->setSelectedProvider(null);
+            $this->entityManager->flush();
+        }
+
+        // No immediate toast: the front end reloads the page to reflect the
+        // removed key and possible deselection, and the flash renders then.
+        $this->addFlash('success', $this->translator->trans('components.settings.key_deleted', [], self::TRANSLATION_DOMAIN));
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    private function errorResponse(string $key, int $status): JsonResponse
+    {
+        return new JsonResponse(
+            ['error' => $this->translator->trans('components.editor.error.' . $key, [], self::TRANSLATION_DOMAIN)],
+            $status,
+        );
     }
 }

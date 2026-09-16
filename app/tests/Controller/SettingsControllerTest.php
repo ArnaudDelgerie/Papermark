@@ -14,6 +14,7 @@ use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class SettingsControllerTest extends WebTestCase
 {
@@ -103,5 +104,71 @@ final class SettingsControllerTest extends WebTestCase
         // An empty key field keeps the stored key.
         self::assertSame('existing-key', $this->secretStore->get('anthropic'));
         self::assertNull($this->secretStore->get('openai'));
+    }
+
+    public function testSaveAndCloseRedirectsToHomeInsteadOfSettings(): void
+    {
+        $this->client->request('GET', '/settings');
+        $this->client->submitForm('Save and close', [
+            'settings[providers][anthropic][model]' => 'claude-sonnet-4-5',
+        ], 'POST', ['HTTP_ORIGIN' => 'http://localhost']);
+
+        self::assertResponseRedirects('/');
+    }
+
+    public function testDeleteKeyRemovesItFromKeyringAndDeselectsTheProvider(): void
+    {
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setSelectedProvider(static::getContainer()->get(ProviderRepository::class)->findAllByName()['anthropic']);
+        static::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $this->client->request('GET', '/settings');
+        $csrfToken = static::getContainer()->get(CsrfTokenManagerInterface::class)
+            ->getToken('delete_key')->getValue();
+
+        $this->client->request('POST', '/settings/provider/anthropic/key', [], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertNull($this->secretStore->get('anthropic'));
+
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        self::assertNull($setting->getSelectedProvider());
+    }
+
+    public function testDeleteKeyKeepsSelectionWhenADifferentProviderIsSelected(): void
+    {
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $providers = static::getContainer()->get(ProviderRepository::class)->findAllByName();
+        $setting->setSelectedProvider($providers['mistral']);
+        static::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $this->client->request('GET', '/settings');
+        $csrfToken = static::getContainer()->get(CsrfTokenManagerInterface::class)
+            ->getToken('delete_key')->getValue();
+
+        $this->client->request('POST', '/settings/provider/anthropic/key', [], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        self::assertSame('mistral', $setting->getSelectedProvider()?->getName()->value);
+    }
+
+    public function testDeleteKeyRejectsInvalidCsrf(): void
+    {
+        $this->client->request('GET', '/settings');
+
+        $this->client->request('POST', '/settings/provider/anthropic/key', [], [], [
+            'HTTP_X-CSRF-TOKEN' => 'invalid',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame('existing-key', $this->secretStore->get('anthropic'));
     }
 }

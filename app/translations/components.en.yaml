@@ -68,6 +68,7 @@ components:
             api_key_missing: No API key set for the selected AI provider
             ai_failed: The AI request failed
             invalid_directory: Folder not found
+            key_delete_failed: Could not delete the API key
     mode:
         single: Single file
         dir: Folder
@@ -86,7 +87,13 @@ components:
         key_placeholder: Enter API key…
         key_set: Key set
         save: Save
+        save_and_close: Save and close
+        saved: Settings saved
         mode_title: Default mode
+        delete_key: Delete key
+        delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
+        delete_key_confirm_question: Delete this API key?
+        key_deleted: API key deleted
         provider:
             openai: OpenAI
             anthropic: Anthropic

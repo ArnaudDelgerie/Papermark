@@ -10,6 +10,7 @@ use App\Entity\Provider;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
+use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -41,6 +42,12 @@ final class SettingsType extends AbstractType
                 'class' => EditorMode::class,
                 'expanded' => true,
                 'choice_label' => static fn (EditorMode $mode): string => 'components.mode.' . $mode->value,
+            ])
+            ->add('save', SubmitType::class, [
+                'label' => 'components.settings.save',
+            ])
+            ->add('saveAndClose', SubmitType::class, [
+                'label' => 'components.settings.save_and_close',
             ]);
     }
 

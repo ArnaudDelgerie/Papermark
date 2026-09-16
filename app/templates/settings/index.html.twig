@@ -17,6 +17,15 @@
                 {{ form_label(form.selected[name], null, {label_attr: {class: 'settings-provider-name'}}) }}
                 {% if has_key[name] %}
                 <span class="settings-provider-badge">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
+                <button type="button" class="settings-delete-key-btn" title="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
+                        data-controller="settings" data-action="click->settings#deleteKey"
+                        data-url="{{ path('app_settings_delete_key', {name: name}) }}"
+                        data-settings-csrf-token-value="{{ delete_key_csrf_token }}"
+                        data-settings-delete-label-value="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
+                        data-settings-confirm-message-value="{{ 'components.settings.delete_key_confirm_message'|trans({}, 'components') }}"
+                        data-settings-confirm-question-value="{{ 'components.settings.delete_key_confirm_question'|trans({}, 'components') }}">
+                    <span class="visually-hidden">{{ 'components.settings.delete_key'|trans({}, 'components') }}</span>
+                </button>
                 {% endif %}
             </legend>
 
@@ -35,9 +44,10 @@
             {% endfor %}
         </fieldset>
 
-        <button type="submit" class="settings-submit">
-            {{ 'components.settings.save'|trans({}, 'components') }}
-        </button>
+        <div class="settings-submit-row">
+            {{ form_widget(form.save, {attr: {class: 'settings-submit'}}) }}
+            {{ form_widget(form.saveAndClose, {attr: {class: 'settings-submit settings-submit-secondary'}}) }}
+        </div>
     {{ form_end(form) }}
 </div>
 {% endblock %}

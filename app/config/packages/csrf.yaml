@@ -15,3 +15,4 @@ framework:
             - file
             - ai
             - settings
+            - delete_key
