@@ -40,40 +40,31 @@ final class SettingsController extends AbstractController
         $form = $this->createForm(SettingsType::class, [
             'providers' => $providersByName,
             'selected' => $setting->getSelectedProvider()?->getName(),
-            'imageFolder' => $setting->getImageFolder(),
         ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $imageFolder = $form->get('imageFolder')->getData();
-            if (!\is_string($imageFolder) || trim($imageFolder) === '') {
-                $form->get('imageFolder')->addError(new FormError(
-                    $this->translator->trans('components.settings.error.image_folder_required', [], 'components'),
-                ));
-            } else {
-                $selected = $form->get('selected')->getData();
+            $selected = $form->get('selected')->getData();
 
-                try {
-                    foreach ($form->get('providers') as $providerForm) {
-                        $provider = $providerForm->getData();
+            try {
+                foreach ($form->get('providers') as $providerForm) {
+                    $provider = $providerForm->getData();
 
-                        $apiKey = $providerForm->get('apiKey')->getData();
-                        if (\is_string($apiKey) && $apiKey !== '') {
-                            $this->secretStore->set($provider->getName()->value, $apiKey);
-                        }
+                    $apiKey = $providerForm->get('apiKey')->getData();
+                    if (\is_string($apiKey) && $apiKey !== '') {
+                        $this->secretStore->set($provider->getName()->value, $apiKey);
                     }
-
-                    $setting->setImageFolder($imageFolder);
-                    $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
-
-                    $this->entityManager->flush();
-
-                    return $this->redirectToRoute('app_settings');
-                } catch (BridgeException) {
-                    $form->addError(new FormError(
-                        $this->translator->trans('components.editor.error.save_failed', [], 'components'),
-                    ));
                 }
+
+                $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
+
+                $this->entityManager->flush();
+
+                return $this->redirectToRoute('app_settings');
+            } catch (BridgeException) {
+                $form->addError(new FormError(
+                    $this->translator->trans('components.editor.error.save_failed', [], 'components'),
+                ));
             }
         }
 

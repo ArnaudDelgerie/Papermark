@@ -12,7 +12,6 @@ framework:
             - submit
             - authenticate
             - logout
-            - upload
             - file
             - ai
             - settings

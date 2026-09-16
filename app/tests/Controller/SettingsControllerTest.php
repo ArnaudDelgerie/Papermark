@@ -42,9 +42,8 @@ final class SettingsControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Settings');
         self::assertSelectorExists('a.settings-back');
-        // One fieldset for the images folder, plus one per provider.
-        self::assertSelectorCount(4, 'fieldset.settings-fieldset');
-        self::assertSelectorExists('input[name="settings[imageFolder]"]');
+        // One fieldset per provider.
+        self::assertSelectorCount(3, 'fieldset.settings-fieldset');
         self::assertSelectorCount(3, 'input[type="radio"][name="settings[selected]"]');
 
         // Only the provider with a stored key shows the badge.
@@ -61,7 +60,6 @@ final class SettingsControllerTest extends WebTestCase
     {
         $this->client->request('GET', '/settings');
         $this->client->submitForm('Save', [
-            'settings[imageFolder]' => '/home/user/Pictures',
             'settings[selected]' => 'mistral',
             'settings[providers][mistral][model]' => 'mistral-large-latest',
             'settings[providers][mistral][apiKey]' => 'mistral-key',
@@ -74,7 +72,6 @@ final class SettingsControllerTest extends WebTestCase
         $providers = static::getContainer()->get(ProviderRepository::class)->findAllByName();
         $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
 
-        self::assertSame('/home/user/Pictures', $setting->getImageFolder());
         self::assertSame('mistral', $setting->getSelectedProvider()?->getName()->value);
         self::assertSame('mistral-large-latest', $providers['mistral']->getModel());
         self::assertSame('claude-sonnet-4-5', $providers['anthropic']->getModel());
@@ -84,16 +81,5 @@ final class SettingsControllerTest extends WebTestCase
         // An empty key field keeps the stored key.
         self::assertSame('existing-key', $this->secretStore->get('anthropic'));
         self::assertNull($this->secretStore->get('openai'));
-    }
-
-    public function testSaveRequiresImageFolder(): void
-    {
-        $this->client->request('GET', '/settings');
-        $this->client->submitForm('Save', [
-            'settings[imageFolder]' => '',
-        ], 'POST', ['HTTP_ORIGIN' => 'http://localhost']);
-
-        self::assertResponseStatusCodeSame(422);
-        self::assertSelectorTextContains('body', 'Choose an images folder before continuing');
     }
 }

@@ -6,14 +6,12 @@ import { imageBlockSchema } from '@milkdown/kit/component/image-block';
 import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
 import { addBlockTypeCommand, clearTextInCurrentBlockCommand } from '@milkdown/kit/preset/commonmark';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
-import { uploadConfig } from '@milkdown/kit/plugin/upload';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
 import { replaceAll } from '@milkdown/utils';
 
 export default class extends Controller {
     static values = {
-        csrfToken: String,
         fileCsrfToken: String,
         aiCsrfToken: String,
         aiConfig: {
@@ -107,16 +105,6 @@ export default class extends Controller {
             featureConfigs: {
                 [Crepe.Feature.Cursor]: {
                     virtual: false,
-                },
-                // @todo Clipboard paste and drag & drop don't reach this in the
-                // TFSApp hub's webview (WebKitGTK/Tauri never gives a real File for
-                // either), so onUpload is currently dead code from the UI's point of
-                // view — see EDITOR_IMAGES.md. Remove (with #uploadFile and the
-                // /upload/image endpoint) if nothing else needs it by project end.
-                [Crepe.Feature.ImageBlock]: {
-                    onUpload: (file) => this.#uploadFile(file),
-                    blockUploadPlaceholderText: '',
-                    inlineUploadPlaceholderText: '',
                 },
                 [Crepe.Feature.Placeholder]: {
                     text: this.i18nValue.placeholder,
@@ -238,22 +226,6 @@ export default class extends Controller {
             ctx.update(editorViewOptionsCtx, (prev) => ({
                 ...prev,
                 attributes: { class: 'document' },
-            }));
-        });
-
-        // Some clipboard sources (e.g. a screenshot tool) also put an
-        // <img src="blob:…"> in text/html alongside the raw image file; by
-        // default the upload plugin then defers to that HTML instead of our
-        // file uploader, inserting a blob: URL the app's CSP (img-src) blocks.
-        // Forcing the file path through means paste always uses our uploader.
-        // @todo Verified ineffective in the TFSApp hub's webview: clipboardData
-        // never actually carries a File there, so this never gets a chance to
-        // matter. Remove alongside the rest of the dead upload path (see the
-        // @todo above ImageBlock's onUpload) if nothing else needs it.
-        this.#crepe.editor.config((ctx) => {
-            ctx.update(uploadConfig.key, (prev) => ({
-                ...prev,
-                enableHtmlFileUploader: true,
             }));
         });
 
@@ -738,32 +710,6 @@ export default class extends Controller {
                 commands.call(clearDiffReviewCmd.key);
             }
         });
-    }
-
-    // @todo Dead from the UI's point of view in the TFSApp hub — see the
-    // @todo above ImageBlock's onUpload, the only caller of this method.
-    async #uploadFile(file) {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            const response = await fetch('/upload/image', {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || `Upload failed: ${response.status}`);
-            }
-
-            const { url } = await response.json();
-            return url;
-        } catch (err) {
-            this.#toast('error', err.message || 'Upload failed');
-            throw err;
-        }
     }
 
     // The server enables AI only with a worker, a selected provider and its key.

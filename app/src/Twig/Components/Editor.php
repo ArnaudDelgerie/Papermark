@@ -97,12 +97,6 @@ final class Editor
         ];
     }
 
-    #[ExposeInTemplate(name: 'upload_csrf_token')]
-    public function getUploadCsrfToken(): string
-    {
-        return $this->csrfTokenManager->getToken('upload')->getValue();
-    }
-
     #[ExposeInTemplate(name: 'file_csrf_token')]
     public function getFileCsrfToken(): string
     {

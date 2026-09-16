@@ -1,7 +1,7 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-<div class="page-settings" data-controller="settings">
+<div class="page-settings">
     <div class="settings-header">
         <a href="{{ path('app_home') }}" class="settings-back">{{ 'components.settings.back'|trans({}, 'components') }}</a>
         <h1>{{ 'components.settings.title'|trans({}, 'components') }}</h1>
@@ -9,17 +9,6 @@
 
     {{ form_start(form, {attr: {class: 'settings-form'}}) }}
         {{ form_errors(form) }}
-
-        <fieldset class="settings-fieldset">
-            <legend>{{ 'components.settings.image_folder.title'|trans({}, 'components') }}</legend>
-            <div class="settings-image-folder-row">
-                {{ form_widget(form.imageFolder, {attr: {'data-settings-target': 'imageFolderInput', placeholder: 'components.settings.image_folder.placeholder'|trans({}, 'components')}}) }}
-                <button type="button" class="settings-choose-folder-btn" data-action="click->settings#pickImageFolder">
-                    {{ 'components.settings.image_folder.choose'|trans({}, 'components') }}
-                </button>
-            </div>
-            {{ form_errors(form.imageFolder) }}
-        </fieldset>
 
         {% for name, provider in form.providers %}
         <fieldset class="settings-fieldset">

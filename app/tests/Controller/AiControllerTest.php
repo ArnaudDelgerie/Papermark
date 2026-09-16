@@ -6,7 +6,6 @@ namespace App\Tests\Controller;
 
 use App\Ai\AiAbortRegistry;
 use App\Ai\AiInstructionMessage;
-use App\Tests\Support\ConfiguresImageFolder;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
@@ -15,8 +14,6 @@ use Symfony\Component\Uid\Uuid;
 
 final class AiControllerTest extends WebTestCase
 {
-    use ConfiguresImageFolder;
-
     /**
      * The home page renders the Editor component which generates CSRF
      * tokens, setting the session. The token is then read from the container.
@@ -26,7 +23,6 @@ final class AiControllerTest extends WebTestCase
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
-        $this->configureImageFolder($client);
         $client->request('GET', '/');
         $client->disableReboot();
 

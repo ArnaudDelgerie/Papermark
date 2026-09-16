@@ -2,21 +2,17 @@
 
 namespace App\Tests\Controller;
 
-use App\Tests\Support\ConfiguresImageFolder;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class FileControllerTest extends WebTestCase
 {
-    use ConfiguresImageFolder;
-
     /**
      * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
      */
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
-        $this->configureImageFolder($client);
         // The home page renders the Editor component which generates CSRF
         // tokens, setting the stateless CSRF cookie in the response. The
         // test client stores it and sends it on subsequent requests.

@@ -2,17 +2,13 @@
 
 namespace App\Tests\Controller;
 
-use App\Tests\Support\ConfiguresImageFolder;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 final class HomeControllerTest extends WebTestCase
 {
-    use ConfiguresImageFolder;
-
     public function testEditorComponentRendersOnHome(): void
     {
         $client = static::createClient();
-        $this->configureImageFolder($client);
         $client->request('GET', '/');
 
         self::assertResponseIsSuccessful();
@@ -36,7 +32,6 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame('Markdown copied to clipboard', $i18n['toast']['copiedMarkdown']);
 
         // Both CSRF tokens are present.
-        self::assertNotEmpty($editor->attr('data-editor-csrf-token-value'));
         self::assertNotEmpty($editor->attr('data-editor-file-csrf-token-value'));
         self::assertNotEmpty($editor->attr('data-editor-ai-csrf-token-value'));
 
@@ -62,13 +57,5 @@ final class HomeControllerTest extends WebTestCase
 
         // The toast container is rendered in the base layout.
         self::assertSame(1, $crawler->filter('div[data-controller="toast"]')->count());
-    }
-
-    public function testRedirectsToSettingsWhenImageFolderIsNotSet(): void
-    {
-        $client = static::createClient();
-        $client->request('GET', '/');
-
-        self::assertResponseRedirects('/settings');
     }
 }
