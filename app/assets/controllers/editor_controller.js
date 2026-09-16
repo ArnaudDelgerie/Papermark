@@ -14,6 +14,7 @@ export default class extends Controller {
     static values = {
         fileCsrfToken: String,
         aiCsrfToken: String,
+        urls: Object,
         aiConfig: {
             type: Object,
             default: { enabled: false },
@@ -332,7 +333,7 @@ export default class extends Controller {
         formData.append('path', path);
 
         try {
-            const response = await fetch('/file/open', {
+            const response = await fetch(this.urlsValue.open, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
                 body: formData,
@@ -368,7 +369,7 @@ export default class extends Controller {
         formData.append('content', markdown);
 
         try {
-            const response = await fetch('/file/save', {
+            const response = await fetch(this.urlsValue.save, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
                 body: formData,
@@ -404,7 +405,7 @@ export default class extends Controller {
         formData.append('content', markdown);
 
         try {
-            const response = await fetch('/file/save', {
+            const response = await fetch(this.urlsValue.save, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
                 body: formData,
@@ -456,7 +457,7 @@ export default class extends Controller {
         const formData = new FormData();
         formData.append('content', markdown);
 
-        const response = await fetch('/file/copy', {
+        const response = await fetch(this.urlsValue.copy, {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
             body: formData,
@@ -539,7 +540,7 @@ export default class extends Controller {
         commands.call(clearTextInCurrentBlockCommand.key);
         commands.call(addBlockTypeCommand.key, {
             nodeType: imageBlock,
-            attrs: { src: `/file/image?path=${encodeURIComponent(path)}` },
+            attrs: { src: `${this.urlsValue.image}?path=${encodeURIComponent(path)}` },
         });
     }
 
@@ -738,7 +739,7 @@ export default class extends Controller {
                 id = window.crypto.randomUUID();
                 const request = this.#createAiRequest(id);
 
-                const response = await this.#postAi('/ai/instruct', {
+                const response = await this.#postAi(this.urlsValue.aiInstruct, {
                     id,
                     instruction: context.instruction,
                     document: context.document,
@@ -776,7 +777,7 @@ export default class extends Controller {
                 // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
                 // keepalive: the abort must survive leaving the page right after a confirm.
                 if (!finished && id !== null) {
-                    this.#postAi('/ai/abort', { id }, { keepalive: true }).catch((err) => console.error('Failed to abort AI request:', err));
+                    this.#postAi(this.urlsValue.aiAbort, { id }, { keepalive: true }).catch((err) => console.error('Failed to abort AI request:', err));
                 }
             }
         }.bind(this);
@@ -787,7 +788,7 @@ export default class extends Controller {
      * if needed), then opens the EventSource and resolves once the hub accepts it.
      */
     async #ensureAiSubscription() {
-        const response = await this.#postAi('/ai/subscribe', {});
+        const response = await this.#postAi(this.urlsValue.aiSubscribe, {});
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
             throw new Error(data.error || this.i18nValue.ai.requestFailed);

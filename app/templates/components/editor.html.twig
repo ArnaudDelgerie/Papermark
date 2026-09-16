@@ -2,6 +2,15 @@
      class="editor is-a4"
      data-editor-file-csrf-token-value="{{ file_csrf_token }}"
      data-editor-ai-csrf-token-value="{{ ai_csrf_token }}"
+     data-editor-urls-value="{{ {
+         open: path('app_file_open'),
+         save: path('app_file_save'),
+         copy: path('app_file_copy'),
+         image: path('app_file_image'),
+         aiSubscribe: path('app_ai_subscribe'),
+         aiInstruct: path('app_ai_instruct'),
+         aiAbort: path('app_ai_abort'),
+     }|json_encode }}"
      data-editor-ai-config-value="{{ ai_config|json_encode }}"
      {% if readonly %}data-editor-readonly-value="true"{% endif %}
      data-editor-i18n-value="{{ i18n|json_encode }}"
