@@ -31,13 +31,12 @@ export default class extends Controller {
         i18n: Object,
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'a4Button', 'toggleButton', 'dirtyIndicator'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleButton', 'dirtyIndicator'];
 
     #crepe = null;
     #currentPath = null;
     #savedRef = '';
     #isReadonly = false;
-    #isA4 = true;
     #lastScrollTop = 0;
     #scrollTarget = null;
     #onScroll = null;
@@ -51,7 +50,6 @@ export default class extends Controller {
 
     async connect() {
         this.#isReadonly = this.readonlyValue;
-        this.#isA4 = this.element.classList.contains('is-a4');
 
         if (this.#isAiEnabled()) {
             this.#aiClient = new AiClient({
@@ -103,28 +101,11 @@ export default class extends Controller {
         this.#updatePrintButton('');
         this.#updateCopyMarkdownButton('');
         this.#updateDirtyIndicator(this.#savedRef);
-
-        if (this.hasA4ButtonTarget) {
-            this.a4ButtonTarget.textContent = this.#isA4
-                ? this.i18nValue.full_width ?? 'Full width'
-                : this.i18nValue.a4 ?? 'A4';
-        }
     }
 
     toggleReadonly() {
         this.#isReadonly = !this.#isReadonly;
         this.#applyReadonlyState();
-    }
-
-    toggleA4() {
-        this.#isA4 = !this.#isA4;
-        this.element.classList.toggle('is-a4', this.#isA4);
-
-        if (this.hasA4ButtonTarget) {
-            this.a4ButtonTarget.textContent = this.#isA4
-                ? this.i18nValue.full_width ?? 'Full width'
-                : this.i18nValue.a4 ?? 'A4';
-        }
     }
 
     #applyReadonlyState() {

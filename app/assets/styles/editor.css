@@ -50,7 +50,7 @@
     background: var(--color-border);
 }
 
-/* Dirty indicator: small label to the right of A4/Full-width. */
+/* Dirty indicator: small label next to Copy markdown. */
 
 .editor-dirty-indicator {
     display: inline-flex;

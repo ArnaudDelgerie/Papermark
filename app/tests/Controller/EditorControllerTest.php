@@ -25,7 +25,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame('Single file', trim($crawler->filter('.mode-selector-link.is-active')->text()));
 
         // New replaces the old Open button in the editor's own file bar.
-        self::assertSame(7, $crawler->filter('div[data-controller="editor"] button.editor-filebar-btn')->count());
+        self::assertSame(6, $crawler->filter('div[data-controller="editor"] button.editor-filebar-btn')->count());
         self::assertSame('New', trim($crawler->filter('button[data-action="click->editor#newFile"]')->text()));
 
         // Open (file) lives in the sidebar now.
