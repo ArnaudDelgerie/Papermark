@@ -214,6 +214,21 @@
     border-color: transparent;
 }
 
+/* Crepe's default buttons (32px + 4px padding + 6px margin = 40px+ visible,
+   24px icon) run bigger than the file-bar's (16px icon in a plain 32px
+   button) — match that scale so both bars read at the same size. */
+.editor .milkdown-top-bar .top-bar-item {
+    width: 32px;
+    height: 32px;
+    margin: 4px;
+    padding: 0;
+}
+
+.editor .milkdown-top-bar .top-bar-item svg {
+    width: 20px;
+    height: 20px;
+}
+
 .editor:is(.is-a4, .is-readonly) .milkdown-block-handle {
     display: none;
 }
