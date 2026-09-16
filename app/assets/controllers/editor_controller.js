@@ -31,7 +31,7 @@ export default class extends Controller {
         i18n: Object,
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleButton', 'dirtyIndicator'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleButton', 'toggleLabel', 'dirtyIndicator', 'filePath'];
 
     #crepe = null;
     #currentPath = null;
@@ -101,6 +101,7 @@ export default class extends Controller {
         this.#updatePrintButton('');
         this.#updateCopyMarkdownButton('');
         this.#updateDirtyIndicator(this.#savedRef);
+        this.#updateFilePath();
     }
 
     toggleReadonly() {
@@ -136,8 +137,8 @@ export default class extends Controller {
             this.#updateSaveButton(this.#crepe?.getMarkdown());
         }
 
-        if (this.hasToggleButtonTarget) {
-            this.toggleButtonTarget.textContent = this.#isReadonly
+        if (this.hasToggleLabelTarget) {
+            this.toggleLabelTarget.textContent = this.#isReadonly
                 ? this.i18nValue.toggle?.edit ?? 'Edit'
                 : this.i18nValue.toggle?.readonly ?? 'Read only';
         }
@@ -181,6 +182,7 @@ export default class extends Controller {
             this.#savedRef = this.#crepe.getMarkdown();
             this.#updateSaveButton(this.#savedRef);
             this.#updateDirtyIndicator(this.#savedRef);
+            this.#updateFilePath();
             showToast('success', this.i18nValue.toast?.opened ?? 'File opened');
         } catch (err) {
             console.error('Failed to open file:', err);
@@ -196,6 +198,7 @@ export default class extends Controller {
         this.#updatePrintButton(this.#savedRef);
         this.#updateCopyMarkdownButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
+        this.#updateFilePath();
     }
 
     async saveFile() {
@@ -263,6 +266,7 @@ export default class extends Controller {
             this.#savedRef = markdown;
             this.#updateSaveButton(markdown);
             this.#updateDirtyIndicator(markdown);
+            this.#updateFilePath();
             const name = path.split('/').pop();
             const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
             showToast('success', template.replace('{name}', name));
@@ -417,6 +421,15 @@ export default class extends Controller {
     #isDirty(markdown) {
         const current = markdown ?? this.#crepe?.getMarkdown() ?? '';
         return current !== this.#savedRef;
+    }
+
+    #updateFilePath() {
+        if (!this.hasFilePathTarget) {
+            return;
+        }
+        const label = this.#currentPath ?? this.i18nValue.untitled ?? 'Untitled';
+        this.filePathTarget.textContent = label;
+        this.filePathTarget.title = label;
     }
 
     #restoreFocus() {

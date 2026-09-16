@@ -17,27 +17,40 @@
     --toolbar-offset: 0px;
 }
 
-/* File bar ---------------------------------------------------------------- */
+/* File bar ------------------------------------------------------------------
+   Square icon buttons (New, Save, Save as, Print, Copy markdown, then the
+   open file path + unsaved dot, then readonly toggle and Settings pushed
+   to the far right). */
 
 .editor-file-bar {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
 }
 
-.editor-toggle-btn {
+.editor-filebar-actions {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.editor-filebar-actions--end {
     margin-left: auto;
 }
 
 .editor-filebar-btn {
-    padding: var(--space-1) var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     background: transparent;
     color: var(--color-text);
-    font-size: 0.875rem;
     cursor: pointer;
 }
 
@@ -50,18 +63,86 @@
     background: var(--color-border);
 }
 
-/* Dirty indicator: small label next to Copy markdown. */
+.editor-filebar-icon {
+    width: 16px;
+    height: 16px;
+    background-color: currentcolor;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+}
 
-.editor-dirty-indicator {
-    display: inline-flex;
+.editor-filebar-icon--new {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5zM9.5 1.5V5h3.5M8 8v4M6 10h4'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--save {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 1.5h9.5l2 2v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1zM5 1.5v3h4v-3M4 9.5h8v5h-8z'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--save-as {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 1.5h9.5l2 2v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1zM5 1.5v3h4v-3M4 9.5h8v5h-8zM12.5 11v3M11 12.5h3M11.6 11.6l1.8 1.8M13.4 11.6l-1.8 1.8'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--print {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 1.5h8v3H4zM2.5 4.5h11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H12v3H4v-3H2.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zM5 10.5h6v3H5z'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--copy {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 1.5h7v9H4zM6.5 4.5h7v9h-7z'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--toggle {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 2l3 3-8 8-3.5 1 1-3.5zM9.5 3.5l3 3'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--settings {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='2'/%3E%3Cpath d='M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4'/%3E%3C/svg%3E");
+}
+
+/* File path + unsaved dot ---------------------------------------------- */
+
+.editor-file-status {
+    display: flex;
     align-items: center;
-    font-size: 0.75rem;
-    color: var(--color-danger);
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+}
+
+.editor-file-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.editor-dirty-indicator[hidden] {
+.editor-dirty-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-danger);
+}
+
+.editor-dirty-dot[hidden] {
     display: none;
+}
+
+/* Screen-reader-only text: keeps the icon buttons' accessible name and
+   title without showing a visible label. */
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* Leave confirmation: the webview shows no native confirm(). */

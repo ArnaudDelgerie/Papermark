@@ -8,6 +8,7 @@ components:
         print: Print
         copy_markdown: Copy as Markdown
         settings: Settings
+        untitled: Untitled
         unsaved:
             indicator: Unsaved
             confirm: Continue and lose unsaved changes?

@@ -51,6 +51,7 @@ final class Editor
                 'edit' => $this->trans('toggle.edit'),
                 'readonly' => $this->trans('toggle.readonly'),
             ],
+            'untitled' => $this->trans('untitled'),
             'unsaved' => [
                 'confirm' => $this->trans('unsaved.confirm'),
                 'cancel' => $this->trans('unsaved.cancel'),
