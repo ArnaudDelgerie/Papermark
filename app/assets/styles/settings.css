@@ -59,6 +59,13 @@
     background: var(--color-surface);
 }
 
+.settings-provider input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
 .settings-provider.is-selected {
     background: var(--color-surface);
 }
