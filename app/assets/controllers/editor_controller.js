@@ -7,6 +7,7 @@ import { addBlockTypeCommand, clearTextInCurrentBlockCommand } from '@milkdown/k
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { replaceAll } from '@milkdown/utils';
+import AiClient from '../editor/ai-client.js';
 import EditorFactory from '../editor/editor-factory.js';
 import { pickPath, savePath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
@@ -37,8 +38,7 @@ export default class extends Controller {
     #scrollTarget = null;
     #onScroll = null;
     #printCopy = null;
-    #aiSource = null;
-    #aiRequests = new Map();
+    #aiClient = null;
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
     #onGuardedClick = (event) => this.#guardLeave(event);
@@ -47,12 +47,23 @@ export default class extends Controller {
     async connect() {
         this.#isReadonly = this.readonlyValue;
         this.#isA4 = this.element.classList.contains('is-a4');
+
+        if (this.#isAiEnabled()) {
+            this.#aiClient = new AiClient({
+                csrfToken: this.aiCsrfTokenValue,
+                urls: { subscribe: this.urlsValue.aiSubscribe, instruct: this.urlsValue.aiInstruct, abort: this.urlsValue.aiAbort },
+                mercureUrl: this.aiConfigValue.mercureUrl,
+                topic: this.aiConfigValue.topic,
+                requestFailedMessage: this.i18nValue.ai?.requestFailed,
+            });
+        }
+
         this.#crepe = await EditorFactory.create({
             root: this.element,
             i18n: this.i18nValue,
             onInsertImage: (ctx) => this.#insertImageFromPicker(ctx),
             aiEnabled: this.#isAiEnabled(),
-            aiProvider: this.#isAiEnabled() ? this.#createAIProvider() : undefined,
+            aiProvider: this.#aiClient?.createProvider(),
             // Crepe prefixes the message ("AI provider error: ..."); show the original one.
             onAiError: (error) => showToast('error', error.cause?.message ?? error.message),
         });
@@ -152,7 +163,7 @@ export default class extends Controller {
         window.removeEventListener('afterprint', this.#onAfterPrint);
         this.element.removeEventListener('click', this.#onGuardedClick, true);
         this.#removePrintCopy();
-        this.#closeAiSource();
+        this.#aiClient?.close();
         this.#crepe?.destroy();
         this.#crepe = null;
     }
@@ -522,172 +533,4 @@ export default class extends Controller {
         return this.aiConfigValue?.enabled === true;
     }
 
-    /**
-     * Creates the AIProvider that Crepe calls when the user triggers an AI action.
-     *
-     * The EventSource is opened per request: /ai/subscribe is called first (the
-     * server decides whether to re-mint the cookie), then the connection waits
-     * for `open` before the instruction is sent. The connection is closed in the
-     * finally block, so no permanent subscription is kept. Crepe allows only one
-     * generation at a time, so there is never a second connection. Each request
-     * has its own id: the worker echoes it and events of other requests are ignored.
-     */
-    #createAIProvider() {
-        return async function* aiProvider(context, signal) {
-            let id = null;
-            let finished = false;
-
-            try {
-                await this.#ensureAiSubscription();
-
-                id = window.crypto.randomUUID();
-                const request = this.#createAiRequest(id);
-
-                const response = await this.#postAi(this.urlsValue.aiInstruct, {
-                    id,
-                    instruction: context.instruction,
-                    document: context.document,
-                    selection: context.selection,
-                });
-
-                if (!response.ok) {
-                    finished = true;
-                    const data = await response.json().catch(() => ({}));
-                    throw new Error(data.error || (this.i18nValue.ai?.requestFailed ?? 'The AI request failed'));
-                }
-
-                while (true) {
-                    const payload = await request.next(signal);
-                    if (payload === null) {
-                        return;
-                    }
-
-                    if (payload.type === 'chunk') {
-                        yield payload.content;
-                    } else if (payload.type === 'done') {
-                        finished = true;
-                        return;
-                    } else if (payload.type === 'error') {
-                        // A lost connection leaves the worker running: let finally abort it.
-                        finished = !payload.connectionLost;
-                        throw new Error(payload.error || (this.i18nValue.ai?.requestFailed ?? 'The AI request failed'));
-                    }
-                }
-            } finally {
-                if (id !== null) {
-                    this.#aiRequests.delete(id);
-                }
-                this.#closeAiSource();
-                // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
-                // keepalive: the abort must survive leaving the page right after a confirm.
-                if (!finished && id !== null) {
-                    this.#postAi(this.urlsValue.aiAbort, { id }, { keepalive: true }).catch((err) => console.error('Failed to abort AI request:', err));
-                }
-            }
-        }.bind(this);
-    }
-
-    /**
-     * Asks the server to ensure the subscriber cookie is fresh (it re-mints only
-     * if needed), then opens the EventSource and resolves once the hub accepts it.
-     */
-    async #ensureAiSubscription() {
-        const response = await this.#postAi(this.urlsValue.aiSubscribe, {});
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || (this.i18nValue.ai?.requestFailed ?? 'The AI request failed'));
-        }
-
-        await this.#openAiSource();
-    }
-
-    /**
-     * Opens the EventSource on the session topic and resolves once the hub accepted it.
-     */
-    #openAiSource() {
-        this.#closeAiSource();
-
-        const url = new URL(this.aiConfigValue.mercureUrl);
-        url.searchParams.append('topic', this.aiConfigValue.topic);
-        const source = new EventSource(url, { withCredentials: true });
-        this.#aiSource = source;
-
-        source.addEventListener('message', (event) => {
-            const payload = JSON.parse(event.data);
-            this.#aiRequests.get(payload.id)?.push(payload);
-        });
-
-        return new Promise((resolve, reject) => {
-            source.addEventListener('open', () => {
-                resolve();
-            }, { once: true });
-
-            source.addEventListener('error', () => {
-                // Transient errors reconnect on their own; only a closed source is lost.
-                if (source.readyState !== EventSource.CLOSED) {
-                    return;
-                }
-                // Ignore errors from a source we already replaced or closed.
-                if (this.#aiSource !== source) {
-                    return;
-                }
-
-                const error = this.i18nValue.ai?.requestFailed ?? 'The AI request failed';
-                reject(new Error(error));
-                this.#aiRequests.forEach((request) => request.push({ type: 'error', error, connectionLost: true }));
-            });
-        });
-    }
-
-    #closeAiSource() {
-        this.#aiSource?.close();
-        this.#aiSource = null;
-    }
-
-    /**
-     * Queues the events of one request until the provider consumes them.
-     */
-    #createAiRequest(id) {
-        const events = [];
-        let wake = null;
-
-        const request = {
-            push: (payload) => {
-                events.push(payload);
-                wake?.();
-            },
-            next: async (signal) => {
-                while (events.length === 0) {
-                    if (signal?.aborted) {
-                        return null;
-                    }
-
-                    await new Promise((resolve) => {
-                        wake = resolve;
-                        signal?.addEventListener('abort', resolve, { once: true });
-                    });
-                    signal?.removeEventListener('abort', wake);
-                    wake = null;
-                }
-
-                return events.shift();
-            },
-        };
-
-        this.#aiRequests.set(id, request);
-
-        return request;
-    }
-
-    #postAi(url, body, options = {}) {
-        return fetch(url, {
-            ...options,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': this.aiCsrfTokenValue,
-            },
-            body: JSON.stringify(body),
-        });
-    }
 }
