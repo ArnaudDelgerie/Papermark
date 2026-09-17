@@ -1,7 +1,7 @@
 /* Editor on screen: file bar, Crepe top bar, body scroll container, A4 sheet.
-   State classes on .editor only change variables where possible. */
+   State classes on .editor-shell only change variables where possible. */
 
-.editor {
+.editor-shell {
     display: flex;
     flex-direction: column;
     border: 1px solid var(--color-border);
@@ -214,7 +214,7 @@
 
 /* Crepe ------------------------------------------------------------------- */
 
-.editor .milkdown {
+.editor-shell .milkdown {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -223,7 +223,7 @@
     overflow: hidden;
 }
 
-.editor .milkdown-top-bar {
+.editor-shell .milkdown-top-bar {
     position: relative;
     min-height: 36px;
     margin-bottom: 2px;
@@ -234,21 +234,21 @@
 /* Crepe's own editable check doesn't see our readonly toggle (it flips the
    ProseMirror contenteditable attribute directly, not Crepe's editable()),
    so it never hides the bar itself — do it here instead. */
-.editor.is-readonly .milkdown-top-bar {
+.editor-shell.is-readonly .milkdown-top-bar {
     display: none;
 }
 
 /* The heading selector and divider are Crepe's tallest default items
    (44px); shrink them to match the 36px row below. */
-.editor .milkdown-top-bar .top-bar-heading-selector {
+.editor-shell .milkdown-top-bar .top-bar-heading-selector {
     padding: 4px;
 }
 
-.editor .milkdown-top-bar .top-bar-heading-button {
+.editor-shell .milkdown-top-bar .top-bar-heading-button {
     height: 28px;
 }
 
-.editor .milkdown-top-bar .top-bar-divider {
+.editor-shell .milkdown-top-bar .top-bar-divider {
     height: 20px;
     margin: 8px;
 }
@@ -256,34 +256,44 @@
 /* Crepe's default buttons (32px + 4px padding + 6px margin = 40px+ visible,
    24px icon) run bigger than the file-bar's (14px icon in a plain 28px
    button) — match that scale so both bars read at the same size. */
-.editor .milkdown-top-bar .top-bar-item {
+.editor-shell .milkdown-top-bar .top-bar-item {
     width: 28px;
     height: 28px;
     margin: 4px;
     padding: 0;
 }
 
-.editor .milkdown-top-bar .top-bar-item svg {
+.editor-shell .milkdown-top-bar .top-bar-item svg {
     width: 18px;
     height: 18px;
 }
 
-.editor:is(.is-a4, .is-readonly) .milkdown-block-handle {
+.editor-shell:is(.is-a4, .is-readonly) .milkdown-block-handle {
     display: none;
 }
 
-.editor .ProseMirror {
+/* The frame, flex column and hidden x-overflow below used to come by
+   accident from our container's class: Milkdown tags .ProseMirror with
+   "editor" (prepareViewDom), which is why the container is .editor-shell.
+   Kept on purpose: the frame outlines the A4 sheet, and the flex column
+   keeps block margins from collapsing (the text spacing relies on it). */
+.editor-shell .ProseMirror {
     /* Scales Crepe's own UI (image blocks, tables, menus) with the document text. */
     --crepe-base-font-size: var(--doc-font-size);
 
+    display: flex;
     flex: 1;
-    overflow-y: auto;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden auto;
     padding: var(--space-5) var(--space-5) var(--space-4);
+    background: var(--color-surface);
 }
 
 /* Code blocks: plain ProseMirror <pre> (Crepe's CodeMirror feature is off,
    see editor-factory.js), wrapped by code-block-view.js. */
-.editor .ProseMirror pre {
+.editor-shell .ProseMirror pre {
     margin: 0.6em 0;
     padding: 0.6em 0.8em;
     border: 1px solid var(--crepe-color-outline);
@@ -295,12 +305,12 @@
     white-space: pre;
     overflow-x: auto;
 
-    /* Milkdown also tags .ProseMirror with "editor", so it's a flex column
-       (the .editor rule above); overflow makes the <pre> shrinkable. */
+    /* .ProseMirror is a flex column (see above); overflow makes the <pre>
+       shrinkable. */
     flex-shrink: 0;
 }
 
-.editor .ProseMirror pre code {
+.editor-shell .ProseMirror pre code {
     padding: 0;
     background: none;
     font: inherit;
@@ -312,7 +322,7 @@
    node view can't tell.
    The block's margin moves from the <pre> to its wrapper (same 0.6em of the
    0.9em code size), so the <pre>'s top border is the wrapper's top edge. */
-.editor .code-block {
+.editor-shell .code-block {
     position: relative;
     flex-shrink: 0;
     margin: 0.54em 0;
@@ -328,13 +338,13 @@
     --code-operator: #0184bc;
 }
 
-.editor .code-block pre {
+.editor-shell .code-block pre {
     margin: 0;
 }
 
 /* Language picker and copy button, straddling the <pre>'s top border
    (half their 16px above it). */
-.editor .code-block-tools {
+.editor-shell .code-block-tools {
     position: absolute;
     top: -8px;
     right: 10px;
@@ -344,16 +354,16 @@
     opacity: 0.6;
 }
 
-.editor .code-block-tools:focus-within {
+.editor-shell .code-block-tools:focus-within {
     opacity: 1;
 }
 
-.editor .code-block:hover .code-block-tools {
+.editor-shell .code-block:hover .code-block-tools {
     opacity: 1;
 }
 
-.editor .code-block-language,
-.editor .code-block-copy {
+.editor-shell .code-block-language,
+.editor-shell .code-block-copy {
     height: 16px;
     border: 1px solid var(--crepe-color-outline);
     border-radius: 3px;
@@ -362,7 +372,7 @@
     cursor: pointer;
 }
 
-.editor .code-block-language {
+.editor-shell .code-block-language {
     /* The native look ignores height/padding in WebKitGTK and clips the
        label: drawn by hand, 12px line + 2px padding + 2px border = 16px. */
     appearance: none;
@@ -376,7 +386,7 @@
     font: 10px/12px var(--crepe-font-default);
 }
 
-.editor .code-block-copy {
+.editor-shell .code-block-copy {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -384,22 +394,22 @@
     padding: 0;
 }
 
-.editor .code-block-copy .editor-filebar-icon {
+.editor-shell .code-block-copy .editor-filebar-icon {
     width: 10px;
     height: 10px;
 }
 
-.editor .code-block-copy:hover {
+.editor-shell .code-block-copy:hover {
     color: var(--crepe-color-on-surface);
 }
 
-.editor.is-readonly .code-block-language {
+.editor-shell.is-readonly .code-block-language {
     display: none;
 }
 
 /* Prism token colors (@milkdown/plugin-prism): One Light / One Dark palettes,
-   light ones declared on .editor .code-block above. */
-:root[data-theme="dark"] .editor .code-block {
+   light ones declared on .editor-shell .code-block above. */
+:root[data-theme="dark"] .editor-shell .code-block {
     --code-mono: #abb2bf;
     --code-comment: #7d8799;
     --code-keyword: #c678dd;
@@ -411,7 +421,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-    :root[data-theme="auto"] .editor .code-block {
+    :root[data-theme="auto"] .editor-shell .code-block {
         --code-mono: #abb2bf;
         --code-comment: #7d8799;
         --code-keyword: #c678dd;
@@ -423,42 +433,42 @@
     }
 }
 
-.editor .ProseMirror pre[data-language] code {
+.editor-shell .ProseMirror pre[data-language] code {
     color: var(--code-mono);
 }
 
-.editor .ProseMirror pre .token:is(.comment, .prolog, .doctype, .cdata) {
+.editor-shell .ProseMirror pre .token:is(.comment, .prolog, .doctype, .cdata) {
     color: var(--code-comment);
     font-style: italic;
 }
 
-.editor .ProseMirror pre .token:is(.keyword, .atrule, .important, .selector) {
+.editor-shell .ProseMirror pre .token:is(.keyword, .atrule, .important, .selector) {
     color: var(--code-keyword);
 }
 
-.editor .ProseMirror pre .token:is(.string, .char, .attr-value, .inserted, .regex) {
+.editor-shell .ProseMirror pre .token:is(.string, .char, .attr-value, .inserted, .regex) {
     color: var(--code-string);
 }
 
-.editor .ProseMirror pre .token:is(.number, .boolean, .constant, .class-name, .builtin, .symbol) {
+.editor-shell .ProseMirror pre .token:is(.number, .boolean, .constant, .class-name, .builtin, .symbol) {
     color: var(--code-number);
 }
 
-.editor .ProseMirror pre .token:is(.function, .url) {
+.editor-shell .ProseMirror pre .token:is(.function, .url) {
     color: var(--code-function);
 }
 
-.editor .ProseMirror pre .token:is(.property, .tag, .attr-name, .variable, .deleted) {
+.editor-shell .ProseMirror pre .token:is(.property, .tag, .attr-name, .variable, .deleted) {
     color: var(--code-property);
 }
 
-.editor .ProseMirror pre .token:is(.operator, .entity) {
+.editor-shell .ProseMirror pre .token:is(.operator, .entity) {
     color: var(--code-operator);
 }
 
 /* Align list bullets with the first line of the tighter document text. */
-.editor .milkdown-list-item-block li .label-wrapper,
-.editor .milkdown-list-item-block li .label-wrapper .label {
+.editor-shell .milkdown-list-item-block li .label-wrapper,
+.editor-shell .milkdown-list-item-block li .label-wrapper .label {
     height: calc(var(--doc-font-size) * var(--doc-line-height));
     padding: 0;
 }
@@ -466,11 +476,11 @@
 /* A4 sheet: centered page on a darker desk, width matches a real A4 page.
    No page-break guides — reliable simulation is not feasible in CSS/JS. */
 
-.editor.is-a4 .milkdown {
+.editor-shell.is-a4 .milkdown {
     background: var(--color-page);
 }
 
-.editor.is-a4 .ProseMirror {
+.editor-shell.is-a4 .ProseMirror {
     width: 100%;
     max-width: var(--doc-page-width);
     margin-inline: auto;
@@ -481,7 +491,7 @@
 /* Narrower panel widths (half-page and up): the fixed A4 margin eats too
    much of the available text width, shrink it. Below this, not covered. */
 @media (width <= 960px) {
-    .editor.is-a4 .ProseMirror {
+    .editor-shell.is-a4 .ProseMirror {
         padding-inline: var(--space-4);
     }
 }
