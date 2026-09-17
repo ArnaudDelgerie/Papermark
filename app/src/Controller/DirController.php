@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Editor\EditorMode;
+use App\Editor\ModeSession;
 use App\File\OpenDirectory;
 use App\File\OpenDirectoryTree;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -22,6 +24,7 @@ final class DirController extends AbstractController
 
     public function __construct(
         private readonly OpenDirectory $openDirectory,
+        private readonly ModeSession $modeSession,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -45,6 +48,10 @@ final class DirController extends AbstractController
      * Sets the current folder in session. Nothing is "opened" here: the caller
      * reloads the tree frame once the session holds the new path. Same level of
      * control as /file/open, no filter on location (see EDITOR_FOLDER_MODE.md).
+     *
+     * The file dir mode remembered belonged to the previous folder, so it is
+     * dropped: the editor must not keep showing a file the tree no longer has
+     * (see EDITOR_REACTIVITY.md).
      */
     #[Route('/dir/current', name: 'app_dir_set_current', methods: ['POST'])]
     public function setCurrent(Request $request): JsonResponse
@@ -61,6 +68,7 @@ final class DirController extends AbstractController
         }
 
         $this->openDirectory->set($realPath);
+        $this->modeSession->setFile(EditorMode::Dir, null);
 
         return new JsonResponse(['open_directory' => $realPath]);
     }

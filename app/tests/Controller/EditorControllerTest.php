@@ -193,6 +193,31 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(400);
     }
 
+    public function testSetCurrentDirectoryForgetsTheFileDirModeWasShowing(): void
+    {
+        $client = static::createClient();
+
+        $root = sys_get_temp_dir() . '/dir_mode_forget_' . uniqid();
+        mkdir($root);
+        $file = $root . '/kept.md';
+        file_put_contents($file, '# Kept');
+
+        $client->request('GET', '/editor/dir');
+        $crawler = $client->followRedirect();
+        $fileToken = $crawler->filter('div[data-controller="mode-dir"]')->attr('data-mode-dir-file-csrf-token-value');
+        $client->request('POST', '/file/open', ['path' => $file], [], ['HTTP_X_CSRF_TOKEN' => $fileToken]);
+        self::assertResponseIsSuccessful();
+
+        $this->setCurrentDirectory($client, $root);
+
+        $modeToken = $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-csrf-token-value');
+        $client->request('POST', '/editor/mode', ['mode' => 'dir'], [], ['HTTP_X_CSRF_TOKEN' => $modeToken]);
+
+        self::assertNull(json_decode((string) $client->getResponse()->getContent(), true)['path']);
+
+        $this->removeDirectory($root);
+    }
+
     public function testDirModeRendersTheShellWithTheEditorAndTheModeDirFrame(): void
     {
         $client = static::createClient();

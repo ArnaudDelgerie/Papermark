@@ -10,6 +10,7 @@ import { replaceAll } from '@milkdown/utils';
 import AiClient from '../editor/ai-client.js';
 import EditorFactory from '../editor/editor-factory.js';
 import { confirmDialog } from '../utils/confirm-dialog.js';
+import { CURRENT_DIR_UPDATED_EVENT } from '../utils/current-directory.js';
 import { MODE_UPDATED_EVENT } from '../utils/editor-mode.js';
 import { FILE_DELETED_EVENT, FILE_RENAMED_EVENT, OPEN_FILE_EVENT, dispatchFileSavedAs } from '../utils/editor-open.js';
 import { pickPath, savePath } from '../utils/tauri.js';
@@ -54,6 +55,15 @@ export default class extends Controller {
     // Each mode remembers its own file, so a switch replaces what is open. The
     // content comes with the event: the server read it while recording the
     // mode, no second round trip (see EDITOR_REACTIVITY.md).
+    // Changing folder drops the file dir mode remembered, server side, so the
+    // editor has to let go of it too rather than keep a file the new tree
+    // doesn't contain. A refused change carries no path and leaves it alone.
+    #onCurrentDirUpdated = (event) => {
+        if (event.detail.path !== null) {
+            this.newFile();
+        }
+    };
+
     #onModeUpdated = (event) => {
         const { path, content } = event.detail;
         if (path === null) {
@@ -92,6 +102,7 @@ export default class extends Controller {
         window.addEventListener('click', this.#onGuardedClick, true);
         window.addEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
         window.addEventListener(MODE_UPDATED_EVENT, this.#onModeUpdated);
+        window.addEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
         window.addEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
         window.addEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
         if (this.#isReadonly) {
@@ -185,6 +196,7 @@ export default class extends Controller {
         window.removeEventListener('click', this.#onGuardedClick, true);
         window.removeEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
         window.removeEventListener(MODE_UPDATED_EVENT, this.#onModeUpdated);
+        window.removeEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
         window.removeEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
         window.removeEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
         this.#removePrintCopy();
