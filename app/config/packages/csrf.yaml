@@ -17,3 +17,4 @@ framework:
             - settings
             - delete_key
             - export
+            - import

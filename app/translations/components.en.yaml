@@ -75,6 +75,11 @@ components:
             update_check_failed: Could not check for updates
             ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
             ext_md_conflict: 'Export needs "ext_md" to be a folder in the source folder'
+            not_a_zip: 'The selected file is not a valid zip archive'
+            zip_slip: 'This archive contains an unsafe file path and was rejected'
+            symlink: 'This archive contains a symbolic link and was rejected'
+            too_many_entries: 'This archive has too many entries to import'
+            too_large: 'This archive is too large to import'
     theme:
         light: Light
         dark: Dark

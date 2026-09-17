@@ -12,6 +12,8 @@ use App\Export\ArchiveTargetResolver;
 use App\Export\ArchiveWriter;
 use App\Export\ExportIssue;
 use App\File\OpenDirectory;
+use App\Import\ArchiveImporter;
+use App\Import\ArchiveImportRefusedException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,6 +34,7 @@ final class ExportController extends AbstractController
         private readonly ArchiveExportPlanner $planner,
         private readonly ArchiveTargetResolver $targetResolver,
         private readonly ArchiveWriter $writer,
+        private readonly ArchiveImporter $importer,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -131,6 +134,48 @@ final class ExportController extends AbstractController
                 ],
                 $plan->issues,
             ),
+        ]);
+    }
+
+    #[Route('/import/run', name: 'app_import_run', methods: ['POST'])]
+    public function importRun(Request $request): JsonResponse
+    {
+        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
+        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('import', $csrfToken))) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $archive = $request->request->get('archive');
+        if (!\is_string($archive) || '' === $archive) {
+            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+        }
+
+        $parentDir = $request->request->get('parentDir');
+        if (!\is_string($parentDir) || '' === $parentDir) {
+            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+        }
+
+        $realArchive = realpath($archive);
+        if (false === $realArchive || !is_file($realArchive)) {
+            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        $realParentDir = realpath($parentDir);
+        if (false === $realParentDir || !is_dir($realParentDir) || !is_writable($realParentDir)) {
+            return $this->errorResponse('not_writable', Response::HTTP_FORBIDDEN);
+        }
+
+        try {
+            $result = $this->importer->import($realArchive, $realParentDir);
+        } catch (ArchiveImportRefusedException $e) {
+            return $this->errorResponse($e->reason->value, Response::HTTP_CONFLICT);
+        }
+
+        return new JsonResponse([
+            'destination' => $result->destination,
+            'openMode' => $result->openMode?->value,
+            'openPath' => $result->openPath,
+            'ignoredEntries' => $result->ignoredEntries,
         ]);
     }
 

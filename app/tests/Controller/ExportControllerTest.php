@@ -145,6 +145,114 @@ final class ExportControllerTest extends WebTestCase
         self::assertSame('Export needs "ext_img" to be a folder in the source folder', $data['error']);
     }
 
+    public function testImportRunRejectsInvalidCsrf(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/import/run', [
+            'archive' => $this->workDir . '/archive.zip',
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => 'invalid',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testImportRunReturnsErrorForMissingArchive(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $client->request('POST', '/import/run', [
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testImportRunReturns404ForMissingArchive(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $client->request('POST', '/import/run', [
+            'archive' => $this->workDir . '/does_not_exist.zip',
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testImportRunReturnsNotWritableForMissingParentDir(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $zipPath = $this->workDir . '/archive.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('doc.md', '# Hello');
+        $zip->close();
+
+        $client->request('POST', '/import/run', [
+            'archive' => $zipPath,
+            'parentDir' => $this->workDir . '/does_not_exist',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testImportRunRejectsNonZipFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $notAZip = $this->workDir . '/archive.zip';
+        file_put_contents($notAZip, 'not a zip');
+
+        $client->request('POST', '/import/run', [
+            'archive' => $notAZip,
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(409);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('The selected file is not a valid zip archive', $data['error']);
+    }
+
+    public function testImportRunExtractsArchiveAndReportsOpenTarget(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $zipPath = $this->workDir . '/notes.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('doc.md', '# Hello');
+        $zip->addFromString('notes.pdf', 'ignored');
+        $zip->close();
+
+        $client->request('POST', '/import/run', [
+            'archive' => $zipPath,
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+
+        self::assertSame($this->workDir . '/notes', $data['destination']);
+        self::assertSame('single', $data['openMode']);
+        self::assertSame($this->workDir . '/notes/doc.md', $data['openPath']);
+        self::assertSame(['notes.pdf'], $data['ignoredEntries']);
+        self::assertFileExists($this->workDir . '/notes/doc.md');
+    }
+
     /**
      * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
      */
@@ -155,6 +263,20 @@ final class ExportControllerTest extends WebTestCase
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('export')->getValue();
+
+        return [$client, $csrfToken];
+    }
+
+    /**
+     * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
+     */
+    private function createClientWithImportCsrf(): array
+    {
+        $client = static::createClient();
+        $client->request('GET', '/export');
+
+        $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
+            ->getToken('import')->getValue();
 
         return [$client, $csrfToken];
     }
