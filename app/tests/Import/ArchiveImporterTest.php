@@ -60,6 +60,20 @@ final class ArchiveImporterTest extends TestCase
         self::assertSame($result->destination, $result->openPath);
     }
 
+    public function testPreservesImagesAtTheirOriginalRelativePath(): void
+    {
+        $zipPath = $this->makeZip([
+            'doc.md' => '# Hello ![alt](images/photo.png)',
+            'images/photo.png' => 'PNG-BYTES',
+        ]);
+
+        $result = $this->importer->import($zipPath, $this->parentDir);
+
+        self::assertFileExists($result->destination . '/images/photo.png');
+        self::assertSame('PNG-BYTES', file_get_contents($result->destination . '/images/photo.png'));
+        self::assertSame('# Hello ![alt](images/photo.png)', file_get_contents($result->destination . '/doc.md'));
+    }
+
     public function testDirectoryArchiveWithSingleMarkdownOpensAsSingleFile(): void
     {
         $zipPath = $this->makeZip([
