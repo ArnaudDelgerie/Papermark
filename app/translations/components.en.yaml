@@ -40,11 +40,16 @@ components:
             image: Image
             code: Code
             table: Table
+        code_block:
+            no_language: Plain text
+            copy: Copy code
         toast:
             saved: File saved
             saved_as: 'File saved as {name}'
             copied_markdown: Markdown copied to clipboard
             copy_markdown_failed: Failed to copy markdown
+            copied_code: Code copied to clipboard
+            copy_code_failed: Failed to copy code
         ai:
             ask_ai: Ask AI
             instruction_placeholder: Tell AI what to do with the selection…

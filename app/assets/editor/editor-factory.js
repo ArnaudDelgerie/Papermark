@@ -2,13 +2,13 @@ import { Crepe } from '@milkdown/crepe';
 import { ai as aiFeature, defaultAIIcon } from '@milkdown/crepe/feature/ai';
 import { editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
 import { trailing } from '@milkdown/plugin-trailing';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { crepeLightTheme } from './codemirror-light-theme.js';
-import { isLightTheme } from '../utils/theme.js';
+import { prism } from '@milkdown/plugin-prism';
+import { createCodeBlockView } from './code-block-view.js';
 
 const DEFAULT_I18N = {
     placeholder: 'Start writing…',
     link: { confirm: 'Confirm', inputPlaceholder: 'Paste link…' },
+    codeBlock: { noLanguage: 'Plain text', copy: 'Copy code' },
     slashMenu: {
         text: 'Text',
         paragraph: 'Text',
@@ -54,17 +54,22 @@ export default class EditorFactory {
      * @param {string} [options.defaultValue]
      * @param {Object} [options.i18n] Partial translations; missing keys fall back to DEFAULT_I18N.
      * @param {(ctx: import('@milkdown/kit/ctx').Ctx) => void} options.onInsertImage
+     * @param {(text: string) => void} options.onCopyCode Copy button of a code block.
      * @param {boolean} [options.aiEnabled]
      * @param {Function} [options.aiProvider] Required when aiEnabled is true.
      * @param {(error: Error) => void} [options.onAiError]
      * @returns {Promise<Crepe>}
      */
-    static async create({ root, defaultValue = '', i18n = {}, onInsertImage, aiEnabled = false, aiProvider, onAiError }) {
+    static async create({ root, defaultValue = '', i18n = {}, onInsertImage, onCopyCode, aiEnabled = false, aiProvider, onAiError }) {
         const t = {
             placeholder: i18n.placeholder ?? DEFAULT_I18N.placeholder,
             link: {
                 confirm: i18n.link?.confirm ?? DEFAULT_I18N.link.confirm,
                 inputPlaceholder: i18n.link?.inputPlaceholder ?? DEFAULT_I18N.link.inputPlaceholder,
+            },
+            codeBlock: {
+                noLanguage: i18n.codeBlock?.noLanguage ?? DEFAULT_I18N.codeBlock.noLanguage,
+                copy: i18n.codeBlock?.copy ?? DEFAULT_I18N.codeBlock.copy,
             },
             slashMenu: {
                 text: i18n.slashMenu?.text ?? DEFAULT_I18N.slashMenu.text,
@@ -104,6 +109,11 @@ export default class EditorFactory {
                 [Crepe.Feature.Toolbar]: false,
                 [Crepe.Feature.TopBar]: true,
                 [Crepe.Feature.BlockEdit]: true,
+                // Plain <pre> code blocks (see code-block-view.js): CodeMirror's
+                // lazy mount/teardown makes the page jump in WebKitGTK. LaTeX
+                // requires CodeMirror, so it goes with it.
+                [Crepe.Feature.CodeMirror]: false,
+                [Crepe.Feature.Latex]: false,
             },
             featureConfigs: {
                 [Crepe.Feature.Cursor]: {
@@ -152,11 +162,6 @@ export default class EditorFactory {
                         }
                     },
                 },
-                [Crepe.Feature.CodeMirror]: {
-                    // Crepe defaults this to oneDark regardless of the app's
-                    // theme (see EDITOR_THEME.md); pick explicitly instead.
-                    theme: isLightTheme() ? crepeLightTheme : oneDark,
-                },
                 [Crepe.Feature.TopBar]: {
                     buildTopBar: (builder) => {
                         // Same replacement as the slash menu's "Image" entry: the hub's
@@ -204,6 +209,14 @@ export default class EditorFactory {
 
         crepe.addFeature((editor) => {
             editor.use(trailing);
+            // Syntax colors on the plain <pre> code blocks, as decorations
+            // (colors only, no layout change), see editor.css.
+            editor.use(prism);
+            editor.use(createCodeBlockView({
+                noLanguageLabel: t.codeBlock.noLanguage,
+                copyLabel: t.codeBlock.copy,
+                onCopy: onCopyCode,
+            }));
         });
 
         if (aiEnabled) {

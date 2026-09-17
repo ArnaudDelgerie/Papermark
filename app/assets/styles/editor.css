@@ -273,12 +273,187 @@
 }
 
 .editor .ProseMirror {
-    /* Scales Crepe node views (code blocks, captions) with the document text. */
+    /* Scales Crepe's own UI (image blocks, tables, menus) with the document text. */
     --crepe-base-font-size: var(--doc-font-size);
 
     flex: 1;
     overflow-y: auto;
     padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+/* Code blocks: plain ProseMirror <pre> (Crepe's CodeMirror feature is off,
+   see editor-factory.js), wrapped by code-block-view.js. */
+.editor .ProseMirror pre {
+    margin: 0.6em 0;
+    padding: 0.6em 0.8em;
+    border: 1px solid var(--crepe-color-outline);
+    border-radius: 3px;
+    background: var(--doc-code-bg);
+    font-family: var(--doc-font-code);
+    font-size: 0.9em;
+    line-height: 1.4;
+    white-space: pre;
+    overflow-x: auto;
+
+    /* Milkdown also tags .ProseMirror with "editor", so it's a flex column
+       (the .editor rule above); overflow makes the <pre> shrinkable. */
+    flex-shrink: 0;
+}
+
+.editor .ProseMirror pre code {
+    padding: 0;
+    background: none;
+    font: inherit;
+}
+
+/* Language picker and copy button of the code block node view
+   (code-block-view.js), laid over the block so they don't add height. The
+   picker is hidden in read-only: the toggle only flips contenteditable, the
+   node view can't tell.
+   The block's margin moves from the <pre> to its wrapper (same 0.6em of the
+   0.9em code size), so the <pre>'s top border is the wrapper's top edge. */
+.editor .code-block {
+    position: relative;
+    flex-shrink: 0;
+    margin: 0.54em 0;
+
+    /* Token colors, see below. */
+    --code-mono: #383a42;
+    --code-comment: #a0a1a7;
+    --code-keyword: #a626a4;
+    --code-string: #50a14f;
+    --code-number: #986801;
+    --code-function: #4078f2;
+    --code-property: #e45649;
+    --code-operator: #0184bc;
+}
+
+.editor .code-block pre {
+    margin: 0;
+}
+
+/* Language picker and copy button, straddling the <pre>'s top border
+   (half their 16px above it). */
+.editor .code-block-tools {
+    position: absolute;
+    top: -8px;
+    right: 10px;
+    z-index: 1;
+    display: flex;
+    gap: 4px;
+    opacity: 0.6;
+}
+
+.editor .code-block-tools:focus-within {
+    opacity: 1;
+}
+
+.editor .code-block:hover .code-block-tools {
+    opacity: 1;
+}
+
+.editor .code-block-language,
+.editor .code-block-copy {
+    height: 16px;
+    border: 1px solid var(--crepe-color-outline);
+    border-radius: 3px;
+    background-color: var(--color-surface);
+    color: var(--crepe-color-on-surface-variant);
+    cursor: pointer;
+}
+
+.editor .code-block-language {
+    /* The native look ignores height/padding in WebKitGTK and clips the
+       label: drawn by hand, 12px line + 2px padding + 2px border = 16px. */
+    appearance: none;
+    padding: 1px 14px 1px 5px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentcolor 50%),
+        linear-gradient(-45deg, transparent 50%, currentcolor 50%);
+    background-position: right 7px center, right 4px center;
+    background-size: 3px 3px;
+    background-repeat: no-repeat;
+    font: 10px/12px var(--crepe-font-default);
+}
+
+.editor .code-block-copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    padding: 0;
+}
+
+.editor .code-block-copy .editor-filebar-icon {
+    width: 10px;
+    height: 10px;
+}
+
+.editor .code-block-copy:hover {
+    color: var(--crepe-color-on-surface);
+}
+
+.editor.is-readonly .code-block-language {
+    display: none;
+}
+
+/* Prism token colors (@milkdown/plugin-prism): One Light / One Dark palettes,
+   light ones declared on .editor .code-block above. */
+:root[data-theme="dark"] .editor .code-block {
+    --code-mono: #abb2bf;
+    --code-comment: #7d8799;
+    --code-keyword: #c678dd;
+    --code-string: #98c379;
+    --code-number: #d19a66;
+    --code-function: #61afef;
+    --code-property: #e06c75;
+    --code-operator: #56b6c2;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root[data-theme="auto"] .editor .code-block {
+        --code-mono: #abb2bf;
+        --code-comment: #7d8799;
+        --code-keyword: #c678dd;
+        --code-string: #98c379;
+        --code-number: #d19a66;
+        --code-function: #61afef;
+        --code-property: #e06c75;
+        --code-operator: #56b6c2;
+    }
+}
+
+.editor .ProseMirror pre[data-language] code {
+    color: var(--code-mono);
+}
+
+.editor .ProseMirror pre .token:is(.comment, .prolog, .doctype, .cdata) {
+    color: var(--code-comment);
+    font-style: italic;
+}
+
+.editor .ProseMirror pre .token:is(.keyword, .atrule, .important, .selector) {
+    color: var(--code-keyword);
+}
+
+.editor .ProseMirror pre .token:is(.string, .char, .attr-value, .inserted, .regex) {
+    color: var(--code-string);
+}
+
+.editor .ProseMirror pre .token:is(.number, .boolean, .constant, .class-name, .builtin, .symbol) {
+    color: var(--code-number);
+}
+
+.editor .ProseMirror pre .token:is(.function, .url) {
+    color: var(--code-function);
+}
+
+.editor .ProseMirror pre .token:is(.property, .tag, .attr-name, .variable, .deleted) {
+    color: var(--code-property);
+}
+
+.editor .ProseMirror pre .token:is(.operator, .entity) {
+    color: var(--code-operator);
 }
 
 /* Align list bullets with the first line of the tighter document text. */

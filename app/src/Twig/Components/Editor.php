@@ -79,11 +79,17 @@ final class Editor
                 'code' => $this->trans('slash_menu.code'),
                 'table' => $this->trans('slash_menu.table'),
             ],
+            'codeBlock' => [
+                'noLanguage' => $this->trans('code_block.no_language'),
+                'copy' => $this->trans('code_block.copy'),
+            ],
             'toast' => [
                 'saved' => $this->trans('toast.saved'),
                 'savedAs' => $this->trans('toast.saved_as'),
                 'copiedMarkdown' => $this->trans('toast.copied_markdown'),
                 'copyMarkdownFailed' => $this->trans('toast.copy_markdown_failed'),
+                'copiedCode' => $this->trans('toast.copied_code'),
+                'copyCodeFailed' => $this->trans('toast.copy_code_failed'),
             ],
             'ai' => [
                 'askAi' => $this->trans('ai.ask_ai'),

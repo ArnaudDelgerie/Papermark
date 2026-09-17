@@ -40,11 +40,16 @@ components:
             image: Image
             code: Code
             table: Tableau
+        code_block:
+            no_language: Texte brut
+            copy: Copier le code
         toast:
             saved: Fichier enregistré
             saved_as: 'Fichier enregistré sous {name}'
             copied_markdown: Markdown copié dans le presse-papier
             copy_markdown_failed: Échec de la copie du markdown
+            copied_code: Code copié dans le presse-papier
+            copy_code_failed: Échec de la copie du code
         ai:
             ask_ai: Demander à l'IA
             instruction_placeholder: Indiquez à l'IA quoi faire avec la sélection…
