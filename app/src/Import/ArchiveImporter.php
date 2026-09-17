@@ -30,7 +30,11 @@ final class ArchiveImporter
 
     public function __construct(
         private readonly ImportTargetResolver $targetResolver,
-        private readonly int $maxTotalEntries = 500,
+        // Same ceiling as DirectoryTree::DEFAULT_MAX_ITEMS: the editor's own
+        // folder tree doesn't exclude node_modules/vendor either, so a
+        // directory export of a real project routinely produces archives
+        // with far more than a few hundred entries (see EDITOR_IMPORT.md).
+        private readonly int $maxTotalEntries = 200_000,
         private readonly int $maxTotalUncompressedBytes = 200 * 1024 * 1024,
     ) {
     }
