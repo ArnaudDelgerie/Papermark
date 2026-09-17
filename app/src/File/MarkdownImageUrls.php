@@ -73,8 +73,15 @@ final class MarkdownImageUrls
             return null;
         }
 
-        parse_str(substr($url, \strlen($prefix)), $query);
+        // The Crepe/remark markdown serializer backslash-escapes ASCII
+        // punctuation it finds "unsafe" inside a link/image destination —
+        // notably the '&' separating our query params — per CommonMark's
+        // backslash-escape rule. Undo that before parse_str() splits on '&',
+        // or the escaped '&' leaves a stray '\' stuck on the previous value.
+        $query = preg_replace('/\\\\([!-\/:-@\[-`{-~])/', '$1', substr($url, \strlen($prefix))) ?? substr($url, \strlen($prefix));
 
-        return \is_string($query['path'] ?? null) ? $query['path'] : null;
+        parse_str($query, $parsed);
+
+        return \is_string($parsed['path'] ?? null) ? $parsed['path'] : null;
     }
 }

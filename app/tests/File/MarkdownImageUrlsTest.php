@@ -62,4 +62,18 @@ final class MarkdownImageUrlsTest extends KernelTestCase
 
         self::assertSame($markdown, $this->converter->toRawPaths($markdown));
     }
+
+    /**
+     * Crepe's markdown serializer (remark) backslash-escapes '&' inside a
+     * link/image destination — CommonMark's rule for punctuation it finds
+     * unsafe there — before this markdown ever reaches PHP. Without
+     * unescaping first, parse_str() splits on the literal '&' and leaves a
+     * stray '\' stuck on the recovered path, corrupting it on save.
+     */
+    public function testToRawPathsUnescapesBackslashEscapedAmpersand(): void
+    {
+        $markdown = '![alt](/file/image?path=/home/user/photo.png\&anchor=/home/user/doc.md)';
+
+        self::assertSame('![alt](/home/user/photo.png)', $this->converter->toRawPaths($markdown));
+    }
 }
