@@ -7,7 +7,7 @@ components:
         save_as: Enregistrer sous
         print: Imprimer
         copy_markdown: Copier en Markdown
-        export: Export
+        export: Archive
         settings: Réglages
         untitled: Sans titre
         unsaved:
@@ -135,7 +135,6 @@ components:
             mistral: Mistral
     export:
         title: Export
-        back: ← Retour
         source_title: Source
         source_file: Fichier
         source_folder: Dossier
@@ -152,3 +151,18 @@ components:
             reason:
                 not_found: Introuvable
                 limit_exceeded: Au-delà de la limite d'export
+    import:
+        title: Import
+        archive_title: Fichier archive
+        parent_title: Dossier de destination
+        browse: Parcourir…
+        import_button: Importer…
+        no_source: Choisissez d'abord une archive et un dossier de destination
+        done: 'Archive importée dans {path}'
+        failed: Échec de l'import
+        report:
+            title: Entrées ignorées
+            empty: Toutes les entrées ont été importées.
+    archive:
+        title: Archive
+        back: ← Retour

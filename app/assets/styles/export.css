@@ -1,33 +1,48 @@
-.page-export {
+.page-archive {
     max-width: 600px;
     margin: 0 auto;
     padding: var(--space-4);
     box-sizing: border-box;
 }
 
-.export-header {
+.archive-header {
     display: flex;
     align-items: center;
     gap: var(--space-3);
     margin-bottom: var(--space-5);
 }
 
-.export-back {
+.archive-back {
     color: var(--color-muted);
     text-decoration: none;
     font-size: 0.9rem;
 }
 
-.export-back:hover {
+.archive-back:hover {
     color: var(--color-text);
 }
 
-.export-header h1 {
+.archive-header h1 {
     margin: 0;
     font-size: 1.2rem;
 }
 
-.page-export > :not(:first-child) {
+.archive-block {
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+.archive-block:first-of-type {
+    padding-top: 0;
+    border-top: none;
+}
+
+.archive-block h2 {
+    margin: 0 0 var(--space-4);
+    font-size: 1rem;
+}
+
+.archive-block > :not(:first-child) {
     margin-top: var(--space-5);
 }
 

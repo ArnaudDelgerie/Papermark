@@ -40,21 +40,23 @@ final class ExportController extends AbstractController
     ) {
     }
 
-    #[Route('/export', name: 'app_export', methods: ['GET'])]
+    #[Route('/archive', name: 'app_archive', methods: ['GET'])]
     public function index(): Response
     {
-        return $this->render('export/index.html.twig', [
+        return $this->render('archive/index.html.twig', [
             'initial_path' => $this->modeSession->getFile(EditorMode::Single),
             'initial_directory' => $this->openDirectory->get(),
-            'csrf_token' => $this->csrfTokenManager->getToken('export')->getValue(),
-            'i18n' => $this->i18n(),
+            'export_csrf_token' => $this->csrfTokenManager->getToken('export')->getValue(),
+            'export_i18n' => $this->exportI18n(),
+            'import_csrf_token' => $this->csrfTokenManager->getToken('import')->getValue(),
+            'import_i18n' => $this->importI18n(),
         ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function i18n(): array
+    private function exportI18n(): array
     {
         $trans = fn (string $key): string => $this->translator->trans('components.export.' . $key, [], self::TRANSLATION_DOMAIN);
 
@@ -76,6 +78,26 @@ final class ExportController extends AbstractController
                     'not_found' => $trans('report.reason.not_found'),
                     'limit_exceeded' => $trans('report.reason.limit_exceeded'),
                 ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function importI18n(): array
+    {
+        $trans = fn (string $key): string => $this->translator->trans('components.import.' . $key, [], self::TRANSLATION_DOMAIN);
+
+        return [
+            'browse' => $trans('browse'),
+            'importButton' => $trans('import_button'),
+            'noSource' => $trans('no_source'),
+            'done' => $trans('done'),
+            'failed' => $trans('failed'),
+            'report' => [
+                'title' => $trans('report.title'),
+                'empty' => $trans('report.empty'),
             ],
         ];
     }

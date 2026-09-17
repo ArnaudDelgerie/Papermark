@@ -7,7 +7,7 @@ components:
         save_as: Save as
         print: Print
         copy_markdown: Copy as Markdown
-        export: Export
+        export: Archive
         settings: Settings
         untitled: Untitled
         unsaved:
@@ -135,7 +135,6 @@ components:
             mistral: Mistral
     export:
         title: Export
-        back: ← Back
         source_title: Source
         source_file: File
         source_folder: Folder
@@ -152,3 +151,18 @@ components:
             reason:
                 not_found: Not found
                 limit_exceeded: Beyond the export limit
+    import:
+        title: Import
+        archive_title: Archive file
+        parent_title: Destination folder
+        browse: Browse…
+        import_button: Import…
+        no_source: Choose an archive and a destination folder first
+        done: 'Archive imported to {path}'
+        failed: Import failed
+        report:
+            title: Ignored entries
+            empty: Every entry was imported.
+    archive:
+        title: Archive
+        back: ← Back

@@ -40,7 +40,7 @@ final class ExportControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $fileToken,
         ]);
 
-        $client->request('GET', '/export');
+        $client->request('GET', '/archive');
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('data-export-initial-path-value="' . $path . '"', (string) $client->getResponse()->getContent());
@@ -50,10 +50,25 @@ final class ExportControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $client->request('GET', '/export');
+        $client->request('GET', '/archive');
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('data-export-initial-path-value=""', (string) $client->getResponse()->getContent());
+    }
+
+    public function testIndexRendersBothArchiveBlocks(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/archive');
+
+        self::assertResponseIsSuccessful();
+        $content = (string) $client->getResponse()->getContent();
+
+        self::assertStringContainsString('data-controller="export"', $content);
+        self::assertStringContainsString('data-controller="import"', $content);
+        self::assertStringContainsString('data-import-run-url-value="/import/run"', $content);
+        self::assertStringContainsString('data-import-home-url-value="/"', $content);
     }
 
     public function testRunRejectsInvalidCsrf(): void
@@ -294,7 +309,7 @@ final class ExportControllerTest extends WebTestCase
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
-        $client->request('GET', '/export');
+        $client->request('GET', '/archive');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('export')->getValue();
@@ -308,7 +323,7 @@ final class ExportControllerTest extends WebTestCase
     private function createClientWithImportCsrf(): array
     {
         $client = static::createClient();
-        $client->request('GET', '/export');
+        $client->request('GET', '/archive');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('import')->getValue();
