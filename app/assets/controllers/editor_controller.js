@@ -106,6 +106,16 @@ export default class extends Controller {
             onAiError: (error) => showToast('error', error.cause?.message ?? error.message),
         });
 
+        // Wrap .ProseMirror so the scrollable area extends past it, over the
+        // surrounding padding/desk background too, not just the editable sheet.
+        const prosemirror = this.element.querySelector('.ProseMirror');
+        if (prosemirror) {
+            const content = document.createElement('div');
+            content.className = 'editor-content';
+            prosemirror.replaceWith(content);
+            content.appendChild(prosemirror);
+        }
+
         crepe.on((listener) => {
             listener.markdownUpdated((_ctx, markdown) => {
                 this.#updateSaveButton(markdown);

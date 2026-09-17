@@ -277,26 +277,39 @@
    "editor" (prepareViewDom), which is why the container is .editor-shell.
    Kept on purpose: the frame outlines the A4 sheet, and the flex column
    keeps block margins from collapsing (the text spacing relies on it). */
+
+/* .editor-content is the wrapper editor_controller.js creates around
+   .ProseMirror; it owns the scroll instead so the scrollable area covers
+   the padding/desk background around the sheet too, not just .ProseMirror. */
+.editor-shell .editor-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden auto;
+}
+
 .editor-shell .ProseMirror {
     /* Scales Crepe's own UI (image blocks, tables, menus) with the document text. */
     --crepe-base-font-size: var(--doc-font-size);
 
     display: flex;
-    flex: 1;
     flex-direction: column;
+    min-height: 100%;
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    overflow: hidden auto;
+    overflow: hidden;
     padding: var(--space-5) var(--space-5) var(--space-4);
     background: var(--color-surface);
 }
 
 /* Code blocks: plain ProseMirror <pre> (Crepe's CodeMirror feature is off,
-   see editor-factory.js), wrapped by code-block-view.js. */
+   see editor-factory.js), wrapped by code-block-view.js.
+   No border: this <pre> has its own overflow-x: auto and sits inside
+   .editor-content, which scrolls too (see there) — a bordered box nested
+   inside another scrollable flashed on scroll in the hub's WebKitGTK
+   webview. border-radius alone wasn't the issue, kept.  */
 .editor-shell .ProseMirror pre {
     margin: 0.6em 0;
     padding: 0.6em 0.8em;
-    border: 1px solid var(--crepe-color-outline);
     border-radius: 3px;
     background: var(--doc-code-bg);
     font-family: var(--doc-font-code);
