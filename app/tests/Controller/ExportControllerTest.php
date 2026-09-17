@@ -251,6 +251,41 @@ final class ExportControllerTest extends WebTestCase
         self::assertSame($this->workDir . '/notes/doc.md', $data['openPath']);
         self::assertSame(['notes.pdf'], $data['ignoredEntries']);
         self::assertFileExists($this->workDir . '/notes/doc.md');
+
+        // app_home is what actually redirects to the editor once the session
+        // points at the imported result (see ExportController::importRun()).
+        $client->request('GET', '/');
+        self::assertResponseRedirects('/editor/single');
+        $client->followRedirect();
+        self::assertStringContainsString('data-editor-initial-path-value="' . $this->workDir . '/notes/doc.md"', (string) $client->getResponse()->getContent());
+    }
+
+    public function testImportRunOfDirectoryArchiveOpensDirMode(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $zipPath = $this->workDir . '/project.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('a.md', '# A');
+        $zip->addFromString('b.md', '# B');
+        $zip->close();
+
+        $client->request('POST', '/import/run', [
+            'archive' => $zipPath,
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+
+        self::assertSame('dir', $data['openMode']);
+        self::assertSame($this->workDir . '/project', $data['openPath']);
+
+        $client->request('GET', '/');
+        self::assertResponseRedirects('/editor/dir');
     }
 
     /**

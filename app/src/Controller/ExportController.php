@@ -171,6 +171,17 @@ final class ExportController extends AbstractController
             return $this->errorResponse($e->reason->value, Response::HTTP_CONFLICT);
         }
 
+        // Only the session is updated here — app_home is what actually
+        // redirects to the right editor route, same as everywhere else in
+        // the app that switches mode (see HomeController).
+        if (EditorMode::Single === $result->openMode) {
+            $this->modeSession->setCurrentMode(EditorMode::Single);
+            $this->modeSession->setFile(EditorMode::Single, $result->openPath);
+        } elseif (EditorMode::Dir === $result->openMode) {
+            $this->modeSession->setCurrentMode(EditorMode::Dir);
+            $this->openDirectory->set($result->destination);
+        }
+
         return new JsonResponse([
             'destination' => $result->destination,
             'openMode' => $result->openMode?->value,
