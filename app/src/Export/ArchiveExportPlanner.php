@@ -24,6 +24,7 @@ use Symfony\Component\Validator\Constraints\File as FileConstraint;
 final class ArchiveExportPlanner
 {
     private const DOCUMENT_LINK_EXTENSIONS = ['md', 'markdown'];
+    private const EXTERNAL_DIRS = ['ext_img', 'ext_md'];
 
     public function __construct(
         private readonly MarkdownReferenceScanner $referenceScanner,
@@ -50,19 +51,45 @@ final class ArchiveExportPlanner
 
     private function planDirectory(string $root, bool $includeExternalMarkdown): ExportPlan
     {
+        foreach (self::EXTERNAL_DIRS as $reservedName) {
+            $path = $root . '/' . $reservedName;
+            if ($this->filesystem->exists($path) && !is_dir($path)) {
+                throw new ArchiveExportRefusedException($reservedName);
+            }
+        }
+
         $state = new ExportPlanState($root, $this->maxTotalFiles);
+
+        foreach (self::EXTERNAL_DIRS as $reservedName) {
+            $this->reserveExistingNames($state, $root . '/' . $reservedName, $reservedName);
+        }
+
         $queue = [];
 
         foreach ($this->findMarkdownFiles($root) as $relativePath) {
             $realPath = $root . '/' . $relativePath;
-            $archivePath = 'markdown/' . $relativePath;
-            $state->register($realPath, $archivePath);
-            $queue[] = new ExportQueueItem($realPath, $archivePath, 0);
+            $state->register($realPath, $relativePath);
+            $queue[] = new ExportQueueItem($realPath, $relativePath, 0);
         }
 
         $this->processQueue($state, $queue, $includeExternalMarkdown);
 
         return $state->toPlan();
+    }
+
+    private function reserveExistingNames(ExportPlanState $state, string $dir, string $archiveDir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        foreach (scandir($dir) as $name) {
+            if ('.' === $name || '..' === $name || is_dir($dir . '/' . $name)) {
+                continue;
+            }
+
+            $state->reserve($archiveDir . '/' . $name);
+        }
     }
 
     private function planFile(string $realPath, bool $includeExternalMarkdown): ExportPlan
@@ -178,7 +205,7 @@ final class ArchiveExportPlanner
             }
 
             $archivePath = $isInternal
-                ? 'markdown/' . $state->relativeToRoot($targetReal)
+                ? $state->relativeToRoot($targetReal)
                 : $state->uniqueExternalPath($isImage ? 'ext_img' : 'ext_md', basename($targetReal));
 
             $state->register($targetReal, $archivePath);

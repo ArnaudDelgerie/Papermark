@@ -61,6 +61,17 @@ final class ExportPlanState
         return \count($this->entries) >= $this->maxTotalFiles;
     }
 
+    /**
+     * Marks an archive path as taken without registering an entry for it —
+     * used to reserve the names already present in the source's ext_img/
+     * ext_md before assigning external copies (see
+     * ArchiveExportPlanner::planDirectory()).
+     */
+    public function reserve(string $archivePath): void
+    {
+        $this->takenArchivePaths[$archivePath] = true;
+    }
+
     public function uniqueExternalPath(string $dir, string $name): string
     {
         $candidate = $dir . '/' . $name;

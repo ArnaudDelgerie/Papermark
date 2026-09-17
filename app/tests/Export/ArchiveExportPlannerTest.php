@@ -58,8 +58,8 @@ final class ArchiveExportPlannerTest extends TestCase
 
         $plan = $this->planner()->plan($this->root, false);
 
-        self::assertSame('![alt](./img/photo.png)', $this->entry($plan, 'markdown/doc.md')->content);
-        self::assertNotNull($this->findEntry($plan, 'markdown/img/photo.png'));
+        self::assertSame('![alt](./img/photo.png)', $this->entry($plan, 'doc.md')->content);
+        self::assertNotNull($this->findEntry($plan, 'img/photo.png'));
     }
 
     public function testDirectoryExportRewritesInternalAbsoluteImageToRelative(): void
@@ -69,7 +69,7 @@ final class ArchiveExportPlannerTest extends TestCase
 
         $plan = $this->planner()->plan($this->root, false);
 
-        self::assertSame('![alt](img/photo.png)', $this->entry($plan, 'markdown/doc.md')->content);
+        self::assertSame('![alt](img/photo.png)', $this->entry($plan, 'doc.md')->content);
     }
 
     public function testDirectoryExportRewritesLinkAcrossSubdirectories(): void
@@ -79,7 +79,48 @@ final class ArchiveExportPlannerTest extends TestCase
 
         $plan = $this->planner()->plan($this->root, false);
 
-        self::assertSame('[b](../b/other.md)', $this->entry($plan, 'markdown/a/doc.md')->content);
+        self::assertSame('[b](../b/other.md)', $this->entry($plan, 'a/doc.md')->content);
+    }
+
+    public function testDirectoryExportMergesWithExistingExtImg(): void
+    {
+        $this->write('doc.md', '![alt](./ext_img/photo.png)');
+        $this->write('ext_img/photo.png', 'EXISTING');
+
+        $plan = $this->planner()->plan($this->root, false);
+
+        self::assertSame('![alt](./ext_img/photo.png)', $this->entry($plan, 'doc.md')->content);
+        self::assertNotNull($this->findEntry($plan, 'ext_img/photo.png'));
+        self::assertCount(2, $plan->entries);
+    }
+
+    public function testDirectoryExportExternalCollisionWithExistingExtImgFileIsSuffixed(): void
+    {
+        $externalRoot = sys_get_temp_dir() . '/export_test_ext_' . uniqid();
+        mkdir($externalRoot, 0o777, true);
+        file_put_contents($externalRoot . '/photo.png', 'OUTSIDE');
+
+        $this->write('doc.md', "![alt]({$externalRoot}/photo.png)");
+        $this->write('ext_img/photo.png', 'EXISTING');
+
+        try {
+            $plan = $this->planner()->plan($this->root, false);
+
+            self::assertSame('![alt](ext_img/photo (1).png)', $this->entry($plan, 'doc.md')->content);
+            self::assertNotNull($this->findEntry($plan, 'ext_img/photo (1).png'));
+        } finally {
+            $this->removeDirectory($externalRoot);
+        }
+    }
+
+    public function testDirectoryExportRefusesWhenExtImgIsAFile(): void
+    {
+        $this->write('doc.md', '# Hello');
+        $this->write('ext_img', 'not a directory');
+
+        $this->expectException(\App\Export\ArchiveExportRefusedException::class);
+
+        $this->planner()->plan($this->root, false);
     }
 
     public function testExternalNameCollisionIsSuffixed(): void
@@ -213,9 +254,9 @@ final class ArchiveExportPlannerTest extends TestCase
 
         $plan = $this->planner()->plan($this->root, false);
 
-        self::assertSame('[notes](./notes.markdown)', $this->entry($plan, 'markdown/doc.md')->content);
-        self::assertSame('![alt](./img/photo.png)', $this->entry($plan, 'markdown/notes.markdown')->content);
-        self::assertNotNull($this->findEntry($plan, 'markdown/img/photo.png'));
+        self::assertSame('[notes](./notes.markdown)', $this->entry($plan, 'doc.md')->content);
+        self::assertSame('![alt](./img/photo.png)', $this->entry($plan, 'notes.markdown')->content);
+        self::assertNotNull($this->findEntry($plan, 'img/photo.png'));
     }
 
     public function testAnchorIsPreservedOnRewrittenLink(): void
