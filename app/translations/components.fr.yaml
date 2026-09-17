@@ -73,6 +73,8 @@ components:
             rename_target_exists: Un fichier avec ce nom existe déjà
             delete_error: Impossible de supprimer le fichier
             update_check_failed: Impossible de vérifier les mises à jour
+            ext_img_conflict: 'L''export a besoin que « ext_img » soit un dossier dans le dossier source'
+            ext_md_conflict: 'L''export a besoin que « ext_md » soit un dossier dans le dossier source'
     theme:
         light: Clair
         dark: Sombre

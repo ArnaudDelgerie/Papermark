@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Editor\EditorMode;
 use App\Editor\ModeSession;
 use App\Export\ArchiveExportPlanner;
+use App\Export\ArchiveExportRefusedException;
 use App\Export\ArchiveTargetResolver;
 use App\Export\ArchiveWriter;
 use App\Export\ExportIssue;
@@ -107,7 +108,12 @@ final class ExportController extends AbstractController
         }
 
         $includeExternalMarkdown = $request->request->getBoolean('includeExternalMarkdown');
-        $plan = $this->planner->plan($realSource, $includeExternalMarkdown);
+
+        try {
+            $plan = $this->planner->plan($realSource, $includeExternalMarkdown);
+        } catch (ArchiveExportRefusedException $e) {
+            return $this->errorResponse($e->reservedName . '_conflict', Response::HTTP_CONFLICT);
+        }
 
         try {
             $this->writer->write($plan, $resolvedTarget);

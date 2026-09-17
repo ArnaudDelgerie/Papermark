@@ -73,6 +73,8 @@ components:
             rename_target_exists: A file with that name already exists
             delete_error: Could not delete the file
             update_check_failed: Could not check for updates
+            ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
+            ext_md_conflict: 'Export needs "ext_md" to be a folder in the source folder'
     theme:
         light: Light
         dark: Dark

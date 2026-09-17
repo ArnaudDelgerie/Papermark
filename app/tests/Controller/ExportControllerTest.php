@@ -126,6 +126,25 @@ final class ExportControllerTest extends WebTestCase
         $zip->close();
     }
 
+    public function testRunRejectsDirectoryExportWhenExtImgIsAFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        file_put_contents($this->workDir . '/doc.md', '# Hello');
+        file_put_contents($this->workDir . '/ext_img', 'not a directory');
+
+        $client->request('POST', '/export/run', [
+            'source' => $this->workDir,
+            'target' => $this->workDir . '/archive',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(409);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('Export needs "ext_img" to be a folder in the source folder', $data['error']);
+    }
+
     /**
      * @return array{0: \Symfony\Bundle\FrameworkBundle\KernelBrowser, 1: string}
      */
