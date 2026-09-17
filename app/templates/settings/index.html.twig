@@ -54,6 +54,16 @@
             {% endfor %}
         </fieldset>
 
+        <fieldset class="settings-fieldset">
+            <legend>{{ 'components.settings.locale_title'|trans({}, 'components') }}</legend>
+            {% for radio in form.locale %}
+            <label class="settings-mode-option">
+                {{ form_widget(radio) }}
+                {{ form_label(radio) }}
+            </label>
+            {% endfor %}
+        </fieldset>
+
         <fieldset class="settings-fieldset" data-controller="settings"
                 data-settings-update-available-value="{{ 'components.settings.update_available'|trans({}, 'components') }}"
                 data-settings-up-to-date-value="{{ 'components.settings.up_to_date'|trans({}, 'components') }}"

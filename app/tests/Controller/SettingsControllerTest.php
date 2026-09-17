@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\Ai\ProviderName;
 use App\Editor\EditorMode;
 use App\Entity\Provider;
+use App\Locale\AppLocale;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
@@ -44,8 +45,8 @@ final class SettingsControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Settings');
         self::assertSelectorExists('a.settings-back');
-        // One fieldset per provider, plus one each for default mode, theme and updates.
-        self::assertSelectorCount(6, 'fieldset.settings-fieldset');
+        // One fieldset per provider, plus one each for default mode, theme, locale and updates.
+        self::assertSelectorCount(7, 'fieldset.settings-fieldset');
         self::assertSelectorCount(3, '.settings-provider');
         self::assertSelectorCount(3, 'input[type="radio"][name="settings[selected]"]');
 
@@ -61,6 +62,37 @@ final class SettingsControllerTest extends WebTestCase
         // Single is the default mode.
         self::assertSelectorCount(2, 'input[type="radio"][name="settings[defaultMode]"]');
         self::assertSelectorExists('input[type="radio"][name="settings[defaultMode]"][value="single"][checked]');
+
+        // English is the default locale.
+        self::assertSelectorCount(2, 'input[type="radio"][name="settings[locale]"]');
+        self::assertSelectorExists('input[type="radio"][name="settings[locale]"][value="en"][checked]');
+    }
+
+    public function testSaveStoresLocale(): void
+    {
+        $this->client->request('GET', '/settings');
+        $this->client->submitForm('Save', [
+            'settings[providers][anthropic][model]' => 'claude-sonnet-4-5',
+            'settings[locale]' => 'fr',
+        ], 'POST', ['HTTP_ORIGIN' => 'http://localhost']);
+
+        self::assertResponseRedirects('/settings');
+
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+
+        self::assertSame(AppLocale::Fr, $setting->getLocale());
+    }
+
+    public function testLocaleAppliesToSubsequentRequests(): void
+    {
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setLocale(AppLocale::Fr);
+        static::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $this->client->request('GET', '/settings');
+
+        self::assertSelectorTextContains('h1', 'Réglages');
     }
 
     public function testSaveStoresDefaultMode(): void

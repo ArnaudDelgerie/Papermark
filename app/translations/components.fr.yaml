@@ -1,0 +1,127 @@
+components:
+    editor:
+        placeholder: Commencez à écrire…
+        open: Ouvrir
+        new: Nouveau
+        save: Enregistrer
+        save_as: Enregistrer sous
+        print: Imprimer
+        copy_markdown: Copier en Markdown
+        settings: Réglages
+        untitled: Sans titre
+        unsaved:
+            indicator: Non enregistré
+            confirm: Continuer et perdre les modifications non enregistrées ?
+            cancel: Annuler
+            continue: Continuer
+        toggle:
+            edit: Modifier
+            readonly: Lecture seule
+        link:
+            confirm: Confirmer
+            input_placeholder: Coller un lien…
+        slash_menu:
+            text: Texte
+            paragraph: Texte
+            h1: Titre 1
+            h2: Titre 2
+            h3: Titre 3
+            h4: Titre 4
+            h5: Titre 5
+            h6: Titre 6
+            quote: Citation
+            divider: Séparateur
+            list: Liste
+            bullet_list: Liste à puces
+            ordered_list: Liste numérotée
+            task_list: Liste de tâches
+            advanced: Avancé
+            image: Image
+            code: Code
+            table: Tableau
+        toast:
+            saved: Fichier enregistré
+            saved_as: 'Fichier enregistré sous {name}'
+            copied_markdown: Markdown copié dans le presse-papier
+            copy_markdown_failed: Échec de la copie du markdown
+        ai:
+            ask_ai: Demander à l'IA
+            instruction_placeholder: Indiquez à l'IA quoi faire avec la sélection…
+            suggestions_header: SUGGESTIONS
+            send_as_prompt_header: ENVOYER COMME INVITE
+            send_as_prompt: 'Demander à l''IA :'
+            submit_button: Envoyer l'invite
+            listbox: Suggestions de l'IA
+        error:
+            invalid_csrf: Jeton de sécurité invalide, veuillez recharger la page
+            no_path: Aucun chemin de fichier fourni
+            unsupported_file_type: Seuls les fichiers Markdown et texte sont pris en charge
+            not_found: Fichier introuvable
+            read_error: Impossible de lire le fichier
+            no_content: Aucun contenu fourni
+            not_writable: Le fichier ou le dossier n'est pas accessible en écriture
+            write_error: Impossible d'écrire le fichier
+            save_failed: Impossible d'enregistrer le réglage
+            provider_not_selected: Aucun fournisseur IA sélectionné, choisissez-en un dans les réglages
+            model_missing: Aucun modèle défini pour le fournisseur IA sélectionné
+            api_key_missing: Aucune clé API définie pour le fournisseur IA sélectionné
+            ai_failed: La requête IA a échoué
+            invalid_directory: Dossier introuvable
+            key_delete_failed: Impossible de supprimer la clé API
+            invalid_name: Nom de fichier invalide
+            rename_target_exists: Un fichier avec ce nom existe déjà
+            delete_error: Impossible de supprimer le fichier
+            update_check_failed: Impossible de vérifier les mises à jour
+    theme:
+        light: Clair
+        dark: Sombre
+        auto: Auto
+    locale:
+        en: Anglais
+        fr: Français
+    mode:
+        single: Fichier unique
+        dir: Dossier
+        open_directory: Ouvrir un dossier
+        history:
+            empty: Aucun fichier récent
+        tree:
+            empty: Aucun dossier ouvert
+            too_large: Ce dossier est trop volumineux pour être affiché
+            no_markdown: Aucun fichier Markdown dans ce dossier
+        file:
+            rename: Renommer
+            delete: Supprimer
+            rename_prompt: 'Entrez un nouveau nom pour « {name} »'
+            delete_confirm_message: Ceci supprime définitivement le fichier du disque. Les images qui y sont référencées ne sont pas affectées.
+            delete_confirm_question: 'Supprimer « {name} » ?'
+            deleted: Fichier supprimé
+            renamed: Fichier renommé
+            rename_failed: Échec du renommage du fichier
+            delete_failed: Échec de la suppression du fichier
+    settings:
+        title: Réglages
+        back: ← Retour
+        model_label: Modèle
+        api_key_label: Clé API
+        key_placeholder: Entrez la clé API…
+        key_set: Clé définie
+        save: Enregistrer
+        save_and_close: Enregistrer et fermer
+        saved: Réglages enregistrés
+        mode_title: Mode par défaut
+        theme_title: Thème
+        locale_title: Langue
+        delete_key: Supprimer la clé
+        delete_key_confirm_message: Ceci supprime la clé API stockée pour ce fournisseur. Vous devrez la saisir à nouveau pour utiliser l'IA avec lui.
+        delete_key_confirm_question: Supprimer cette clé API ?
+        key_deleted: Clé API supprimée
+        update_title: Mises à jour
+        update_check_button: Vérifier les mises à jour
+        update_available: 'Mise à jour disponible : %version%'
+        up_to_date: Vous êtes à jour
+        update_check_unavailable: Vérification des mises à jour indisponible dans cette session
+        provider:
+            openai: OpenAI
+            anthropic: Anthropic
+            mistral: Mistral

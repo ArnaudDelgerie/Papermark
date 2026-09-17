@@ -7,6 +7,7 @@ namespace App\Form;
 use App\Ai\ProviderName;
 use App\Editor\EditorMode;
 use App\Entity\Provider;
+use App\Locale\AppLocale;
 use App\Theme\ThemeMode;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
@@ -20,7 +21,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * radio group for the selected provider. Each radio is rendered inside its
  * provider block by the template (form.selected[name]).
  *
- * @extends AbstractType<array{providers: array<string, Provider>, selected: ?ProviderName, defaultMode: EditorMode, themeMode: ThemeMode}>
+ * @extends AbstractType<array{providers: array<string, Provider>, selected: ?ProviderName, defaultMode: EditorMode, themeMode: ThemeMode, locale: AppLocale}>
  */
 final class SettingsType extends AbstractType
 {
@@ -48,6 +49,11 @@ final class SettingsType extends AbstractType
                 'class' => ThemeMode::class,
                 'expanded' => true,
                 'choice_label' => static fn (ThemeMode $mode): string => 'components.theme.' . $mode->value,
+            ])
+            ->add('locale', EnumType::class, [
+                'class' => AppLocale::class,
+                'expanded' => true,
+                'choice_label' => static fn (AppLocale $locale): string => 'components.locale.' . $locale->value,
             ])
             ->add('save', SubmitType::class, [
                 'label' => 'components.settings.save',

@@ -76,6 +76,9 @@ components:
         light: Light
         dark: Dark
         auto: Auto
+    locale:
+        en: English
+        fr: French
     mode:
         single: Single file
         dir: Folder
@@ -108,6 +111,7 @@ components:
         saved: Settings saved
         mode_title: Default mode
         theme_title: Theme
+        locale_title: Language
         delete_key: Delete key
         delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
         delete_key_confirm_question: Delete this API key?

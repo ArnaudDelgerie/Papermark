@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Editor\EditorMode;
+use App\Locale\AppLocale;
 use App\Repository\SettingRepository;
 use App\Theme\ThemeMode;
 use Doctrine\ORM\Mapping as ORM;
@@ -30,6 +31,9 @@ class Setting
 
     #[ORM\Column(length: 16, enumType: ThemeMode::class)]
     private ThemeMode $themeMode = ThemeMode::Dark;
+
+    #[ORM\Column(length: 16, enumType: AppLocale::class)]
+    private AppLocale $locale = AppLocale::En;
 
     public function getId(): ?int
     {
@@ -64,5 +68,15 @@ class Setting
     public function setThemeMode(ThemeMode $themeMode): void
     {
         $this->themeMode = $themeMode;
+    }
+
+    public function getLocale(): AppLocale
+    {
+        return $this->locale;
+    }
+
+    public function setLocale(AppLocale $locale): void
+    {
+        $this->locale = $locale;
     }
 }
