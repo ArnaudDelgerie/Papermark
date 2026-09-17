@@ -73,6 +73,7 @@ components:
             api_key_missing: No API key set for the selected AI provider
             ai_failed: The AI request failed
             invalid_directory: Folder not found
+            invalid_mode: Unknown editor mode
             key_delete_failed: Could not delete the API key
             invalid_name: Invalid file name
             rename_target_exists: A file with that name already exists
@@ -96,6 +97,9 @@ components:
         single: Single file
         dir: Folder
         open_directory: Open folder
+        loading: Loading…
+        open_directory_failed: Could not open the folder
+        switch_failed: Could not switch mode
         history:
             empty: No recent files
         tree:

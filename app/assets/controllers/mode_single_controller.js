@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
+import { MODE_CHANGE_REQUEST_EVENT } from '../utils/editor-mode.js';
 import { FILE_SAVED_AS_EVENT, dispatchFileDeleted, dispatchFileRenamed, dispatchOpenFile } from '../utils/editor-open.js';
 import { deleteFile, renameFile } from '../utils/file-actions.js';
 import { renameDialog } from '../utils/rename-dialog.js';
@@ -24,11 +25,17 @@ export default class extends Controller {
         i18n: Object,
     };
 
-    static targets = ['list', 'empty'];
+    static targets = ['list', 'empty', 'loading'];
 
     #onFileSavedAs = (event) => this.#pushHistory(event.detail.path);
 
+    // The column owns whether it shows: the switch only announces the mode.
+    #onModeChangeRequest = (event) => {
+        this.element.hidden = event.detail.mode !== 'single';
+    };
+
     connect() {
+        window.addEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
         this.#render();
         // Save as: a new path the user just created, not yet in the history
         // built from Open/history clicks (see EDITOR_FIX.md #5).
@@ -36,6 +43,7 @@ export default class extends Controller {
     }
 
     disconnect() {
+        window.removeEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
         window.removeEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
     }
 
@@ -173,6 +181,7 @@ export default class extends Controller {
             this.listTarget.append(li);
         }
 
+        this.loadingTarget.hidden = true;
         this.listTarget.hidden = history.length === 0;
         this.emptyTarget.hidden = history.length > 0;
     }

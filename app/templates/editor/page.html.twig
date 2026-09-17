@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+
+{# Shell shared by both modes: it carries the mode selector and holds both left
+   columns from the start. The inactive one is hidden, not absent, so it is
+   already loaded when the user switches. #}
+{% block body %}
+<div class="editor-page">
+    <aside class="editor-sidebar">
+        {% include 'components/_mode_switch.html.twig' %}
+
+        {# Single mode: nothing to fetch, the history comes from sessionStorage;
+           the controller replaces its loader once it has read it. #}
+        {{ component('mode-single', { active: mode == 'single' }) }}
+
+        {# Dir mode: only the tree is behind a frame, and it loads eagerly even
+           while hidden — the FrankenPHP server is dedicated, nothing to spare. #}
+        {{ component('mode-dir', { active: mode == 'dir' }) }}
+    </aside>
+    {{ component('editor', {
+        height: '100%',
+        directory: directory|default(null),
+        initialPath: initial_path,
+        initialContent: initial_content,
+    }) }}
+</div>
+{% endblock %}

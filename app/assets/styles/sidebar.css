@@ -2,7 +2,21 @@
 
 .editor-sidebar {
     flex: 0 0 260px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
     overflow-y: auto;
+}
+
+/* Both columns are in the page from the start; the inactive one hides itself
+   so it is already loaded when the user switches (EDITOR_REACTIVITY.md). */
+.editor-sidebar-panel[hidden] {
+    display: none;
+}
+
+/* Unknown element: without this the frame lays out inline. */
+turbo-frame {
+    display: block;
 }
 
 /* Narrower panel widths (half-page and up): give the editor more room back.
@@ -83,6 +97,11 @@
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Its own component, but its button and path are laid out by the panel. */
+.current-directory {
+    display: contents;
 }
 
 .mode-dir-open-path {
@@ -237,4 +256,25 @@
 
 .mode-tree-file a::before {
     mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1.5A1.5 1.5 0 0 1 5.5 0h4.086a1.5 1.5 0 0 1 1.06.44l2.915 2.914A1.5 1.5 0 0 1 14 4.414V14.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 4 14.5v-13z'/%3E%3C/svg%3E");
+}
+
+/* Placeholder shown while a frame loads, or before the single-mode controller
+   has read its history from sessionStorage. */
+.sidebar-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}
+
+.sidebar-loading-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-text);
+    border-radius: 50%;
+    animation: sidebar-spin 0.6s linear infinite;
 }

@@ -73,6 +73,7 @@ components:
             api_key_missing: Aucune clé API définie pour le fournisseur IA sélectionné
             ai_failed: La requête IA a échoué
             invalid_directory: Dossier introuvable
+            invalid_mode: Mode d'éditeur inconnu
             key_delete_failed: Impossible de supprimer la clé API
             invalid_name: Nom de fichier invalide
             rename_target_exists: Un fichier avec ce nom existe déjà
@@ -96,6 +97,9 @@ components:
         single: Fichier unique
         dir: Dossier
         open_directory: Ouvrir un dossier
+        loading: Chargement…
+        open_directory_failed: Impossible d'ouvrir le dossier
+        switch_failed: Impossible de changer de mode
         history:
             empty: Aucun fichier récent
         tree:

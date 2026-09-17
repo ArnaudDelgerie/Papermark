@@ -1,0 +1,18 @@
+{# No server-side state of its own, so a partial rather than a component: the
+   current mode comes from the shell's context, the rest is a route and a token. #}
+<nav class="mode-selector" data-controller="mode-switch"
+     data-mode-switch-url-value="{{ path('app_editor_set_mode') }}"
+     data-mode-switch-csrf-token-value="{{ csrf_token('mode') }}"
+     data-mode-switch-mode-value="{{ mode }}"
+     data-mode-switch-i18n-value="{{ { failed: 'components.mode.switch_failed'|trans({}, 'components') }|json_encode }}">
+    <a href="{{ path('app_editor_single') }}" data-mode="single"
+       class="mode-selector-link{% if mode == 'single' %} is-active{% endif %}"
+       data-mode-switch-target="link" data-action="mode-switch#change" data-editor-leave-guard>
+        {{ 'components.mode.single'|trans({}, 'components') }}
+    </a>
+    <a href="{{ path('app_editor_dir') }}" data-mode="dir"
+       class="mode-selector-link{% if mode == 'dir' %} is-active{% endif %}"
+       data-mode-switch-target="link" data-action="mode-switch#change" data-editor-leave-guard>
+        {{ 'components.mode.dir'|trans({}, 'components') }}
+    </a>
+</nav>

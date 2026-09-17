@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Editor\EditorMode;
 use App\File\DirectoryTree;
+use App\Repository\SettingRepository;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
@@ -17,6 +19,7 @@ final class EditorControllerTest extends WebTestCase
         $client = static::createClient();
 
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
 
         self::assertResponseIsSuccessful();
         $crawler = $client->getCrawler();
@@ -40,6 +43,7 @@ final class EditorControllerTest extends WebTestCase
         $client->disableReboot();
 
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
         $csrfToken = static::getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('file')->getValue();
 
@@ -49,7 +53,8 @@ final class EditorControllerTest extends WebTestCase
         $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
         self::assertResponseIsSuccessful();
 
-        $crawler = $client->request('GET', '/editor/single');
+        $client->request('GET', '/editor/single');
+        $crawler = $client->followRedirect();
 
         $editor = $crawler->filter('div[data-controller="editor"]');
         self::assertSame($path, $editor->attr('data-editor-initial-path-value'));
@@ -64,6 +69,7 @@ final class EditorControllerTest extends WebTestCase
         $client->disableReboot();
 
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
         $csrfToken = static::getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('file')->getValue();
 
@@ -72,7 +78,8 @@ final class EditorControllerTest extends WebTestCase
         $client->request('POST', '/file/open', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
         unlink($path);
 
-        $crawler = $client->request('GET', '/editor/single');
+        $client->request('GET', '/editor/single');
+        $crawler = $client->followRedirect();
 
         $editor = $crawler->filter('div[data-controller="editor"]');
         self::assertNull($editor->attr('data-editor-initial-path-value'));
@@ -84,6 +91,7 @@ final class EditorControllerTest extends WebTestCase
         $client->disableReboot();
 
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
         $session = $client->getRequest()->getSession();
         if (!$session instanceof FlashBagAwareSessionInterface) {
             self::fail('Session does not support flash messages.');
@@ -91,7 +99,8 @@ final class EditorControllerTest extends WebTestCase
         $session->getFlashBag()->add('success', 'Test message');
         $session->save();
 
-        $crawler = $client->request('GET', '/editor/single');
+        $client->request('GET', '/editor/single');
+        $crawler = $client->followRedirect();
 
         $toast = $crawler->filter('div[data-controller="toast"]');
         self::assertSame(
@@ -100,39 +109,135 @@ final class EditorControllerTest extends WebTestCase
         );
 
         // Flashes are one-time: gone on the next render.
-        $crawler = $client->request('GET', '/editor/single');
+        $client->request('GET', '/editor/single');
+        $crawler = $client->followRedirect();
         self::assertSame(
             [],
             json_decode((string) $crawler->filter('div[data-controller="toast"]')->attr('data-toast-messages-value'), true),
         );
     }
 
-    public function testDirModeRendersEditorAndModeDirSidebarWithNoDirectoryOpen(): void
+    public function testEditorUsesTheDefaultModeWhenTheSessionHasNone(): void
+    {
+        $client = static::createClient();
+
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setDefaultMode(EditorMode::Dir);
+        static::getContainer()->get('doctrine.orm.entity_manager')->flush();
+
+        $crawler = $client->request('GET', '/editor');
+
+        self::assertSame('dir', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+    }
+
+    public function testEditorPrefersTheModeRememberedInSessionOverTheDefault(): void
+    {
+        $client = static::createClient();
+
+        // The default stays Single; recording dir mode once should still win.
+        $client->request('GET', '/editor/dir');
+        $client->followRedirect();
+
+        $crawler = $client->request('GET', '/editor');
+
+        self::assertSame('dir', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+    }
+
+    public function testSetModeRecordsTheModeAndReturnsItsRememberedFile(): void
+    {
+        $client = static::createClient();
+
+        $file = sys_get_temp_dir() . '/mode_switch_' . uniqid() . '.md';
+        file_put_contents($file, '# Remembered');
+
+        // Open the file in single mode so the session associates the two.
+        $client->request('GET', '/editor/single');
+        $crawler = $client->followRedirect();
+        $fileToken = $crawler->filter('div[data-controller="mode-single"]')->attr('data-mode-single-file-csrf-token-value');
+        $client->request('POST', '/file/open', ['path' => $file], [], ['HTTP_X_CSRF_TOKEN' => $fileToken]);
+
+        $client->request('GET', '/editor/dir');
+        $crawler = $client->followRedirect();
+        $token = $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-csrf-token-value');
+
+        $client->request('POST', '/editor/mode', ['mode' => 'single'], [], ['HTTP_X_CSRF_TOKEN' => $token]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(
+            ['mode' => 'single', 'path' => $file, 'content' => '# Remembered'],
+            json_decode((string) $client->getResponse()->getContent(), true),
+        );
+
+        unlink($file);
+    }
+
+    public function testSetModeRejectsAnInvalidCsrfToken(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/editor/mode', ['mode' => 'single'], [], ['HTTP_X_CSRF_TOKEN' => 'invalid']);
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testSetModeRejectsAnUnknownMode(): void
     {
         $client = static::createClient();
 
         $client->request('GET', '/editor/dir');
+        $crawler = $client->followRedirect();
+        $token = $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-csrf-token-value');
+
+        $client->request('POST', '/editor/mode', ['mode' => 'nope'], [], ['HTTP_X_CSRF_TOKEN' => $token]);
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testDirModeRendersTheShellWithTheEditorAndTheModeDirFrame(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/editor/dir');
+        $client->followRedirect();
 
         self::assertResponseIsSuccessful();
         $crawler = $client->getCrawler();
 
         self::assertSame(1, $crawler->filter('div[data-controller="editor"]')->count());
-        self::assertSame(1, $crawler->filter('div[data-controller="mode-dir"]')->count());
         self::assertSame('Folder', trim($crawler->filter('.mode-selector-link.is-active')->text()));
+        // Both columns are in the page; the dir one arrives through its frame.
+        self::assertSame(1, $crawler->filter('div[data-controller="mode-single"]')->count());
+        self::assertSame(1, $crawler->filter('div[data-controller="mode-dir"]')->count());
+        // Only the tree is behind a frame; Open folder stays in the column.
+        self::assertSame('/dir/tree', $crawler->filter('turbo-frame#mode-dir-tree')->attr('src'));
+    }
+
+    public function testDirTreeFrameIsEmptyWithNoDirectoryOpen(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/dir/tree');
+
+        self::assertResponseIsSuccessful();
+        $crawler = $client->getCrawler();
+
+        self::assertSame(1, $crawler->filter('turbo-frame#mode-dir-tree')->count());
         self::assertSame(1, $crawler->filter('.mode-tree-empty')->count());
         self::assertSame(0, $crawler->filter('.mode-tree')->count());
     }
 
     /**
-     * Submits the sidebar's own (hidden, JS-submitted) form, token included —
-     * same as a real browser, and avoids CSRF token storage needing an active
-     * session outside the request/response cycle.
+     * Same call the sidebar makes: a fetch carrying the 'dir' token in the
+     * header, read from the rendered column — CSRF token storage needs an
+     * active session, so it can't be generated outside a request.
      */
-    private function openDirectory(KernelBrowser $client, string $root): void
+    private function setCurrentDirectory(KernelBrowser $client, string $root): void
     {
-        $crawler = $client->request('GET', '/editor/dir');
-        $form = $crawler->filter('form')->form(['path' => $root]);
-        $client->submit($form);
+        $client->request('GET', '/editor/dir');
+        $crawler = $client->followRedirect();
+        $token = $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-csrf-token-value');
+
+        $client->request('POST', '/dir/current', ['path' => $root], [], ['HTTP_X_CSRF_TOKEN' => $token]);
     }
 
     public function testDirModeRendersTreeFilteredToMarkdownFilesOnly(): void
@@ -150,12 +255,12 @@ final class EditorControllerTest extends WebTestCase
         file_put_contents($root . '/.hidden/secret.md', '# Secret');
         file_put_contents($root . '/assets_only/logo.png', 'not markdown');
 
-        $this->openDirectory($client, $root);
+        $this->setCurrentDirectory($client, $root);
 
-        self::assertResponseRedirects('/editor/dir');
-        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertSame($root, json_decode((string) $client->getResponse()->getContent(), true)['open_directory']);
 
-        $crawler = $client->getCrawler();
+        $crawler = $client->request('GET', '/dir/tree');
         $tree = $crawler->filter('.mode-tree');
         self::assertSame(1, $tree->count());
 
@@ -181,8 +286,7 @@ final class EditorControllerTest extends WebTestCase
         mkdir($root);
         file_put_contents($root . '/first.md', '# First');
 
-        $this->openDirectory($client, $root);
-        $client->followRedirect();
+        $this->setCurrentDirectory($client, $root);
 
         // Simulates a Save as into the open directory landing on disk after the page rendered.
         file_put_contents($root . '/second.md', '# Second');
@@ -211,36 +315,45 @@ final class EditorControllerTest extends WebTestCase
         file_put_contents($root . '/b.md', 'b');
         file_put_contents($root . '/c.md', 'c');
 
-        $this->openDirectory($client, $root);
-        $client->followRedirect();
+        $this->setCurrentDirectory($client, $root);
 
+        $crawler = $client->request('GET', '/dir/tree');
         self::assertResponseIsSuccessful();
-        $crawler = $client->getCrawler();
         self::assertSame(1, $crawler->filter('.mode-tree-error')->count());
         self::assertSame(0, $crawler->filter('.mode-tree')->count());
 
         $this->removeDirectory($root);
     }
 
-    public function testDirOpenSilentlyIgnoresInvalidCsrf(): void
+    public function testDirSetCurrentRejectsAnInvalidCsrfToken(): void
     {
         $client = static::createClient();
-        $crawler = $client->request('GET', '/editor/dir');
 
         $root = sys_get_temp_dir() . '/dir_mode_badcsrf_' . uniqid();
         mkdir($root);
         file_put_contents($root . '/a.md', 'a');
 
-        $form = $crawler->filter('form')->form(['path' => $root]);
-        $form['_token'] = 'invalid';
-        $client->submit($form);
+        $client->request('POST', '/dir/current', ['path' => $root], [], ['HTTP_X_CSRF_TOKEN' => 'invalid']);
 
-        self::assertResponseRedirects('/editor/dir');
-        $client->followRedirect();
+        self::assertResponseStatusCodeSame(403);
 
-        self::assertSame(1, $client->getCrawler()->filter('.mode-tree-empty')->count());
+        $crawler = $client->request('GET', '/dir/tree');
+        self::assertSame(1, $crawler->filter('.mode-tree-empty')->count());
 
         $this->removeDirectory($root);
+    }
+
+    public function testDirSetCurrentRejectsAPathThatIsNotADirectory(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/editor/dir');
+        $crawler = $client->followRedirect();
+        $token = $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-csrf-token-value');
+
+        $client->request('POST', '/dir/current', ['path' => '/nope/nope'], [], ['HTTP_X_CSRF_TOKEN' => $token]);
+
+        self::assertResponseStatusCodeSame(404);
     }
 
     private function removeDirectory(string $path): void

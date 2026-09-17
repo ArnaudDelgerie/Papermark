@@ -22,5 +22,8 @@
             {% endfor %}
         {% endfor %}
         <div data-controller="toast" data-toast-messages-value="{{ flash_messages|json_encode }}" class="toast-container" aria-live="polite"></div>
+        {# Loader markup kept in one place, translated server-side, so any
+           controller can show it before a fetch (see utils/sidebar-loading.js). #}
+        <template id="sidebar-loading">{% include 'components/_sidebar_loading.html.twig' %}</template>
     </body>
 </html>

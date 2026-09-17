@@ -32,6 +32,7 @@ final class ExportControllerTest extends WebTestCase
         // /editor/single sets the current mode, without which /file/open has
         // no mode to remember the file under (see FileController::open()).
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
         $fileToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)->getToken('file')->getValue();
 
         $path = $this->workDir . '/doc.md';
@@ -270,7 +271,7 @@ final class ExportControllerTest extends WebTestCase
         // app_home is what actually redirects to the editor once the session
         // points at the imported result (see ExportController::importRun()).
         $client->request('GET', '/');
-        self::assertResponseRedirects('/editor/single');
+        self::assertResponseRedirects('/editor');
         $client->followRedirect();
         self::assertStringContainsString('data-editor-initial-path-value="' . $this->workDir . '/notes/doc.md"', (string) $client->getResponse()->getContent());
     }
@@ -300,7 +301,9 @@ final class ExportControllerTest extends WebTestCase
         self::assertSame($this->workDir . '/project', $data['openPath']);
 
         $client->request('GET', '/');
-        self::assertResponseRedirects('/editor/dir');
+        self::assertResponseRedirects('/editor');
+        $crawler = $client->followRedirect();
+        self::assertSame('dir', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
     }
 
     /**

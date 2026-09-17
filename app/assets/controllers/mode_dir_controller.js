@@ -1,46 +1,48 @@
 import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
+import { MODE_CHANGE_REQUEST_EVENT } from '../utils/editor-mode.js';
+import { CURRENT_DIR_CHANGE_REQUEST_EVENT, CURRENT_DIR_UPDATED_EVENT } from '../utils/current-directory.js';
 import { FILE_SAVED_AS_EVENT, dispatchFileDeleted, dispatchFileRenamed, dispatchOpenFile } from '../utils/editor-open.js';
 import { deleteFile, renameFile } from '../utils/file-actions.js';
 import { renameDialog } from '../utils/rename-dialog.js';
-import { pickPath } from '../utils/tauri.js';
+import { showLoading } from '../utils/sidebar-loading.js';
 import { showToast } from '../utils/toast.js';
 
+/**
+ * The tree of the folder held in session. It doesn't own that folder —
+ * current-directory does — so it only listens: loader while the change is in
+ * flight, frame reload once it is settled (see EDITOR_REACTIVITY.md).
+ */
 export default class extends Controller {
-    static values = { treeUrl: String, deleteUrl: String, renameUrl: String, fileCsrfToken: String, i18n: Object };
-    static targets = ['form', 'pathInput', 'openButton', 'tree'];
+    static values = { deleteUrl: String, renameUrl: String, fileCsrfToken: String, i18n: Object };
+
+    static targets = ['treeFrame'];
 
     #onFileSavedAs = () => this.#refreshTree();
 
+    // The loader goes up before the request leaves, so the wait is visible
+    // from the very first moment rather than once the frame turns busy.
+    #onCurrentDirChangeRequest = () => showLoading(this.treeFrameTarget);
+
+    #onCurrentDirUpdated = () => this.#refreshTree();
+
+    // The column owns whether it shows: the switch only announces the mode.
+    #onModeChangeRequest = (event) => {
+        this.element.hidden = event.detail.mode !== 'dir';
+    };
+
     connect() {
+        window.addEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
         window.addEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
+        window.addEventListener(CURRENT_DIR_CHANGE_REQUEST_EVENT, this.#onCurrentDirChangeRequest);
+        window.addEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
     }
 
     disconnect() {
+        window.removeEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
         window.removeEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
-    }
-
-    // A real form submit, not fetch: the server redirects back to this page
-    // once the directory is stored in session (see EDITOR_FOLDER_MODE.md).
-    // The spinner isn't cleared on success: the page navigates away anyway.
-    async openDirectory() {
-        const path = await pickPath('directory');
-        if (path === null) {
-            return;
-        }
-
-        this.pathInputTarget.value = path;
-        this.openButtonTarget.disabled = true;
-        this.openButtonTarget.classList.add('is-loading');
-
-        // Submitting right away can start navigation before the browser has
-        // painted the spinner class — on a fast (small-directory) response
-        // it never becomes visible. Two rAFs guarantee a paint happened first.
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                this.formTarget.requestSubmit();
-            });
-        });
+        window.removeEventListener(CURRENT_DIR_CHANGE_REQUEST_EVENT, this.#onCurrentDirChangeRequest);
+        window.removeEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
     }
 
     openFile(event) {
@@ -101,15 +103,7 @@ export default class extends Controller {
     // No path check against the open directory: a re-render showing the same
     // tree is harmless, and re-deriving "is this under the open dir" here
     // would just duplicate what the server already resolves from session.
-    async #refreshTree() {
-        try {
-            const response = await fetch(this.treeUrlValue);
-            if (!response.ok) {
-                return;
-            }
-            this.treeTarget.innerHTML = await response.text();
-        } catch (err) {
-            console.error('Failed to refresh the folder tree:', err);
-        }
+    #refreshTree() {
+        this.treeFrameTarget.reload();
     }
 }

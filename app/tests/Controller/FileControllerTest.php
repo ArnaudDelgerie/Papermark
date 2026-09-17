@@ -17,6 +17,7 @@ final class FileControllerTest extends WebTestCase
         // generates CSRF tokens, setting the stateless CSRF cookie in the
         // response. The test client stores it and sends it on subsequent requests.
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
             ->getToken('file')->getValue();

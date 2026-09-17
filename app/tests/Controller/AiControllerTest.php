@@ -25,6 +25,7 @@ final class AiControllerTest extends WebTestCase
     {
         $client = static::createClient();
         $client->request('GET', '/editor/single');
+        $client->followRedirect();
         $client->disableReboot();
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)

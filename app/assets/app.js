@@ -1,4 +1,9 @@
+import { config } from '@hotwired/turbo';
 import './stimulus_bootstrap.js';
+
+// Turbo Frames only: no Drive navigation. Frames stay enabled by default,
+// unlike data-turbo="false" on <body>, which frames would inherit.
+config.drive.enabled = false;
 
 /*
  * Welcome to your app's main JavaScript file!

@@ -21,6 +21,9 @@ final class ModeSingle
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.mode.file.';
 
+    /** Whether this column is the one showing; both are always in the page. */
+    public bool $active = false;
+
     public function __construct(
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,

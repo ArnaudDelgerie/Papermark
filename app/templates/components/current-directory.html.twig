@@ -1,0 +1,12 @@
+<div class="current-directory" data-controller="current-directory"
+     data-current-directory-set-current-url-value="{{ path('app_dir_set_current') }}"
+     data-current-directory-csrf-token-value="{{ csrf_token }}"
+     data-current-directory-i18n-value="{{ i18n|json_encode }}">
+    <button type="button" class="editor-sidebar-btn" data-current-directory-target="openButton"
+            data-action="click->current-directory#change" data-editor-leave-guard>
+        <span class="mode-dir-open-label">{{ 'components.mode.open_directory'|trans({}, 'components') }}</span>
+    </button>
+
+    <p class="mode-dir-open-path" data-current-directory-target="path"
+       title="{{ open_directory }}"{% if not open_directory %} hidden{% endif %}>{{ open_directory }}</p>
+</div>

@@ -2,20 +2,16 @@
      data-mode-single-delete-url-value="{{ path('app_file_delete') }}"
      data-mode-single-rename-url-value="{{ path('app_file_rename') }}"
      data-mode-single-file-csrf-token-value="{{ file_csrf_token }}"
-     data-mode-single-i18n-value="{{ i18n|json_encode }}">
-    <nav class="mode-selector">
-        <a href="{{ path('app_editor_single') }}" class="mode-selector-link is-active" data-editor-leave-guard>
-            {{ 'components.mode.single'|trans({}, 'components') }}
-        </a>
-        <a href="{{ path('app_editor_dir') }}" class="mode-selector-link" data-editor-leave-guard>
-            {{ 'components.mode.dir'|trans({}, 'components') }}
-        </a>
-    </nav>
+     data-mode-single-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     <button type="button" class="editor-sidebar-btn" data-action="click->mode-single#openFile" data-editor-leave-guard>
         {{ 'components.editor.open'|trans({}, 'components') }}
     </button>
-    <ul class="mode-history" data-mode-single-target="list"></ul>
-    <p class="mode-history-empty" data-mode-single-target="empty">
+    {# Shown until the controller has read the history from sessionStorage. #}
+    <div data-mode-single-target="loading">
+        {% include 'components/_sidebar_loading.html.twig' %}
+    </div>
+    <ul class="mode-history" data-mode-single-target="list" hidden></ul>
+    <p class="mode-history-empty" data-mode-single-target="empty" hidden>
         {{ 'components.mode.history.empty'|trans({}, 'components') }}
     </p>
 </div>
