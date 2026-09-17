@@ -7,74 +7,95 @@
         <h1>{{ 'components.settings.title'|trans({}, 'components') }}</h1>
     </div>
 
-    {{ form_start(form, {attr: {class: 'settings-form'}}) }}
+    {{ form_start(form, {attr: {class: 'settings-form', 'data-controller': 'settings'}}) }}
         {{ form_errors(form) }}
 
-        {% for name, provider in form.providers %}
-        <fieldset class="settings-fieldset">
-            <legend class="settings-provider{% if form.selected[name].vars.checked %} is-selected{% endif %}">
-                {{ form_widget(form.selected[name]) }}
-                {{ form_label(form.selected[name], null, {label_attr: {class: 'settings-provider-name'}}) }}
-                {% if has_key[name] %}
-                <span class="settings-provider-badge">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
-                <button type="button" class="settings-delete-key-btn" title="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
-                        data-controller="settings" data-action="click->settings#deleteKey"
-                        data-url="{{ path('app_settings_delete_key', {name: name}) }}"
-                        data-settings-csrf-token-value="{{ delete_key_csrf_token }}"
-                        data-settings-delete-label-value="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
-                        data-settings-confirm-message-value="{{ 'components.settings.delete_key_confirm_message'|trans({}, 'components') }}"
-                        data-settings-confirm-question-value="{{ 'components.settings.delete_key_confirm_question'|trans({}, 'components') }}">
-                    <span class="visually-hidden">{{ 'components.settings.delete_key'|trans({}, 'components') }}</span>
-                </button>
-                {% endif %}
-            </legend>
-
-            {{ form_row(provider.model) }}
-            {{ form_row(provider.apiKey) }}
-        </fieldset>
-        {% endfor %}
-
-        <fieldset class="settings-fieldset">
-            <legend>{{ 'components.settings.mode_title'|trans({}, 'components') }}</legend>
-            {% for radio in form.defaultMode %}
-            <label class="settings-mode-option">
-                {{ form_widget(radio) }}
-                {{ form_label(radio) }}
-            </label>
-            {% endfor %}
-        </fieldset>
-
-        <fieldset class="settings-fieldset">
-            <legend>{{ 'components.settings.theme_title'|trans({}, 'components') }}</legend>
-            {% for radio in form.themeMode %}
-            <label class="settings-mode-option">
-                {{ form_widget(radio) }}
-                {{ form_label(radio) }}
-            </label>
-            {% endfor %}
-        </fieldset>
-
-        <fieldset class="settings-fieldset">
-            <legend>{{ 'components.settings.locale_title'|trans({}, 'components') }}</legend>
-            {% for radio in form.locale %}
-            <label class="settings-mode-option">
-                {{ form_widget(radio) }}
-                {{ form_label(radio) }}
-            </label>
-            {% endfor %}
-        </fieldset>
-
-        <fieldset class="settings-fieldset" data-controller="settings"
-                data-settings-update-available-value="{{ 'components.settings.update_available'|trans({}, 'components') }}"
-                data-settings-up-to-date-value="{{ 'components.settings.up_to_date'|trans({}, 'components') }}"
-                data-settings-update-check-failed-value="{{ 'components.editor.error.update_check_failed'|trans({}, 'components') }}"
-                data-settings-update-check-unavailable-value="{{ 'components.settings.update_check_unavailable'|trans({}, 'components') }}">
-            <legend>{{ 'components.settings.update_title'|trans({}, 'components') }}</legend>
-            <button type="button" class="settings-submit settings-submit-secondary" data-action="click->settings#checkForUpdate">
-                {{ 'components.settings.update_check_button'|trans({}, 'components') }}
+        <div class="settings-tabs" role="tablist" aria-label="{{ 'components.settings.tabs_label'|trans({}, 'components') }}" data-action="keydown->settings#onTabKeydown">
+            <button type="button" class="settings-tab" role="tab" id="tab-providers" aria-controls="panel-providers" aria-selected="true"
+                    data-settings-target="tab" data-tab="providers" data-action="click->settings#selectTab">
+                {{ 'components.settings.tab_providers'|trans({}, 'components') }}
             </button>
-            <span class="settings-update-result" data-settings-target="updateResult"></span>
-        </fieldset>
+            <button type="button" class="settings-tab" role="tab" id="tab-editor" aria-controls="panel-editor" aria-selected="false" tabindex="-1"
+                    data-settings-target="tab" data-tab="editor" data-action="click->settings#selectTab">
+                {{ 'components.settings.tab_editor'|trans({}, 'components') }}
+            </button>
+            <button type="button" class="settings-tab" role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" tabindex="-1"
+                    data-settings-target="tab" data-tab="updates" data-action="click->settings#selectTab">
+                {{ 'components.settings.tab_updates'|trans({}, 'components') }}
+            </button>
+        </div>
+
+        <div class="settings-tabpanel" id="panel-providers" role="tabpanel" aria-labelledby="tab-providers" data-settings-target="panel" data-tab="providers">
+            {% for name, provider in form.providers %}
+            <fieldset class="settings-fieldset">
+                <legend class="settings-provider{% if form.selected[name].vars.checked %} is-selected{% endif %}">
+                    {{ form_widget(form.selected[name]) }}
+                    {{ form_label(form.selected[name], null, {label_attr: {class: 'settings-provider-name'}}) }}
+                    {% if has_key[name] %}
+                    <span class="settings-provider-badge">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
+                    <button type="button" class="settings-delete-key-btn" title="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
+                            data-controller="settings" data-action="click->settings#deleteKey"
+                            data-url="{{ path('app_settings_delete_key', {name: name}) }}"
+                            data-settings-csrf-token-value="{{ delete_key_csrf_token }}"
+                            data-settings-delete-label-value="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
+                            data-settings-confirm-message-value="{{ 'components.settings.delete_key_confirm_message'|trans({}, 'components') }}"
+                            data-settings-confirm-question-value="{{ 'components.settings.delete_key_confirm_question'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.settings.delete_key'|trans({}, 'components') }}</span>
+                    </button>
+                    {% endif %}
+                </legend>
+
+                {{ form_row(provider.model) }}
+                {{ form_row(provider.apiKey) }}
+            </fieldset>
+            {% endfor %}
+        </div>
+
+        <div class="settings-tabpanel" id="panel-editor" role="tabpanel" aria-labelledby="tab-editor" data-settings-target="panel" data-tab="editor" hidden>
+            <fieldset class="settings-fieldset">
+                <legend>{{ 'components.settings.mode_title'|trans({}, 'components') }}</legend>
+                {% for radio in form.defaultMode %}
+                <label class="settings-mode-option">
+                    {{ form_widget(radio) }}
+                    {{ form_label(radio) }}
+                </label>
+                {% endfor %}
+            </fieldset>
+
+            <fieldset class="settings-fieldset">
+                <legend>{{ 'components.settings.theme_title'|trans({}, 'components') }}</legend>
+                {% for radio in form.themeMode %}
+                <label class="settings-mode-option">
+                    {{ form_widget(radio) }}
+                    {{ form_label(radio) }}
+                </label>
+                {% endfor %}
+            </fieldset>
+
+            <fieldset class="settings-fieldset">
+                <legend>{{ 'components.settings.locale_title'|trans({}, 'components') }}</legend>
+                {% for radio in form.locale %}
+                <label class="settings-mode-option">
+                    {{ form_widget(radio) }}
+                    {{ form_label(radio) }}
+                </label>
+                {% endfor %}
+            </fieldset>
+        </div>
+
+        <div class="settings-tabpanel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" data-settings-target="panel" data-tab="updates" hidden>
+            <fieldset class="settings-fieldset" data-controller="settings"
+                    data-settings-update-available-value="{{ 'components.settings.update_available'|trans({}, 'components') }}"
+                    data-settings-up-to-date-value="{{ 'components.settings.up_to_date'|trans({}, 'components') }}"
+                    data-settings-update-check-failed-value="{{ 'components.editor.error.update_check_failed'|trans({}, 'components') }}"
+                    data-settings-update-check-unavailable-value="{{ 'components.settings.update_check_unavailable'|trans({}, 'components') }}">
+                <legend>{{ 'components.settings.update_title'|trans({}, 'components') }}</legend>
+                <button type="button" class="settings-submit settings-submit-secondary" data-action="click->settings#checkForUpdate">
+                    {{ 'components.settings.update_check_button'|trans({}, 'components') }}
+                </button>
+                <span class="settings-update-result" data-settings-target="updateResult"></span>
+            </fieldset>
+        </div>
 
         <div class="settings-submit-row">
             {{ form_widget(form.save, {attr: {class: 'settings-submit'}}) }}

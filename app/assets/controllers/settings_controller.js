@@ -10,7 +10,7 @@ import { checkForUpdate as checkForUpdateIpc } from '../utils/tauri.js';
  * "API key deleted" flash (see EDITOR_FIX.md).
  */
 export default class extends Controller {
-    static targets = ['updateResult'];
+    static targets = ['updateResult', 'tab', 'panel'];
 
     static values = {
         csrfToken: String,
@@ -22,6 +22,48 @@ export default class extends Controller {
         updateCheckFailed: String,
         updateCheckUnavailable: String,
     };
+
+    selectTab(event) {
+        this.showTab(event.currentTarget.dataset.tab);
+    }
+
+    /**
+     * Left/Right/Home/End move focus between tabs (WAI-ARIA tabs pattern);
+     * activating a tab always follows focus.
+     */
+    onTabKeydown(event) {
+        const moves = { ArrowLeft: -1, ArrowRight: 1 };
+        if (!(event.key in moves) && event.key !== 'Home' && event.key !== 'End') {
+            return;
+        }
+        event.preventDefault();
+
+        const tabs = this.tabTargets;
+        const currentIndex = tabs.indexOf(event.target);
+        let nextIndex;
+        if (event.key === 'Home') {
+            nextIndex = 0;
+        } else if (event.key === 'End') {
+            nextIndex = tabs.length - 1;
+        } else {
+            nextIndex = (currentIndex + moves[event.key] + tabs.length) % tabs.length;
+        }
+
+        tabs[nextIndex].focus();
+        this.showTab(tabs[nextIndex].dataset.tab);
+    }
+
+    showTab(name) {
+        this.tabTargets.forEach((tab) => {
+            const selected = tab.dataset.tab === name;
+            tab.setAttribute('aria-selected', String(selected));
+            tab.tabIndex = selected ? 0 : -1;
+        });
+
+        this.panelTargets.forEach((panel) => {
+            panel.hidden = panel.dataset.tab !== name;
+        });
+    }
 
     async deleteKey(event) {
         event.preventDefault();

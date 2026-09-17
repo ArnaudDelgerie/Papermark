@@ -115,6 +115,10 @@ components:
     settings:
         title: Settings
         back: ← Back
+        tabs_label: Settings sections
+        tab_providers: AI providers
+        tab_editor: Editor & appearance
+        tab_updates: Updates
         model_label: Model
         api_key_label: API key
         key_placeholder: Enter API key…

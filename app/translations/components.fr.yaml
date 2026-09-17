@@ -115,6 +115,10 @@ components:
     settings:
         title: Réglages
         back: ← Retour
+        tabs_label: Sections des réglages
+        tab_providers: Fournisseurs IA
+        tab_editor: Éditeur & apparence
+        tab_updates: Mises à jour
         model_label: Modèle
         api_key_label: Clé API
         key_placeholder: Entrez la clé API…
