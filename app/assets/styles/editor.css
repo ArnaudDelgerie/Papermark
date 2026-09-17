@@ -225,9 +225,6 @@
     margin-bottom: 2px;
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    flex-wrap: nowrap;
-    overflow: auto hidden;
-    scrollbar-width: none;
 }
 
 /* Crepe's own editable check doesn't see our readonly toggle (it flips the
@@ -250,18 +247,6 @@
 .editor .milkdown-top-bar .top-bar-divider {
     height: 20px;
     margin: 8px;
-}
-
-/* Keep the toolbar on one line: scroll sideways instead of wrapping onto a
-   second line (which used to cover the document's first line). Scrollbar
-   hidden rather than restyled: WebKitGTK (this app's webview) doesn't
-   reliably honor custom ::-webkit-scrollbar painting. */
-.editor .milkdown-top-bar .top-bar-inner {
-    flex-wrap: nowrap;
-}
-
-.editor .milkdown-top-bar::-webkit-scrollbar {
-    display: none;
 }
 
 /* Crepe's default buttons (32px + 4px padding + 6px margin = 40px+ visible,

@@ -41,32 +41,6 @@ const DEFAULT_I18N = {
 };
 
 /**
- * Crepe's heading (paragraph/H1-H6) dropdown is `position: absolute; top:
- * 100%` under its button, inside the top bar row we scroll horizontally
- * instead of letting it wrap (`overflow: auto hidden` in editor.css) — so it
- * gets clipped under that row instead of showing over the document.
- * `position: fixed` on the dropdown escapes that clipping on a
- * spec-compliant engine, but this app's target webview (WebKitGTK) still
- * clips a fixed descendant of an ancestor that is *actively* scrolling
- * (only once the top bar's content overflows and needs the horizontal
- * scroll it was added for — hence it looked fixed at full window width but
- * broke again at a narrower one). Toggling the row's own overflow to
- * `visible` while the dropdown is open sidesteps that engine quirk entirely
- * and needs no positioning math, at the cost of the row briefly allowing
- * overflow (invisible in practice: the user's attention is on the open
- * dropdown, and `flex-wrap: nowrap` still stops it from wrapping).
- */
-function attachHeadingDropdownOverflowFix(root) {
-    const topBar = root.querySelector('.milkdown-top-bar');
-    if (!topBar) return;
-
-    new MutationObserver(() => {
-        const isOpen = !!topBar.querySelector('.top-bar-heading-dropdown');
-        topBar.style.overflow = isOpen ? 'visible' : '';
-    }).observe(topBar, { childList: true, subtree: true });
-}
-
-/**
  * Builds and creates a Crepe editor instance, isolating the milkdown/crepe
  * setup (features, feature configs, i18n defaults) from the Stimulus
  * controller. Image insertion and the AI feature are still driven by the
@@ -255,8 +229,6 @@ export default class EditorFactory {
         });
 
         await crepe.create();
-
-        attachHeadingDropdownOverflowFix(root);
 
         return crepe;
     }
