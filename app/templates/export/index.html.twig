@@ -1,0 +1,11 @@
+{% extends 'base.html.twig' %}
+
+{# Skeleton only: markup, Stimulus wiring and translations land in the front-end step (see EDITOR_EXPORT.md, step 5). #}
+{% block body %}
+<div class="page-export"
+     data-export-initial-path="{{ initial_path }}"
+     data-export-initial-directory="{{ initial_directory }}"
+     data-export-csrf-token="{{ csrf_token }}"
+     data-export-run-url="{{ path('app_export_run') }}">
+</div>
+{% endblock %}

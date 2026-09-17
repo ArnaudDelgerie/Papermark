@@ -16,3 +16,4 @@ framework:
             - ai
             - settings
             - delete_key
+            - export
