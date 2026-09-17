@@ -1,6 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
 import { showToast } from '../utils/toast.js';
+import { checkForUpdate as checkForUpdateIpc } from '../utils/tauri.js';
 
 /**
  * Deleting an API key is fetch-based, like the rest of this app's write
@@ -9,11 +10,17 @@ import { showToast } from '../utils/toast.js';
  * "API key deleted" flash (see EDITOR_FIX.md).
  */
 export default class extends Controller {
+    static targets = ['updateResult'];
+
     static values = {
         csrfToken: String,
         deleteLabel: String,
         confirmMessage: String,
         confirmQuestion: String,
+        updateAvailable: String,
+        upToDate: String,
+        updateCheckFailed: String,
+        updateCheckUnavailable: String,
     };
 
     async deleteKey(event) {
@@ -45,5 +52,27 @@ export default class extends Controller {
             console.error('Failed to delete API key:', err);
             showToast('error', err.message || 'Failed to delete API key');
         }
+    }
+
+    /**
+     * Manual, on-click only (CONTRACT.md §7: the check is pull, never push —
+     * no automatic or startup check on this side either).
+     */
+    async checkForUpdate() {
+        const result = await checkForUpdateIpc();
+
+        if (result.status === 'ok') {
+            this.updateResultTarget.textContent = result.update_available
+                ? this.updateAvailableValue.replace('%version%', result.latest)
+                : this.upToDateValue;
+            return;
+        }
+
+        if (result.reason === 'local_source') {
+            showToast('error', this.updateCheckUnavailableValue);
+            return;
+        }
+
+        showToast('error', this.updateCheckFailedValue);
     }
 }

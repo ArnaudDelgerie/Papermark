@@ -54,6 +54,18 @@
             {% endfor %}
         </fieldset>
 
+        <fieldset class="settings-fieldset" data-controller="settings"
+                data-settings-update-available-value="{{ 'components.settings.update_available'|trans({}, 'components') }}"
+                data-settings-up-to-date-value="{{ 'components.settings.up_to_date'|trans({}, 'components') }}"
+                data-settings-update-check-failed-value="{{ 'components.editor.error.update_check_failed'|trans({}, 'components') }}"
+                data-settings-update-check-unavailable-value="{{ 'components.settings.update_check_unavailable'|trans({}, 'components') }}">
+            <legend>{{ 'components.settings.update_title'|trans({}, 'components') }}</legend>
+            <button type="button" class="settings-submit settings-submit-secondary" data-action="click->settings#checkForUpdate">
+                {{ 'components.settings.update_check_button'|trans({}, 'components') }}
+            </button>
+            <span class="settings-update-result" data-settings-target="updateResult"></span>
+        </fieldset>
+
         <div class="settings-submit-row">
             {{ form_widget(form.save, {attr: {class: 'settings-submit'}}) }}
             {{ form_widget(form.saveAndClose, {attr: {class: 'settings-submit settings-submit-secondary'}}) }}

@@ -24,3 +24,18 @@ export function savePath(fileName = 'untitled.md', directory) {
         ...(directory ? { directory } : {}),
     });
 }
+
+/**
+ * Asks the hub whether a newer version of this app exists (CONTRACT.md §7
+ * `actions.update`). Outside the hub, there is no update mechanism at all —
+ * treated the same as `local_source`, not as an error.
+ */
+export function checkForUpdate() {
+    const tauri = window.__TAURI__;
+    if (!tauri?.core?.invoke) {
+        console.warn('Tauri IPC is not available — update check requires the TFSApp hub.');
+        return Promise.resolve({ status: 'unavailable', reason: 'local_source' });
+    }
+
+    return tauri.core.invoke('update_check');
+}

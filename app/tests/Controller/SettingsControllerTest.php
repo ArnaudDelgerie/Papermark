@@ -44,8 +44,8 @@ final class SettingsControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Settings');
         self::assertSelectorExists('a.settings-back');
-        // One fieldset per provider, plus one for the default mode.
-        self::assertSelectorCount(4, 'fieldset.settings-fieldset');
+        // One fieldset per provider, plus one each for default mode, theme and updates.
+        self::assertSelectorCount(6, 'fieldset.settings-fieldset');
         self::assertSelectorCount(3, '.settings-provider');
         self::assertSelectorCount(3, 'input[type="radio"][name="settings[selected]"]');
 

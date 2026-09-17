@@ -71,6 +71,7 @@ components:
             invalid_name: Invalid file name
             rename_target_exists: A file with that name already exists
             delete_error: Could not delete the file
+            update_check_failed: Could not check for updates
     theme:
         light: Light
         dark: Dark
@@ -111,6 +112,11 @@ components:
         delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
         delete_key_confirm_question: Delete this API key?
         key_deleted: API key deleted
+        update_title: Updates
+        update_check_button: Check for update
+        update_available: 'Update available: %version%'
+        up_to_date: You're up to date
+        update_check_unavailable: Update check unavailable in this session
         provider:
             openai: OpenAI
             anthropic: Anthropic
