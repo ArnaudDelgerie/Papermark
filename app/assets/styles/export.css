@@ -1,0 +1,167 @@
+.page-export {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: var(--space-4);
+    box-sizing: border-box;
+}
+
+.export-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+}
+
+.export-back {
+    color: var(--color-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.export-back:hover {
+    color: var(--color-text);
+}
+
+.export-header h1 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.page-export > :not(:first-child) {
+    margin-top: var(--space-5);
+}
+
+.export-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    margin: 0;
+}
+
+.export-fieldset legend {
+    padding: 0 var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.export-kind {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.export-kind-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.export-kind-option input[type="radio"] {
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.export-source-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.export-source-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-page);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.export-browse-btn {
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.export-browse-btn:hover {
+    background: var(--color-surface);
+}
+
+.export-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.export-checkbox input[type="checkbox"] {
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.export-submit {
+    width: 100%;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-page);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.export-submit:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.export-submit:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.export-report h2 {
+    margin: 0 0 var(--space-2);
+    font-size: 1rem;
+}
+
+.export-report ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.export-report-item {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+}
+
+.export-report-target {
+    font-family: monospace;
+}
+
+.export-report-reason {
+    color: var(--color-danger);
+}
+
+.export-report-referencing {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}

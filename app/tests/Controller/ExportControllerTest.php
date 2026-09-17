@@ -43,7 +43,7 @@ final class ExportControllerTest extends WebTestCase
         $client->request('GET', '/export');
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('data-export-initial-path="' . $path . '"', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('data-export-initial-path-value="' . $path . '"', (string) $client->getResponse()->getContent());
     }
 
     public function testIndexRendersEmptyPrefillWithoutSession(): void
@@ -53,7 +53,7 @@ final class ExportControllerTest extends WebTestCase
         $client->request('GET', '/export');
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('data-export-initial-path=""', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('data-export-initial-path-value=""', (string) $client->getResponse()->getContent());
     }
 
     public function testRunRejectsInvalidCsrf(): void

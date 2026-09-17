@@ -54,6 +54,10 @@
                     ? 'components.editor.toggle.edit'|trans({}, 'components')
                     : 'components.editor.toggle.readonly'|trans({}, 'components') }}</span>
             </button>
+            <a href="{{ path('app_export') }}" class="editor-filebar-btn" data-editor-leave-guard title="{{ 'components.editor.export'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--export" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.export'|trans({}, 'components') }}</span>
+            </a>
             <a href="{{ path('app_settings') }}" class="editor-filebar-btn" data-editor-leave-guard title="{{ 'components.editor.settings'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--settings" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.settings'|trans({}, 'components') }}</span>

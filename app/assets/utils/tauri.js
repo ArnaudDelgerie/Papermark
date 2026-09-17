@@ -8,7 +8,12 @@ export function pickPath(kind) {
     return tauri.core.invoke('pick_path', { kind });
 }
 
-export function savePath(fileName = 'untitled.md', directory) {
+const DEFAULT_SAVE_FILTERS = [
+    { name: 'Markdown', extensions: ['md'] },
+    { name: 'Text', extensions: ['txt'] },
+];
+
+export function savePath(fileName = 'untitled.md', directory, filters = DEFAULT_SAVE_FILTERS) {
     const tauri = window.__TAURI__;
     if (!tauri?.core?.invoke) {
         console.warn('Tauri IPC is not available — save dialog requires the TFSApp hub.');
@@ -16,10 +21,7 @@ export function savePath(fileName = 'untitled.md', directory) {
     }
 
     return tauri.core.invoke('save_path', {
-        filters: [
-            { name: 'Markdown', extensions: ['md'] },
-            { name: 'Text', extensions: ['txt'] },
-        ],
+        filters,
         fileName,
         ...(directory ? { directory } : {}),
     });

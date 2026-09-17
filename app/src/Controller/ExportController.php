@@ -43,7 +43,37 @@ final class ExportController extends AbstractController
             'initial_path' => $this->modeSession->getFile(EditorMode::Single),
             'initial_directory' => $this->openDirectory->get(),
             'csrf_token' => $this->csrfTokenManager->getToken('export')->getValue(),
+            'i18n' => $this->i18n(),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function i18n(): array
+    {
+        $trans = fn (string $key): string => $this->translator->trans('components.export.' . $key, [], self::TRANSLATION_DOMAIN);
+
+        return [
+            'sourceTitle' => $trans('source_title'),
+            'sourceFile' => $trans('source_file'),
+            'sourceFolder' => $trans('source_folder'),
+            'browse' => $trans('browse'),
+            'noSourceSelected' => $trans('no_source_selected'),
+            'includeExternalMarkdown' => $trans('include_external_markdown'),
+            'exportButton' => $trans('export_button'),
+            'noSource' => $trans('no_source'),
+            'done' => $trans('done'),
+            'failed' => $trans('failed'),
+            'report' => [
+                'title' => $trans('report.title'),
+                'empty' => $trans('report.empty'),
+                'reason' => [
+                    'not_found' => $trans('report.reason.not_found'),
+                    'limit_exceeded' => $trans('report.reason.limit_exceeded'),
+                ],
+            ],
+        ];
     }
 
     #[Route('/export/run', name: 'app_export_run', methods: ['POST'])]

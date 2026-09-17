@@ -7,6 +7,7 @@ components:
         save_as: Enregistrer sous
         print: Imprimer
         copy_markdown: Copier en Markdown
+        export: Export
         settings: Réglages
         untitled: Sans titre
         unsaved:
@@ -125,3 +126,22 @@ components:
             openai: OpenAI
             anthropic: Anthropic
             mistral: Mistral
+    export:
+        title: Export
+        back: ← Retour
+        source_title: Source
+        source_file: Fichier
+        source_folder: Dossier
+        browse: Parcourir…
+        no_source_selected: Aucun fichier ni dossier sélectionné
+        include_external_markdown: Inclure les .md externes
+        export_button: Exporter…
+        no_source: Choisissez d'abord un fichier ou un dossier
+        done: 'Archive exportée vers {path}'
+        failed: Échec de l'export
+        report:
+            title: Laissées à leur chemin d'origine
+            empty: Toutes les références ont été embarquées.
+            reason:
+                not_found: Introuvable
+                limit_exceeded: Au-delà de la limite d'export
