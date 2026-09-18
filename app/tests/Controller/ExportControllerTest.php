@@ -29,22 +29,42 @@ final class ExportControllerTest extends WebTestCase
         $client = static::createClient();
         $client->disableReboot();
 
-        // /editor/single sets the current mode, without which /file/open has
-        // no mode to remember the file under (see FileController::open()).
-        $client->request('GET', '/editor/single');
-        $client->followRedirect();
+        // Single mode by default: the current file is the source preselected.
+        $client->request('GET', '/editor');
         $fileToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)->getToken('file')->getValue();
 
         $path = $this->workDir . '/doc.md';
         file_put_contents($path, '# Hello');
-        $client->request('POST', '/file/open', ['path' => $path], [], [
+        $client->request('POST', '/editor/file', ['path' => $path], [], [
             'HTTP_X-CSRF-TOKEN' => $fileToken,
         ]);
 
         $client->request('GET', '/archive');
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('data-export-initial-path-value="' . $path . '"', (string) $client->getResponse()->getContent());
+        $content = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('data-export-initial-kind-value="file"', $content);
+        self::assertStringContainsString('data-export-initial-path-value="' . $path . '"', $content);
+    }
+
+    public function testIndexPreselectsTheCurrentFolderInDirMode(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+
+        $crawler = $client->request('GET', '/editor');
+        $modeToken = $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-csrf-token-value');
+        $dirToken = $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-csrf-token-value');
+
+        $client->request('POST', '/editor/mode', ['mode' => 'dir'], [], ['HTTP_X-CSRF-TOKEN' => $modeToken]);
+        $client->request('POST', '/editor/dir', ['path' => $this->workDir], [], ['HTTP_X-CSRF-TOKEN' => $dirToken]);
+
+        $client->request('GET', '/archive');
+
+        self::assertResponseIsSuccessful();
+        $content = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('data-export-initial-kind-value="directory"', $content);
+        self::assertStringContainsString('data-export-initial-directory-value="' . $this->workDir . '"', $content);
     }
 
     public function testIndexRendersEmptyPrefillWithoutSession(): void
@@ -268,12 +288,18 @@ final class ExportControllerTest extends WebTestCase
         self::assertSame(['notes.pdf'], $data['ignoredEntries']);
         self::assertFileExists($this->workDir . '/notes/doc.md');
 
-        // app_home is what actually redirects to the editor once the session
-        // points at the imported result (see ExportController::importRun()).
+        // The state now points at the imported file: the editor page shows
+        // single mode, and the editor's own fetch returns that file.
         $client->request('GET', '/');
         self::assertResponseRedirects('/editor');
-        $client->followRedirect();
-        self::assertStringContainsString('data-editor-initial-path-value="' . $this->workDir . '/notes/doc.md"', (string) $client->getResponse()->getContent());
+        $crawler = $client->followRedirect();
+        self::assertSame('single', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+
+        $client->request('GET', '/editor/file');
+        self::assertSame(
+            ['path' => $this->workDir . '/notes/doc.md', 'content' => '# Hello'],
+            json_decode((string) $client->getResponse()->getContent(), true),
+        );
     }
 
     public function testImportRunOfDirectoryArchiveOpensDirMode(): void

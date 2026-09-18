@@ -2,7 +2,7 @@
 
 namespace App\Controller;
 
-use App\Editor\ModeSession;
+use App\Editor\EditorState;
 use App\File\MarkdownImageUrls;
 use App\File\PathResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -32,51 +32,8 @@ final class FileController extends AbstractController
         private readonly TranslatorInterface $translator,
         private readonly PathResolver $pathResolver,
         private readonly MarkdownImageUrls $markdownImageUrls,
-        private readonly ModeSession $modeSession,
+        private readonly EditorState $editorState,
     ) {
-    }
-
-    #[Route('/file/open', name: 'app_file_open', methods: ['POST'])]
-    public function open(Request $request): JsonResponse
-    {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
-        $path = $request->request->get('path');
-        if (!\is_string($path) || $path === '') {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
-        }
-
-        if (!$this->isAllowedExtension($path)) {
-            return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
-        }
-
-        $mode = $this->modeSession->getCurrentMode();
-
-        $realPath = realpath($path);
-        if ($realPath === false || !is_file($realPath) || !is_readable($realPath)) {
-            // Only drop the mode's remembered file if this failed open *is*
-            // that file — a manual open of an unrelated bad path must not
-            // wipe out an already-valid association (see EDITOR_FIX.md).
-            if ($mode !== null && $this->modeSession->getFile($mode) === $path) {
-                $this->modeSession->setFile($mode, null);
-            }
-
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
-        }
-
-        $content = file_get_contents($realPath);
-        if ($content === false) {
-            return $this->errorResponse('read_error', Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-
-        if ($mode !== null) {
-            $this->modeSession->setFile($mode, $realPath);
-        }
-
-        return new JsonResponse(['content' => $this->markdownImageUrls->toServiceUrls($content, $realPath)]);
     }
 
     /**
@@ -179,7 +136,11 @@ final class FileController extends AbstractController
             return $this->errorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return new JsonResponse(['ok' => true]);
+        // Same path on a plain save; on a Save as, the new file becomes the
+        // current one, so a reload reopens it (see EDITOR_REACTIVITY.md).
+        $this->editorState->setFile($realPath);
+
+        return $this->stateResponse();
     }
 
     /**
@@ -208,12 +169,11 @@ final class FileController extends AbstractController
             return $this->errorResponse('delete_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $mode = $this->modeSession->getCurrentMode();
-        if ($mode !== null && $this->modeSession->getFile($mode) === $realPath) {
-            $this->modeSession->setFile($mode, null);
+        if ($this->editorState->getFile() === $realPath) {
+            $this->editorState->setFile(null);
         }
 
-        return new JsonResponse(['ok' => true]);
+        return $this->stateResponse();
     }
 
     /**
@@ -257,12 +217,13 @@ final class FileController extends AbstractController
             return $this->errorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $mode = $this->modeSession->getCurrentMode();
-        if ($mode !== null && $this->modeSession->getFile($mode) === $realPath) {
-            $this->modeSession->setFile($mode, $newPath);
+        if ($this->editorState->getFile() === $realPath) {
+            $this->editorState->setFile($newPath);
         }
 
-        return new JsonResponse(['path' => $newPath]);
+        // The new path whether or not it is the current file: the sidebar
+        // needs it for its own entries.
+        return $this->stateResponse(['path' => $newPath]);
     }
 
     private function isAllowedExtension(string $path): bool
@@ -275,6 +236,14 @@ final class FileController extends AbstractController
     private function sanitizeMarkdown(string $content): string
     {
         return preg_replace('/<br\s*\/?>\n?/i', '', $content);
+    }
+
+    /**
+     * @param array<string, mixed> $details what the action adds to the state
+     */
+    private function stateResponse(array $details = []): JsonResponse
+    {
+        return new JsonResponse(['state' => $this->editorState->toArray(), ...$details]);
     }
 
     private function errorResponse(string $key, int $status): JsonResponse

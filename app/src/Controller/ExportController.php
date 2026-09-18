@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Editor\EditorMode;
-use App\Editor\ModeSession;
+use App\Editor\EditorState;
 use App\Export\ArchiveExportPlanner;
 use App\Export\ArchiveExportRefusedException;
 use App\Export\ArchiveTargetResolver;
 use App\Export\ArchiveWriter;
 use App\Export\ExportIssue;
-use App\File\OpenDirectory;
 use App\Import\ArchiveImporter;
 use App\Import\ArchiveImportRefusedException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -29,8 +28,7 @@ final class ExportController extends AbstractController
     private const TRANSLATION_PREFIX = 'components.editor.error.';
 
     public function __construct(
-        private readonly ModeSession $modeSession,
-        private readonly OpenDirectory $openDirectory,
+        private readonly EditorState $editorState,
         private readonly ArchiveExportPlanner $planner,
         private readonly ArchiveTargetResolver $targetResolver,
         private readonly ArchiveWriter $writer,
@@ -43,9 +41,12 @@ final class ExportController extends AbstractController
     #[Route('/archive', name: 'app_archive', methods: ['GET'])]
     public function index(): Response
     {
+        // The source preselected follows the mode: the current file in single
+        // mode, the current folder in dir mode (see EDITOR_REACTIVITY.md).
         return $this->render('archive/index.html.twig', [
-            'initial_path' => $this->modeSession->getFile(EditorMode::Single),
-            'initial_directory' => $this->openDirectory->get(),
+            'initial_kind' => $this->editorState->getMode() === EditorMode::Dir ? 'directory' : 'file',
+            'initial_path' => $this->editorState->getFile(),
+            'initial_directory' => $this->editorState->getDir(),
             'export_csrf_token' => $this->csrfTokenManager->getToken('export')->getValue(),
             'export_i18n' => $this->exportI18n(),
             'import_csrf_token' => $this->csrfTokenManager->getToken('import')->getValue(),
@@ -193,15 +194,14 @@ final class ExportController extends AbstractController
             return $this->errorResponse($e->reason->value, Response::HTTP_CONFLICT);
         }
 
-        // Only the session is updated here — app_home is what actually
-        // redirects to the right editor route, same as everywhere else in
-        // the app that switches mode (see HomeController).
+        // Only the state is updated here — the front then goes back to the
+        // editor page, which renders whatever it holds.
         if (EditorMode::Single === $result->openMode) {
-            $this->modeSession->setCurrentMode(EditorMode::Single);
-            $this->modeSession->setFile(EditorMode::Single, $result->openPath);
+            $this->editorState->setMode(EditorMode::Single);
+            $this->editorState->setFile($result->openPath);
         } elseif (EditorMode::Dir === $result->openMode) {
-            $this->modeSession->setCurrentMode(EditorMode::Dir);
-            $this->openDirectory->set($result->destination);
+            $this->editorState->setMode(EditorMode::Dir);
+            $this->editorState->setDir($result->destination);
         }
 
         return new JsonResponse([

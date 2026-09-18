@@ -12,7 +12,16 @@ import EditorFactory from '../editor/editor-factory.js';
 import { confirmDialog } from '../utils/confirm-dialog.js';
 import { CURRENT_DIR_UPDATED_EVENT } from '../utils/current-directory.js';
 import { MODE_UPDATED_EVENT } from '../utils/editor-mode.js';
-import { FILE_DELETED_EVENT, FILE_RENAMED_EVENT, OPEN_FILE_EVENT, dispatchFileSavedAs } from '../utils/editor-open.js';
+import {
+    FILE_CHANGE_REQUEST_EVENT,
+    FILE_DELETED_EVENT,
+    FILE_RENAMED_EVENT,
+    FILE_UPDATED_EVENT,
+    dispatchFileChangeRequest,
+    dispatchFileDeleted,
+    dispatchFileSavedAs,
+    dispatchFileUpdated,
+} from '../utils/editor-open.js';
 import { pickPath, savePath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
 
@@ -26,12 +35,9 @@ export default class extends Controller {
             default: { enabled: false },
         },
         readonly: { type: Boolean, default: false },
-        // Set from the dir-mode session directory; empty in single mode.
+        // The current folder in dir mode, empty in single mode: rendered
+        // server-side, then kept up to date from the EditorState in events.
         directory: { type: String, default: '' },
-        // Path + content remembered in session for this mode (see ModeSession),
-        // embedded server-side so restoring it needs no extra round trip.
-        initialPath: { type: String, default: '' },
-        initialContent: { type: String, default: '' },
         // Defaults for the editor's own texts (placeholder, slash menu, AI panel)
         // live in EditorFactory; only controller-owned UI text falls back here.
         i18n: Object,
@@ -48,31 +54,41 @@ export default class extends Controller {
     #onBeforePrint = () => this.#mountPrintCopy();
     #onAfterPrint = () => this.#removePrintCopy();
     #onGuardedClick = (event) => this.#guardLeave(event);
-    #onOpenFileRequested = (event) => this.#loadFile(event.detail.path);
+    #fileRequest = null;
     #onFileDeleted = (event) => this.#handleFileDeleted(event.detail.path);
     #onFileRenamed = (event) => this.#handleFileRenamed(event.detail.oldPath, event.detail.newPath);
 
-    // Each mode remembers its own file, so a switch replaces what is open. The
-    // content comes with the event: the server read it while recording the
-    // mode, no second round trip (see EDITOR_REACTIVITY.md).
-    // Changing folder drops the file dir mode remembered, server side, so the
-    // editor has to let go of it too rather than keep a file the new tree
-    // doesn't contain. A refused change carries no path and leaves it alone.
+    // The editor shows the current file of the EditorState and fetches its
+    // content itself: events only carry the state (see EDITOR_REACTIVITY.md).
+    // Changing mode or folder drops the current file server side, so these
+    // two empty the editor. A refused folder change carries no state.
+    #onModeUpdated = (event) => this.#applyState(event.detail.state);
+
     #onCurrentDirUpdated = (event) => {
-        if (event.detail.path !== null) {
-            this.newFile();
+        if (event.detail.state !== null) {
+            this.#applyState(event.detail.state);
         }
     };
 
-    #onModeUpdated = (event) => {
-        const { path, content } = event.detail;
-        if (path === null) {
-            this.newFile();
-
-            return;
+    // Whoever asks for another current file — the sidebar, or New here — the
+    // editor doesn't need to know. Last action wins: a file still loading must
+    // not land after it. No file means an empty editor, right away.
+    #onFileChangeRequest = (event) => {
+        this.#fileRequest?.abort();
+        if (event.detail.path === null) {
+            this.#reset();
         }
+    };
 
-        this.#applyLoadedFile(path, content);
+    // Nothing to do without a file, the request already emptied the editor.
+    // Loaded even when it already is the current file: picking it again past
+    // the leave guard means going back to what is on disk.
+    #onFileUpdated = (event) => {
+        const { state } = event.detail;
+        this.#syncDirectory(state);
+        if (state.file !== null) {
+            this.#loadCurrentFile();
+        }
     };
     #leaveConfirmed = false;
 
@@ -100,7 +116,8 @@ export default class extends Controller {
         // Capture phase, on window: covers the sidebar (mode-single / mode-dir),
         // not just this element, since navigation there also drops unsaved work.
         window.addEventListener('click', this.#onGuardedClick, true);
-        window.addEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
+        window.addEventListener(FILE_CHANGE_REQUEST_EVENT, this.#onFileChangeRequest);
+        window.addEventListener(FILE_UPDATED_EVENT, this.#onFileUpdated);
         window.addEventListener(MODE_UPDATED_EVENT, this.#onModeUpdated);
         window.addEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
         window.addEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
@@ -115,9 +132,8 @@ export default class extends Controller {
         this.#updateDirtyIndicator(this.#savedRef);
         this.#updateFilePath();
 
-        if (this.initialPathValue) {
-            this.#applyLoadedFile(this.initialPathValue, this.initialContentValue);
-        }
+        // No file in the page: the same path as after an event.
+        await this.#loadCurrentFile();
     }
 
     async #createCrepe(defaultValue = '') {
@@ -194,40 +210,73 @@ export default class extends Controller {
         window.removeEventListener('beforeprint', this.#onBeforePrint);
         window.removeEventListener('afterprint', this.#onAfterPrint);
         window.removeEventListener('click', this.#onGuardedClick, true);
-        window.removeEventListener(OPEN_FILE_EVENT, this.#onOpenFileRequested);
+        window.removeEventListener(FILE_CHANGE_REQUEST_EVENT, this.#onFileChangeRequest);
+        window.removeEventListener(FILE_UPDATED_EVENT, this.#onFileUpdated);
         window.removeEventListener(MODE_UPDATED_EVENT, this.#onModeUpdated);
         window.removeEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
         window.removeEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
         window.removeEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
+        this.#fileRequest?.abort();
         this.#removePrintCopy();
         this.#aiClient?.close();
         this.#crepe?.destroy();
         this.#crepe = null;
     }
 
-    // The path comes from the sidebar (Open, a history entry or a tree file),
-    // already past the leave guard by the time this event fires.
-    async #loadFile(path) {
-        const formData = new FormData();
-        formData.append('path', path);
+    #applyState(state) {
+        this.#syncDirectory(state);
+        if (state.file === null) {
+            this.#reset();
+
+            return;
+        }
+
+        this.#loadCurrentFile();
+    }
+
+    // Save as opens its dialog in the current folder, in dir mode only.
+    #syncDirectory(state) {
+        this.directoryValue = state.mode === 'dir' ? state.dir ?? '' : '';
+    }
+
+    // GET /editor/file. The last request wins: one still in flight is
+    // aborted, so a stale answer can't land after the right one. A 404 means
+    // the current file is gone — the server already dropped it, everyone else
+    // hears it through editor:file-deleted.
+    async #loadCurrentFile() {
+        this.#fileRequest?.abort();
+        const request = new AbortController();
+        this.#fileRequest = request;
 
         try {
-            const response = await fetch(this.urlsValue.open, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
-                body: formData,
-            });
+            const response = await fetch(this.urlsValue.file, { signal: request.signal });
+            const data = await response.json().catch(() => ({}));
+
+            if (response.status === 404 && data.path) {
+                this.#reset();
+                dispatchFileDeleted(data.path);
+                throw new Error(data.error || 'File not found');
+            }
 
             if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
                 throw new Error(data.error || `Open failed: ${response.status}`);
             }
 
-            const { content } = await response.json();
-            this.#applyLoadedFile(path, content);
+            if (data.path === null) {
+                this.#reset();
+            } else {
+                this.#applyLoadedFile(data.path, data.content);
+            }
         } catch (err) {
+            if (err.name === 'AbortError') {
+                return;
+            }
             console.error('Failed to open file:', err);
             showToast('error', err.message || 'Failed to open file');
+        } finally {
+            if (this.#fileRequest === request) {
+                this.#fileRequest = null;
+            }
         }
     }
 
@@ -241,12 +290,12 @@ export default class extends Controller {
     }
 
     // The delete already carries its own "File deleted" toast (mode-single /
-    // mode-dir): resetting here is silent, same as newFile().
+    // mode-dir): resetting here is silent, same as New.
     #handleFileDeleted(path) {
         if (path !== this.#currentPath) {
             return;
         }
-        this.newFile();
+        this.#reset();
     }
 
     #handleFileRenamed(oldPath, newPath) {
@@ -258,7 +307,33 @@ export default class extends Controller {
         this.#updateFilePath();
     }
 
-    newFile() {
+    // New: the current file becomes none, server side too, or a reload would
+    // bring the previous one back. Announced like any change of current file;
+    // the editor empties on its own request (see EDITOR_REACTIVITY.md).
+    async newFile() {
+        dispatchFileChangeRequest(null);
+
+        try {
+            const response = await fetch(this.urlsValue.clearFile, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || `New failed: ${response.status}`);
+            }
+
+            dispatchFileUpdated(data.state);
+        } catch (err) {
+            console.error('Failed to clear the current file:', err);
+        }
+    }
+
+    // Empties the editor, with no call to the server: the state already has
+    // no current file, or is about to.
+    #reset() {
+        // Last action wins: a file still loading must not replace the new one.
+        this.#fileRequest?.abort();
         this.#crepe.editor.action(replaceAll(''));
         this.#currentPath = null;
         this.#savedRef = this.#crepe.getMarkdown();
@@ -325,21 +400,22 @@ export default class extends Controller {
                 body: formData,
             });
 
+            const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
                 throw new Error(data.error || `Save failed: ${response.status}`);
             }
 
-            this.#currentPath = path;
+            // The server made the new file the current one, realpath'd.
+            const { state } = data;
+            this.#currentPath = state.file;
             this.#savedRef = markdown;
             this.#updateSaveButton(markdown);
             this.#updateDirtyIndicator(markdown);
             this.#updateFilePath();
-            const name = path.split('/').pop();
+            const name = state.file.split('/').pop();
             const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
             showToast('success', template.replace('{name}', name));
-            // Harmless no-op outside dir mode: nothing listens for it.
-            dispatchFileSavedAs(path);
+            dispatchFileSavedAs(state.file, state);
         } catch (err) {
             console.error('Failed to save file:', err);
             showToast('error', err.message || 'Failed to save file');

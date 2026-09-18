@@ -4,13 +4,13 @@ import { pickPath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
 
 /**
- * Owns the folder held in session: picks one, records it through /dir/current,
+ * Changes the current folder: picks one, records it through POST /editor/dir,
  * and announces both ends of the round trip. Nothing is rendered by the server
  * in reply — whoever displays the folder's contents listens and refreshes
  * itself (see EDITOR_REACTIVITY.md).
  */
 export default class extends Controller {
-    static values = { setCurrentUrl: String, csrfToken: String, i18n: Object };
+    static values = { setDirUrl: String, csrfToken: String, i18n: Object };
 
     static targets = ['openButton', 'path'];
 
@@ -24,11 +24,11 @@ export default class extends Controller {
         this.openButtonTarget.classList.add('is-loading');
         dispatchCurrentDirChangeRequest(path);
 
-        let newPath = null;
+        let state = null;
         try {
-            newPath = await this.#setCurrent(path);
-            this.pathTarget.textContent = newPath;
-            this.pathTarget.title = newPath;
+            state = await this.#setDir(path);
+            this.pathTarget.textContent = state.dir;
+            this.pathTarget.title = state.dir;
             this.pathTarget.hidden = false;
         } catch (err) {
             console.error('Failed to set the current folder:', err);
@@ -37,17 +37,17 @@ export default class extends Controller {
 
         // Also on failure: the listeners went into their loading state on the
         // request, and the session still holds the previous folder for them.
-        dispatchCurrentDirUpdated(newPath);
+        dispatchCurrentDirUpdated(state);
         this.openButtonTarget.disabled = false;
         this.openButtonTarget.classList.remove('is-loading');
     }
 
-    // Resolves to the path the server actually recorded (realpath'd).
-    async #setCurrent(path) {
+    // Resolves to the EditorState, whose folder is the realpath'd one.
+    async #setDir(path) {
         const body = new FormData();
         body.append('path', path);
 
-        const response = await fetch(this.setCurrentUrlValue, {
+        const response = await fetch(this.setDirUrlValue, {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
             body,
@@ -58,8 +58,8 @@ export default class extends Controller {
             throw new Error(data.error || `Could not open the folder: ${response.status}`);
         }
 
-        const { open_directory: openDirectory } = await response.json();
+        const { state } = await response.json();
 
-        return openDirectory;
+        return state;
     }
 }

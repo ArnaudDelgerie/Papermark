@@ -15,7 +15,7 @@ use Symfony\Component\Uid\Uuid;
 final class AiControllerTest extends WebTestCase
 {
     /**
-     * The single-mode editor page renders the Editor component which
+     * The editor page renders the Editor component which
      * generates CSRF tokens, setting the session. The token is then read
      * from the container.
      *
@@ -24,8 +24,7 @@ final class AiControllerTest extends WebTestCase
     private function createClientWithCsrf(): array
     {
         $client = static::createClient();
-        $client->request('GET', '/editor/single');
-        $client->followRedirect();
+        $client->request('GET', '/editor');
         $client->disableReboot();
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)

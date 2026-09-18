@@ -24,6 +24,8 @@ export default class extends Controller {
     static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'includeExternalMarkdown', 'exportButton', 'report'];
 
     static values = {
+        // 'file' in single mode, 'directory' in dir mode (see EDITOR_REACTIVITY.md).
+        initialKind: { type: String, default: 'file' },
         initialPath: String,
         initialDirectory: String,
         csrfToken: String,
@@ -38,7 +40,7 @@ export default class extends Controller {
     connect() {
         this.#filePath = this.initialPathValue;
         this.#directoryPath = this.initialDirectoryValue;
-        this.#kind = this.#filePath !== '' ? 'file' : 'directory';
+        this.#kind = this.initialKindValue === 'directory' ? 'directory' : 'file';
 
         (this.#kind === 'file' ? this.kindFileRadioTarget : this.kindDirectoryRadioTarget).checked = true;
         this.#updateSourceDisplay();

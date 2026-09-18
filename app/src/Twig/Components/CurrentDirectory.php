@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Twig\Components;
 
-use App\File\OpenDirectory as OpenDirectorySession;
+use App\Editor\EditorState;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
@@ -12,8 +12,8 @@ use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
 
 /**
  * Open folder, and the folder currently held in session. Its own component
- * because it owns that piece of state: it calls /dir/current and announces the
- * change, while mode-dir only listens (see EDITOR_REACTIVITY.md).
+ * because it acts on that piece of state: it calls POST /editor/dir and
+ * announces the change, while mode-dir only listens (see EDITOR_REACTIVITY.md).
  */
 #[AsTwigComponent('current-directory')]
 final class CurrentDirectory
@@ -21,7 +21,7 @@ final class CurrentDirectory
     private const TRANSLATION_DOMAIN = 'components';
 
     public function __construct(
-        private readonly OpenDirectorySession $openDirectory,
+        private readonly EditorState $editorState,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -30,7 +30,7 @@ final class CurrentDirectory
     #[ExposeInTemplate(name: 'open_directory')]
     public function getOpenDirectory(): ?string
     {
-        return $this->openDirectory->get();
+        return $this->editorState->getDir();
     }
 
     #[ExposeInTemplate(name: 'csrf_token')]

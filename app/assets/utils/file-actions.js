@@ -1,8 +1,11 @@
-// Fetch-based delete/rename, shared by mode-single and mode-dir — same
-// pattern as the editor's own file actions (see EDITOR_FIX.md #5).
-export async function deleteFile(url, csrfToken, path) {
+// Fetch-based actions on a file, shared by mode-single and mode-dir. Each one
+// resolves to the server's reply, {state} plus what the action adds; a failure
+// throws an Error carrying the HTTP status (see EDITOR_REACTIVITY.md).
+async function post(url, csrfToken, fields, failure) {
     const body = new FormData();
-    body.append('path', path);
+    for (const [name, value] of Object.entries(fields)) {
+        body.append(name, value);
+    }
 
     const response = await fetch(url, {
         method: 'POST',
@@ -10,30 +13,26 @@ export async function deleteFile(url, csrfToken, path) {
         body,
     });
 
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Delete failed: ${response.status}`);
+        const error = new Error(data.error || `${failure}: ${response.status}`);
+        error.status = response.status;
+        throw error;
     }
+
+    return data;
 }
 
-// Resolves to the new full path.
-export async function renameFile(url, csrfToken, path, name) {
-    const body = new FormData();
-    body.append('path', path);
-    body.append('name', name);
+// Makes the file the current one: POST /editor/file.
+export function setCurrentFile(url, csrfToken, path) {
+    return post(url, csrfToken, { path }, 'Open failed');
+}
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': csrfToken },
-        body,
-    });
+export function deleteFile(url, csrfToken, path) {
+    return post(url, csrfToken, { path }, 'Delete failed');
+}
 
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Rename failed: ${response.status}`);
-    }
-
-    const { path: newPath } = await response.json();
-
-    return newPath;
+// Also resolves to `path`, the new full path.
+export function renameFile(url, csrfToken, path, name) {
+    return post(url, csrfToken, { path, name }, 'Rename failed');
 }

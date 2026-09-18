@@ -16,11 +16,10 @@
            while hidden — the FrankenPHP server is dedicated, nothing to spare. #}
         {{ component('mode-dir', { active: mode == 'dir' }) }}
     </aside>
+    {# No file here: the editor fetches the current one itself on connect. #}
     {{ component('editor', {
         height: '100%',
-        directory: directory|default(null),
-        initialPath: initial_path,
-        initialContent: initial_content,
+        directory: directory,
     }) }}
 </div>
 {% endblock %}

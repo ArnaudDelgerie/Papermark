@@ -6,10 +6,8 @@ namespace App\File;
 
 /**
  * Reads a markdown/text file's content, converted to /file/image service
- * URLs — the same conversion FileController::open() applies over HTTP,
- * reused here so the session-remembered file can be embedded directly in the
- * editor page's first render instead of a second round trip (see
- * EDITOR_FIX.md).
+ * URLs — what the editor fetches through EditorController::getFile() (see
+ * EDITOR_REACTIVITY.md).
  */
 final class MarkdownFileReader
 {
@@ -20,10 +18,16 @@ final class MarkdownFileReader
     ) {
     }
 
-    public function read(string $path): ?string
+    public function supports(string $path): bool
     {
         $extension = strtolower(pathinfo($path, \PATHINFO_EXTENSION));
-        if (!\in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+
+        return \in_array($extension, self::ALLOWED_EXTENSIONS, true);
+    }
+
+    public function read(string $path): ?string
+    {
+        if (!$this->supports($path)) {
             return null;
         }
 

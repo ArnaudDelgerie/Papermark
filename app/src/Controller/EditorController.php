@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Editor\EditorMode;
-use App\Editor\ModeSession;
+use App\Editor\EditorState;
 use App\File\MarkdownFileReader;
-use App\File\OpenDirectory;
-use App\Repository\SettingRepository;
+use App\File\OpenDirectoryTree;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -19,15 +17,19 @@ use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+/**
+ * Everything that reads or writes the EditorState lives under /editor. The
+ * routes that write it return {state} whether or not they changed anything,
+ * so the caller never has to guess (see EDITOR_REACTIVITY.md).
+ */
 final class EditorController extends AbstractController
 {
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.error.';
 
     public function __construct(
-        private readonly ModeSession $modeSession,
+        private readonly EditorState $editorState,
         private readonly MarkdownFileReader $fileReader,
-        private readonly SettingRepository $settings,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -35,52 +37,28 @@ final class EditorController extends AbstractController
 
     /**
      * The one page. Both left columns are always rendered, so the mode only
-     * decides which one shows and which file the editor opens — and it is read
-     * from the session, never from the URL, otherwise a reload would undo a
-     * switch made without navigating (see EDITOR_REACTIVITY.md).
+     * decides which one shows — and it is read from the session, never from
+     * the URL, otherwise a reload would undo a switch made without navigating.
+     * The editor gets no file here: it fetches it itself through getFile().
      */
-    #[Route('/editor', name: 'app_editor')]
-    public function index(OpenDirectory $openDirectory): Response
+    #[Route('/editor', name: 'app_editor', methods: ['GET'])]
+    public function index(): Response
     {
-        $mode = $this->modeSession->getCurrentMode() ?? $this->settings->getOrCreate()->getDefaultMode();
+        $mode = $this->editorState->getMode();
 
         return $this->render('editor/page.html.twig', [
             'mode' => $mode->value,
-            'directory' => $mode === EditorMode::Dir ? $openDirectory->get() : null,
-            ...$this->initialFileVars($mode),
+            'directory' => $mode === EditorMode::Dir ? $this->editorState->getDir() : null,
         ]);
     }
 
     /**
-     * Entry points, kept so the switch links mean something outside the app
-     * (middle-click, context menu): they only record the mode.
-     */
-    #[Route('/editor/single', name: 'app_editor_single')]
-    public function single(): RedirectResponse
-    {
-        $this->modeSession->setCurrentMode(EditorMode::Single);
-
-        return $this->redirectToRoute('app_editor');
-    }
-
-    #[Route('/editor/dir', name: 'app_editor_dir')]
-    public function dir(): RedirectResponse
-    {
-        $this->modeSession->setCurrentMode(EditorMode::Dir);
-
-        return $this->redirectToRoute('app_editor');
-    }
-
-    /**
-     * Records the mode in session and hands back the file that mode remembers.
-     * Both left columns are already in the page, so nothing is re-rendered: the
-     * switch only has the editor's own content to replace (EDITOR_REACTIVITY.md).
+     * Records the mode, which drops the current file.
      */
     #[Route('/editor/mode', name: 'app_editor_set_mode', methods: ['POST'])]
     public function setMode(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('mode', $csrfToken))) {
+        if (!$this->isCsrfTokenValidFromHeader($request, 'mode')) {
             return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
@@ -90,10 +68,136 @@ final class EditorController extends AbstractController
             return $this->errorResponse('invalid_mode', Response::HTTP_BAD_REQUEST);
         }
 
-        $this->modeSession->setCurrentMode($mode);
-        ['initial_path' => $path, 'initial_content' => $content] = $this->initialFileVars($mode);
+        $this->editorState->setMode($mode);
 
-        return new JsonResponse(['mode' => $mode->value, 'path' => $path, 'content' => $content]);
+        return $this->stateResponse();
+    }
+
+    /**
+     * Content of the current file. No parameter: the only way to change what
+     * is read is setFile(), behind its CSRF token. A file gone from disk is
+     * dropped from the state, and its path comes back with the 404 since the
+     * caller has no other way to know which one it was.
+     */
+    #[Route('/editor/file', name: 'app_editor_get_file', methods: ['GET'])]
+    public function getFile(): JsonResponse
+    {
+        $path = $this->editorState->getFile();
+        if ($path === null) {
+            return new JsonResponse(['path' => null, 'content' => null]);
+        }
+
+        $content = $this->fileReader->read($path);
+        if ($content === null) {
+            $this->editorState->setFile(null);
+
+            return new JsonResponse([
+                'error' => $this->translator->trans(self::TRANSLATION_PREFIX . 'not_found', [], self::TRANSLATION_DOMAIN),
+                'path' => $path,
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        return new JsonResponse(['path' => $path, 'content' => $content]);
+    }
+
+    /**
+     * Makes a file the current one, without reading it: the editor fetches
+     * the content itself once it hears of the change.
+     */
+    #[Route('/editor/file', name: 'app_editor_set_file', methods: ['POST'])]
+    public function setFile(Request $request): JsonResponse
+    {
+        if (!$this->isCsrfTokenValidFromHeader($request, 'file')) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $path = $request->request->get('path');
+        if (!\is_string($path) || $path === '') {
+            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+        }
+
+        if (!$this->fileReader->supports($path)) {
+            return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+        }
+
+        $realPath = realpath($path);
+        if ($realPath === false || !is_file($realPath) || !is_readable($realPath)) {
+            // Whoever finds the file gone drops it — but only if it is the
+            // current one, a bad path picked by hand must not clear it.
+            if ($this->editorState->getFile() === $path) {
+                $this->editorState->setFile(null);
+            }
+
+            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->editorState->setFile($realPath);
+
+        return $this->stateResponse();
+    }
+
+    /**
+     * New: no current file, so a reload doesn't bring the previous one back.
+     */
+    #[Route('/editor/file', name: 'app_editor_clear_file', methods: ['DELETE'])]
+    public function clearFile(Request $request): JsonResponse
+    {
+        if (!$this->isCsrfTokenValidFromHeader($request, 'file')) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $this->editorState->setFile(null);
+
+        return $this->stateResponse();
+    }
+
+    /**
+     * Content of the tree frame: loaded asynchronously so the column paints
+     * before DirectoryTree::build has walked the folder, and reloaded after
+     * an in-app change (Save as, delete, rename, change of current folder) —
+     * not a filesystem watcher, see EDITOR_FOLDER_MODE.md.
+     */
+    #[Route('/editor/dir', name: 'app_editor_get_dir', methods: ['GET'])]
+    public function getDir(OpenDirectoryTree $openDirectoryTree): Response
+    {
+        return $this->render('dir/tree.html.twig', [
+            'tree_result' => $openDirectoryTree->build(),
+        ]);
+    }
+
+    /**
+     * Sets the current folder, which drops the current file: the editor must
+     * not keep showing a file the new tree may not have. No filter on
+     * location (see EDITOR_FOLDER_MODE.md).
+     */
+    #[Route('/editor/dir', name: 'app_editor_set_dir', methods: ['POST'])]
+    public function setDir(Request $request): JsonResponse
+    {
+        if (!$this->isCsrfTokenValidFromHeader($request, 'dir')) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $path = $request->request->get('path');
+        $realPath = \is_string($path) ? realpath($path) : false;
+        if ($realPath === false || !is_dir($realPath)) {
+            return $this->errorResponse('invalid_directory', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->editorState->setDir($realPath);
+
+        return $this->stateResponse();
+    }
+
+    private function isCsrfTokenValidFromHeader(Request $request, string $id): bool
+    {
+        $token = $request->headers->get('X-CSRF-TOKEN');
+
+        return \is_string($token) && $this->csrfTokenManager->isTokenValid(new CsrfToken($id, $token));
+    }
+
+    private function stateResponse(): JsonResponse
+    {
+        return new JsonResponse(['state' => $this->editorState->toArray()]);
     }
 
     private function errorResponse(string $key, int $status): JsonResponse
@@ -102,27 +206,5 @@ final class EditorController extends AbstractController
             ['error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN)],
             $status,
         );
-    }
-
-    /**
-     * @return array{initial_path: ?string, initial_content: ?string}
-     */
-    private function initialFileVars(EditorMode $mode): array
-    {
-        $path = $this->modeSession->getFile($mode);
-        if ($path === null) {
-            return ['initial_path' => null, 'initial_content' => null];
-        }
-
-        $content = $this->fileReader->read($path);
-        if ($content === null) {
-            // Stale session reference (deleted, moved…): drop it silently,
-            // no fallback to another file (see EDITOR_FIX.md).
-            $this->modeSession->setFile($mode, null);
-
-            return ['initial_path' => null, 'initial_content' => null];
-        }
-
-        return ['initial_path' => $path, 'initial_content' => $content];
     }
 }

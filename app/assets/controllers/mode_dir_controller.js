@@ -2,23 +2,33 @@ import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
 import { MODE_CHANGE_REQUEST_EVENT } from '../utils/editor-mode.js';
 import { CURRENT_DIR_CHANGE_REQUEST_EVENT, CURRENT_DIR_UPDATED_EVENT } from '../utils/current-directory.js';
-import { FILE_SAVED_AS_EVENT, dispatchFileDeleted, dispatchFileRenamed, dispatchOpenFile } from '../utils/editor-open.js';
-import { deleteFile, renameFile } from '../utils/file-actions.js';
+import {
+    FILE_DELETED_EVENT,
+    FILE_RENAMED_EVENT,
+    FILE_SAVED_AS_EVENT,
+    dispatchFileChangeRequest,
+    dispatchFileDeleted,
+    dispatchFileRenamed,
+    dispatchFileUpdated,
+} from '../utils/editor-open.js';
+import { deleteFile, renameFile, setCurrentFile } from '../utils/file-actions.js';
 import { renameDialog } from '../utils/rename-dialog.js';
 import { showLoading } from '../utils/sidebar-loading.js';
 import { showToast } from '../utils/toast.js';
 
 /**
- * The tree of the folder held in session. It doesn't own that folder —
+ * The tree of the current folder. It doesn't change that folder —
  * current-directory does — so it only listens: loader while the change is in
- * flight, frame reload once it is settled (see EDITOR_REACTIVITY.md).
+ * flight, frame reload once it is settled. It also reloads whenever a file may
+ * have appeared, gone or changed name, whoever acted on it — not on a mode
+ * switch, the tree only depends on the folder (see EDITOR_REACTIVITY.md).
  */
 export default class extends Controller {
-    static values = { deleteUrl: String, renameUrl: String, fileCsrfToken: String, i18n: Object };
+    static values = { setFileUrl: String, deleteUrl: String, renameUrl: String, fileCsrfToken: String, i18n: Object };
 
     static targets = ['treeFrame'];
 
-    #onFileSavedAs = () => this.#refreshTree();
+    #onFileChanged = () => this.#refreshTree();
 
     // The loader goes up before the request leaves, so the wait is visible
     // from the very first moment rather than once the frame turns busy.
@@ -33,21 +43,39 @@ export default class extends Controller {
 
     connect() {
         window.addEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
-        window.addEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
+        window.addEventListener(FILE_SAVED_AS_EVENT, this.#onFileChanged);
+        window.addEventListener(FILE_DELETED_EVENT, this.#onFileChanged);
+        window.addEventListener(FILE_RENAMED_EVENT, this.#onFileChanged);
         window.addEventListener(CURRENT_DIR_CHANGE_REQUEST_EVENT, this.#onCurrentDirChangeRequest);
         window.addEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
     }
 
     disconnect() {
         window.removeEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
-        window.removeEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
+        window.removeEventListener(FILE_SAVED_AS_EVENT, this.#onFileChanged);
+        window.removeEventListener(FILE_DELETED_EVENT, this.#onFileChanged);
+        window.removeEventListener(FILE_RENAMED_EVENT, this.#onFileChanged);
         window.removeEventListener(CURRENT_DIR_CHANGE_REQUEST_EVENT, this.#onCurrentDirChangeRequest);
         window.removeEventListener(CURRENT_DIR_UPDATED_EVENT, this.#onCurrentDirUpdated);
     }
 
-    openFile(event) {
+    // Makes the file the current one and announces it; the editor fetches
+    // the content on the update. A 404 means the file is gone.
+    async openFile(event) {
         event.preventDefault();
-        dispatchOpenFile(event.currentTarget.dataset.path);
+        const { path } = event.currentTarget.dataset;
+
+        dispatchFileChangeRequest(path);
+        try {
+            const { state } = await setCurrentFile(this.setFileUrlValue, this.fileCsrfTokenValue, path);
+            dispatchFileUpdated(state);
+        } catch (err) {
+            console.error('Failed to open file:', err);
+            showToast('error', err.message || 'Failed to open file');
+            if (err.status === 404) {
+                dispatchFileDeleted(path);
+            }
+        }
     }
 
     async deleteEntry(event) {
@@ -65,10 +93,9 @@ export default class extends Controller {
         }
 
         try {
-            await deleteFile(this.deleteUrlValue, this.fileCsrfTokenValue, path);
+            const { state } = await deleteFile(this.deleteUrlValue, this.fileCsrfTokenValue, path);
             showToast('success', this.i18nValue.deleted ?? 'File deleted');
-            this.#refreshTree();
-            dispatchFileDeleted(path);
+            dispatchFileDeleted(path, state);
         } catch (err) {
             console.error('Failed to delete file:', err);
             showToast('error', err.message || this.i18nValue.deleteFailed || 'Failed to delete file');
@@ -90,19 +117,19 @@ export default class extends Controller {
         }
 
         try {
-            const newPath = await renameFile(this.renameUrlValue, this.fileCsrfTokenValue, path, newName);
+            const { path: newPath, state } = await renameFile(this.renameUrlValue, this.fileCsrfTokenValue, path, newName);
             showToast('success', this.i18nValue.renamed ?? 'File renamed');
-            this.#refreshTree();
-            dispatchFileRenamed(path, newPath);
+            dispatchFileRenamed(path, newPath, state);
         } catch (err) {
             console.error('Failed to rename file:', err);
             showToast('error', err.message || this.i18nValue.renameFailed || 'Failed to rename file');
         }
     }
 
-    // No path check against the open directory: a re-render showing the same
-    // tree is harmless, and re-deriving "is this under the open dir" here
-    // would just duplicate what the server already resolves from session.
+    // No path check against the current folder: a re-render showing the same
+    // tree is harmless, and re-deriving "is this under the folder" here would
+    // just duplicate what the server already resolves from session. A reload
+    // cancels the frame's own request still in flight (Turbo 8).
     #refreshTree() {
         this.treeFrameTarget.reload();
     }

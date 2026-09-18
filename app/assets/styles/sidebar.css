@@ -46,9 +46,12 @@ turbo-frame {
     text-align: center;
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius);
+    border: 0;
+    background: none;
     color: var(--color-muted);
-    text-decoration: none;
+    font: inherit;
     font-size: 0.8rem;
+    cursor: pointer;
 }
 
 .mode-selector-link.is-active {

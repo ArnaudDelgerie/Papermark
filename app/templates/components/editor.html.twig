@@ -3,7 +3,8 @@
      data-editor-file-csrf-token-value="{{ file_csrf_token }}"
      data-editor-ai-csrf-token-value="{{ ai_csrf_token }}"
      data-editor-urls-value="{{ {
-         open: path('app_file_open'),
+         file: path('app_editor_get_file'),
+         clearFile: path('app_editor_clear_file'),
          save: path('app_file_save'),
          copy: path('app_file_copy'),
          image: path('app_file_image'),
@@ -13,8 +14,6 @@
      }|json_encode }}"
      data-editor-ai-config-value="{{ ai_config|json_encode }}"
      data-editor-directory-value="{{ directory }}"
-     {% if initialPath %}data-editor-initial-path-value="{{ initialPath }}"
-     data-editor-initial-content-value="{{ initialContent }}"{% endif %}
      {% if readonly %}data-editor-readonly-value="true"{% endif %}
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">

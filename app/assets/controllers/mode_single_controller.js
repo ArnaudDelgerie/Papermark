@@ -1,8 +1,16 @@
 import { Controller } from '@hotwired/stimulus';
 import { confirmDialog } from '../utils/confirm-dialog.js';
 import { MODE_CHANGE_REQUEST_EVENT } from '../utils/editor-mode.js';
-import { FILE_SAVED_AS_EVENT, dispatchFileDeleted, dispatchFileRenamed, dispatchOpenFile } from '../utils/editor-open.js';
-import { deleteFile, renameFile } from '../utils/file-actions.js';
+import {
+    FILE_DELETED_EVENT,
+    FILE_RENAMED_EVENT,
+    FILE_SAVED_AS_EVENT,
+    dispatchFileChangeRequest,
+    dispatchFileDeleted,
+    dispatchFileRenamed,
+    dispatchFileUpdated,
+} from '../utils/editor-open.js';
+import { deleteFile, renameFile, setCurrentFile } from '../utils/file-actions.js';
 import { renameDialog } from '../utils/rename-dialog.js';
 import { pickPath } from '../utils/tauri.js';
 import { showToast } from '../utils/toast.js';
@@ -12,13 +20,15 @@ const STORAGE_KEY = 'editor.single.history';
 /**
  * History of files opened in single mode: sessionStorage only (lost on app
  * restart, accepted — see EDITOR_FOLDER_MODE.md). Entries are added as soon
- * as the user picks or clicks a path, whether the open that follows succeeds
- * or not; the leave guard (editor_controller, window-level) runs first, so a
- * cancelled open never reaches here.
+ * as the user picks or clicks a path; the leave guard (editor_controller,
+ * window-level) runs first, so a cancelled open never reaches here. Deleted
+ * and renamed files are followed through the file events, whoever acted on
+ * them — including a file found gone (see EDITOR_REACTIVITY.md).
  */
 export default class extends Controller {
     static values = {
         maxEntries: { type: Number, default: 50 },
+        setFileUrl: String,
         deleteUrl: String,
         renameUrl: String,
         fileCsrfToken: String,
@@ -28,6 +38,18 @@ export default class extends Controller {
     static targets = ['list', 'empty', 'loading'];
 
     #onFileSavedAs = (event) => this.#pushHistory(event.detail.path);
+
+    #onFileDeleted = (event) => {
+        this.#writeHistory(this.#readHistory().filter((entry) => entry !== event.detail.path));
+        this.#render();
+    };
+
+    // In place: renaming isn't a re-open, so it doesn't reorder the history.
+    #onFileRenamed = (event) => {
+        const { oldPath, newPath } = event.detail;
+        this.#writeHistory(this.#readHistory().map((entry) => (entry === oldPath ? newPath : entry)));
+        this.#render();
+    };
 
     // The column owns whether it shows: the switch only announces the mode.
     #onModeChangeRequest = (event) => {
@@ -40,11 +62,15 @@ export default class extends Controller {
         // Save as: a new path the user just created, not yet in the history
         // built from Open/history clicks (see EDITOR_FIX.md #5).
         window.addEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
+        window.addEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
+        window.addEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
     }
 
     disconnect() {
         window.removeEventListener(MODE_CHANGE_REQUEST_EVENT, this.#onModeChangeRequest);
         window.removeEventListener(FILE_SAVED_AS_EVENT, this.#onFileSavedAs);
+        window.removeEventListener(FILE_DELETED_EVENT, this.#onFileDeleted);
+        window.removeEventListener(FILE_RENAMED_EVENT, this.#onFileRenamed);
     }
 
     async openFile() {
@@ -54,13 +80,14 @@ export default class extends Controller {
         }
 
         this.#pushHistory(path);
-        dispatchOpenFile(path);
+        await this.#open(path);
     }
 
-    openHistoryEntry(event) {
+    async openHistoryEntry(event) {
         event.preventDefault();
-        this.#pushHistory(event.currentTarget.dataset.path);
-        dispatchOpenFile(event.currentTarget.dataset.path);
+        const { path } = event.currentTarget.dataset;
+        this.#pushHistory(path);
+        await this.#open(path);
     }
 
     async deleteEntry(event) {
@@ -78,11 +105,9 @@ export default class extends Controller {
         }
 
         try {
-            await deleteFile(this.deleteUrlValue, this.fileCsrfTokenValue, path);
+            const { state } = await deleteFile(this.deleteUrlValue, this.fileCsrfTokenValue, path);
             showToast('success', this.i18nValue.deleted ?? 'File deleted');
-            this.#writeHistory(this.#readHistory().filter((entry) => entry !== path));
-            this.#render();
-            dispatchFileDeleted(path);
+            dispatchFileDeleted(path, state);
         } catch (err) {
             console.error('Failed to delete file:', err);
             showToast('error', err.message || this.i18nValue.deleteFailed || 'Failed to delete file');
@@ -104,15 +129,28 @@ export default class extends Controller {
         }
 
         try {
-            const newPath = await renameFile(this.renameUrlValue, this.fileCsrfTokenValue, path, newName);
+            const { path: newPath, state } = await renameFile(this.renameUrlValue, this.fileCsrfTokenValue, path, newName);
             showToast('success', this.i18nValue.renamed ?? 'File renamed');
-            // In place: renaming isn't a re-open, so it doesn't reorder the history.
-            this.#writeHistory(this.#readHistory().map((entry) => (entry === path ? newPath : entry)));
-            this.#render();
-            dispatchFileRenamed(path, newPath);
+            dispatchFileRenamed(path, newPath, state);
         } catch (err) {
             console.error('Failed to rename file:', err);
             showToast('error', err.message || this.i18nValue.renameFailed || 'Failed to rename file');
+        }
+    }
+
+    // The sidebar makes the file the current one and announces it; the editor
+    // fetches the content on the update. A 404 means the file is gone.
+    async #open(path) {
+        dispatchFileChangeRequest(path);
+        try {
+            const { state } = await setCurrentFile(this.setFileUrlValue, this.fileCsrfTokenValue, path);
+            dispatchFileUpdated(state);
+        } catch (err) {
+            console.error('Failed to open file:', err);
+            showToast('error', err.message || 'Failed to open file');
+            if (err.status === 404) {
+                dispatchFileDeleted(path);
+            }
         }
     }
 

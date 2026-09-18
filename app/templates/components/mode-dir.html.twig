@@ -1,11 +1,12 @@
 <div class="editor-sidebar-panel" data-controller="mode-dir"
+     data-mode-dir-set-file-url-value="{{ path('app_editor_set_file') }}"
      data-mode-dir-delete-url-value="{{ path('app_file_delete') }}"
      data-mode-dir-rename-url-value="{{ path('app_file_rename') }}"
      data-mode-dir-file-csrf-token-value="{{ file_csrf_token }}"
      data-mode-dir-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     {{ component('current-directory') }}
 
-    <turbo-frame id="mode-dir-tree" src="{{ path('app_dir_tree') }}" data-mode-dir-target="treeFrame">
+    <turbo-frame id="mode-dir-tree" src="{{ path('app_editor_get_dir') }}" data-mode-dir-target="treeFrame">
         {% include 'components/_sidebar_loading.html.twig' %}
     </turbo-frame>
 </div>

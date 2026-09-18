@@ -3,9 +3,9 @@ import { dispatchModeChangeRequest, dispatchModeUpdated } from '../utils/editor-
 import { showToast } from '../utils/toast.js';
 
 /**
- * Owns which mode is showing. Both columns are already in the page, so the
- * switch happens on the spot and the round trip to the server only settles
- * what the editor should display (see EDITOR_REACTIVITY.md).
+ * Switches the mode. Both columns are already in the page, so the switch
+ * happens on the spot; the round trip to the server records it and brings
+ * back the EditorState, which the editor reacts to (see EDITOR_REACTIVITY.md).
  */
 export default class extends Controller {
     static values = { url: String, csrfToken: String, mode: String, i18n: Object };
@@ -24,8 +24,8 @@ export default class extends Controller {
         this.#show(mode);
 
         try {
-            const { mode: current, path, content } = await this.#setMode(mode);
-            dispatchModeUpdated(current, path, content);
+            const { state } = await this.#setMode(mode);
+            dispatchModeUpdated(state);
         } catch (err) {
             console.error('Failed to switch mode:', err);
             showToast('error', err.message || this.i18nValue.failed || 'Could not switch mode');
