@@ -279,15 +279,7 @@ export default class extends Controller<HTMLElement> {
             onAiError: (error: Error) => showToast('error', (error.cause as Error | undefined)?.message ?? error.message),
         });
 
-        // Wrap .ProseMirror so the scrollable area extends past it, over the
-        // surrounding padding/desk background too, not just the editable sheet.
-        const prosemirror = this.element.querySelector('.ProseMirror');
-        if (prosemirror) {
-            const content = document.createElement('div');
-            content.className = 'editor-content';
-            prosemirror.replaceWith(content);
-            content.appendChild(prosemirror);
-        }
+        this.#wrapScroll();
 
         crepe.on((listener) => {
             listener.markdownUpdated((_ctx, markdown) => {
@@ -379,7 +371,7 @@ export default class extends Controller<HTMLElement> {
     #applyLoadedFile(path: string, content: string): void {
         const crepe = this.#crepe!;
         this.#currentPath = path;
-        crepe.editor.action(replaceAll(content));
+        this.#replaceDocument(crepe, content);
         this.#savedRef = crepe.getMarkdown();
         this.#updateSaveButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
@@ -410,7 +402,7 @@ export default class extends Controller<HTMLElement> {
         if (crepe === null) {
             return;
         }
-        crepe.editor.action(replaceAll(''));
+        this.#replaceDocument(crepe, '');
         this.#currentPath = null;
         this.#savedRef = crepe.getMarkdown();
         this.#updateSaveButton(this.#savedRef);
@@ -418,6 +410,37 @@ export default class extends Controller<HTMLElement> {
         this.#updateCopyMarkdownButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
         this.#updateFilePath();
+    }
+
+    /**
+     * Another document, not an edit of this one: a fresh ProseMirror state
+     * (flush), so undo cannot bring the previous file back. Without flush,
+     * in the hub's WebKitGTK (no overflow-anchor), ProseMirror keeps a
+     * reference node in place across the replacement and scrolls every
+     * parent a few pixels down.
+     *
+     * The flush recreates every plugin view, Milkdown's mounting one too:
+     * .milkdown is rebuilt, the scroll wrapper goes with it, and a new one
+     * starts at the top.
+     */
+    #replaceDocument(crepe: Crepe, markdown: string): void {
+        crepe.editor.action(replaceAll(markdown, true));
+        this.#wrapScroll();
+    }
+
+    /**
+     * Wraps .ProseMirror so the scrollable area extends past it, over the
+     * surrounding padding/desk background too, not just the editable sheet.
+     */
+    #wrapScroll(): void {
+        const prosemirror = this.element.querySelector('.ProseMirror');
+        if (!prosemirror || prosemirror.parentElement?.classList.contains('editor-content')) {
+            return;
+        }
+        const content = document.createElement('div');
+        content.className = 'editor-content';
+        prosemirror.replaceWith(content);
+        content.appendChild(prosemirror);
     }
 
     saveFile(): void {

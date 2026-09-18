@@ -12,11 +12,13 @@ import { jsonResponse, mount, settle, unmount } from './stimulus';
 vi.mock('../../assets/editor/editor-factory', () => ({ default: { create: vi.fn() } }));
 vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
 // The fake Crepe below applies what replaceAll() returns.
-vi.mock('@milkdown/utils', () => ({ replaceAll: (markdown: string) => ({ replaceAll: markdown }) }));
+vi.mock('@milkdown/utils', () => ({ replaceAll: (markdown: string, flush = false) => ({ replaceAll: markdown, flush }) }));
 
 /** Just enough of Crepe for the controller: markdown in, markdown out, updates. */
-function fakeCrepe(): { getMarkdown: () => string; type: (markdown: string) => void } {
+function fakeCrepe(): { getMarkdown: () => string; type: (markdown: string) => void; flushes: boolean[] } {
     let markdown = '';
+    // The flush flag of each replaceAll(): true starts a fresh state.
+    const flushes: boolean[] = [];
     const listeners: Array<(ctx: unknown, markdown: string) => void> = [];
     const set = (value: string): void => {
         markdown = value;
@@ -27,10 +29,12 @@ function fakeCrepe(): { getMarkdown: () => string; type: (markdown: string) => v
         getMarkdown: () => markdown,
         // What typing in the editor does.
         type: set,
+        flushes,
         editor: {
             status: 'fake',
-            action: (command: { replaceAll?: string }) => {
+            action: (command: { replaceAll?: string; flush?: boolean }) => {
                 if (command.replaceAll !== undefined) {
+                    flushes.push(command.flush ?? false);
                     set(command.replaceAll);
                 }
             },
@@ -191,6 +195,13 @@ describe('the editor, with the master', () => {
 
         expect(crepe.getMarkdown()).toBe('# A');
         expect(calls('GET', '/editor/file')).toHaveLength(2);
+    });
+
+    it('loads and empties with a fresh document, so undo cannot bring another file back', async () => {
+        await start(current);
+        click('[data-action="click->editor#newFile"]');
+
+        expect(crepe.flushes).toEqual([true, true]);
     });
 
     it('New empties at once and asks the master to drop the current file', async () => {
