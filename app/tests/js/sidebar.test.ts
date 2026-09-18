@@ -110,7 +110,7 @@ describe('the left column, with the master', () => {
     });
 
     describe('change_dir', () => {
-        it('puts the loader in the tree, then shows the new folder and reloads the tree', async () => {
+        it('keeps the old tree during the request, then empties it and reloads it with the new folder', async () => {
             invoke.mockResolvedValue('/other');
             let answer!: (response: Response) => void;
             fetchMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
@@ -120,7 +120,7 @@ describe('the left column, with the master', () => {
             await settle();
 
             expect(invoke).toHaveBeenCalledWith('pick_path', { kind: 'directory' });
-            expect($('turbo-frame .sidebar-loading')).not.toBeNull();
+            expect($('turbo-frame .mode-tree')).not.toBeNull();
             expect($<HTMLButtonElement>('[data-current-directory-target="openButton"]').disabled).toBe(true);
 
             answer(jsonResponse({ state: { mode: 'dir', file: null, dir: '/real/other' }, action: { path: '/real/other' } }));
@@ -128,10 +128,11 @@ describe('the left column, with the master', () => {
 
             expect($('[data-current-directory-target="path"]').textContent).toBe('/real/other');
             expect($<HTMLButtonElement>('[data-current-directory-target="openButton"]').disabled).toBe(false);
+            expect($('turbo-frame').childElementCount).toBe(0);
             expect(reload).toHaveBeenCalledTimes(1);
         });
 
-        it('on failure, keeps the previous folder and still reloads the tree to leave the loader', async () => {
+        it('on failure, keeps the previous folder and its tree as they are', async () => {
             invoke.mockResolvedValue('/gone');
             fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, error: 'Folder not found' }, 404));
             await start([], 'dir');
@@ -140,7 +141,8 @@ describe('the left column, with the master', () => {
             await settle();
 
             expect($('[data-current-directory-target="path"]').textContent).toBe('/notes');
-            expect(reload).toHaveBeenCalledTimes(1);
+            expect($('turbo-frame .mode-tree')).not.toBeNull();
+            expect(reload).not.toHaveBeenCalled();
             expect(toasts).toEqual([{ type: 'error', message: 'Folder not found' }]);
         });
 
@@ -152,6 +154,117 @@ describe('the left column, with the master', () => {
             await settle();
 
             expect(fetchMock).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('refresh_dir', () => {
+        const refreshButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-mode-dir-target="refreshButton"]');
+
+        it('turns the button until the tree has reloaded, without a loader in the tree', async () => {
+            let answer!: (response: Response) => void;
+            fetchMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+            await start([], 'dir');
+            let reloaded!: () => void;
+            reload.mockReturnValue(new Promise<void>((resolve) => (reloaded = resolve)));
+
+            click('[data-action="click->mode-dir#refresh"]');
+            await settle();
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe('/editor/dir/refresh');
+            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-dir' });
+            expect(refreshButton().disabled).toBe(true);
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(true);
+
+            answer(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: {} }));
+            await settle();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect(refreshButton().disabled).toBe(true);
+
+            reloaded();
+            await settle();
+
+            expect(refreshButton().disabled).toBe(false);
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
+        });
+
+        it('turns until the first load of the tree is rendered', async () => {
+            let loaded!: () => void;
+            const firstLoad = new Promise<void>((resolve) => (loaded = resolve));
+            // Turbo starts the eager load before Stimulus connects.
+            Object.defineProperty(HTMLElement.prototype, 'loaded', {
+                configurable: true,
+                get(this: HTMLElement) {
+                    return this.localName === 'turbo-frame' ? firstLoad : undefined;
+                },
+            });
+            try {
+                await start([], 'dir');
+
+                expect(refreshButton().classList.contains('is-refreshing')).toBe(true);
+
+                loaded();
+                await settle();
+
+                expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
+            } finally {
+                delete (HTMLElement.prototype as { loaded?: unknown }).loaded;
+            }
+        });
+
+        it('also turns while the tree reloads after a delete, until the reload settles', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(true);
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: { path: '/notes/b.md' } }));
+            await start([], 'dir');
+            let reloaded!: () => void;
+            reload.mockReturnValue(new Promise<void>((resolve) => (reloaded = resolve)));
+
+            click('[data-action="click->mode-dir#deleteEntry"]');
+            await settle();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(true);
+
+            reloaded();
+            await settle();
+
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
+        });
+
+        it('keeps turning while a later reload runs: the cancelled one never settles', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: {} }));
+            await start([], 'dir');
+            const settles: Array<() => void> = [];
+            reload.mockImplementation(() => new Promise<void>((resolve) => settles.push(resolve)));
+
+            click('[data-action="click->mode-dir#refresh"]');
+            await settle();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            emit('editor:do-delete-succeeded', { state: { ...INITIAL, mode: 'dir' }, action: { path: '/notes/b.md' } });
+            expect(reload).toHaveBeenCalledTimes(2);
+
+            settles[0]();
+            await settle();
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(true);
+
+            settles[1]();
+            await settle();
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
+        });
+
+        it('on failure, stops turning and leaves the tree alone', async () => {
+            fetchMock.mockRejectedValue(new TypeError('Network down'));
+            await start([], 'dir');
+
+            click('[data-action="click->mode-dir#refresh"]');
+            await settle();
+
+            expect(reload).not.toHaveBeenCalled();
+            expect(refreshButton().disabled).toBe(false);
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
+            expect(toasts).toEqual([{ type: 'error', message: 'Generic failure' }]);
         });
     });
 

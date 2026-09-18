@@ -105,6 +105,7 @@ components:
             empty: Aucun dossier ouvert
             too_large: Ce dossier est trop volumineux pour être affiché
             no_markdown: Aucun fichier Markdown dans ce dossier
+            refresh: Rafraîchir l'arborescence
         file:
             rename: Renommer
             delete: Supprimer

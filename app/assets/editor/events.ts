@@ -32,6 +32,7 @@ interface Requests {
     'nav-change_dir': { path: string };
     'nav-change_file': { path: string };
     'nav-new_file': Record<string, never>;
+    'nav-refresh_dir': Record<string, never>;
     'do-save': { path: string; content: string };
     'do-save_as': { path: string; content: string };
     'do-delete': { path: string };
@@ -44,6 +45,7 @@ interface Results {
     'nav-change_dir': { path: string };
     'nav-change_file': { path: string };
     'nav-new_file': Record<string, never>;
+    'nav-refresh_dir': Record<string, never>;
     'do-save': { path: string };
     'do-save_as': { path: string };
     'do-delete': { path: string };

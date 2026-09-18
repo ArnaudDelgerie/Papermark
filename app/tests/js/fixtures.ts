@@ -13,7 +13,7 @@ export function masterHtml(state: EditorState = INITIAL, inner = ''): string {
         data-editor-state-state-value="${attr(state)}"
         data-editor-state-urls-value="${attr({
             state: '/editor/state', mode: '/editor/mode', file: '/editor/file', dir: '/editor/dir',
-            save: '/file/save', delete: '/file/delete', rename: '/file/rename',
+            refreshDir: '/editor/dir/refresh', save: '/file/save', delete: '/file/delete', rename: '/file/rename',
         })}"
         data-editor-state-tokens-value="${attr({ mode: 'tk-mode', file: 'tk-file', dir: 'tk-dir' })}"
         data-editor-state-i18n-value="${attr({ failed: 'Generic failure' })}">${inner}</div>`;
@@ -52,6 +52,7 @@ export function sidebarHtml(mode: EditorState['mode'] = 'single', dir: string | 
                 data-action="click->current-directory#change">Open folder</button>
             <p data-current-directory-target="path"${dir ? '' : ' hidden'}>${dir ?? ''}</p>
         </div>
+        <button type="button" data-mode-dir-target="refreshButton" data-action="click->mode-dir#refresh">Refresh</button>
         <turbo-frame id="mode-dir-tree" data-mode-dir-target="treeFrame">
             <ul class="mode-tree">
                 <li><a href="#" data-action="click->mode-dir#openFile" data-path="/notes/b.md">b.md</a>
@@ -60,6 +61,5 @@ export function sidebarHtml(mode: EditorState['mode'] = 'single', dir: string | 
                 </li>
             </ul>
         </turbo-frame>
-    </div>
-    <template id="sidebar-loading"><p class="sidebar-loading">Loading…</p></template>`;
+    </div>`;
 }

@@ -170,9 +170,10 @@ final class EditorController extends AbstractController
 
     /**
      * Content of the tree frame: loaded asynchronously so the column paints
-     * before DirectoryTree::build has walked the folder, and reloaded after
-     * an in-app change (Save as, delete, rename, change of current folder) —
-     * not a filesystem watcher, see EDITOR_FOLDER_MODE.md.
+     * before the folder has been walked, and reloaded after an in-app change
+     * (Save as, delete, rename, change of current folder, refresh) — not a
+     * filesystem watcher, see EDITOR_FOLDER_MODE.md. The walk is cached: see
+     * OpenDirectoryTree.
      */
     #[Route('/editor/dir', name: 'app_editor_get_dir', methods: ['GET'])]
     public function getDir(OpenDirectoryTree $openDirectoryTree): Response
@@ -188,7 +189,7 @@ final class EditorController extends AbstractController
      * location (see EDITOR_FOLDER_MODE.md).
      */
     #[Route('/editor/dir', name: 'app_editor_set_dir', methods: ['POST'])]
-    public function setDir(Request $request): JsonResponse
+    public function setDir(Request $request, OpenDirectoryTree $openDirectoryTree): JsonResponse
     {
         if (!$this->isCsrfTokenValidFromHeader($request, 'dir')) {
             return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
@@ -201,8 +202,26 @@ final class EditorController extends AbstractController
         }
 
         $this->editorState->setDir($realPath);
+        $openDirectoryTree->forget();
 
         return $this->stateResponse(['path' => $realPath]);
+    }
+
+    /**
+     * The refresh button of the tree: forgets the cached walk, so the frame
+     * reload that follows sees what changed on disk outside the app. The
+     * state doesn't change; it comes back like from every write.
+     */
+    #[Route('/editor/dir/refresh', name: 'app_editor_refresh_dir', methods: ['POST'])]
+    public function refreshDir(Request $request, OpenDirectoryTree $openDirectoryTree): JsonResponse
+    {
+        if (!$this->isCsrfTokenValidFromHeader($request, 'dir')) {
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $openDirectoryTree->forget();
+
+        return $this->stateResponse([]);
     }
 
     private function isCsrfTokenValidFromHeader(Request $request, string $id): bool

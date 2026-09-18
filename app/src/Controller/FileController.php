@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Editor\EditorState;
 use App\File\MarkdownImageUrls;
+use App\File\OpenDirectoryTree;
 use App\File\PathResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -33,6 +34,7 @@ final class FileController extends AbstractController
         private readonly PathResolver $pathResolver,
         private readonly MarkdownImageUrls $markdownImageUrls,
         private readonly EditorState $editorState,
+        private readonly OpenDirectoryTree $openDirectoryTree,
     ) {
     }
 
@@ -135,6 +137,7 @@ final class FileController extends AbstractController
         if ($result === false) {
             return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+        $this->openDirectoryTree->fileAdded($realPath);
 
         // Same path on a plain save; on a Save as, the new file becomes the
         // current one, so a reload reopens it (see EDITOR_REACTIVITY.md).
@@ -168,6 +171,7 @@ final class FileController extends AbstractController
         if (!@unlink($realPath)) {
             return $this->stateErrorResponse('delete_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+        $this->openDirectoryTree->fileRemoved($realPath);
 
         if ($this->editorState->getFile() === $realPath) {
             $this->editorState->setFile(null);
@@ -216,6 +220,7 @@ final class FileController extends AbstractController
         if (!@rename($realPath, $newPath)) {
             return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+        $this->openDirectoryTree->fileRenamed($realPath, $newPath);
 
         if ($this->editorState->getFile() === $realPath) {
             $this->editorState->setFile($newPath);

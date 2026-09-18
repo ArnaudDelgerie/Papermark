@@ -426,7 +426,7 @@ final class EditorControllerTest extends WebTestCase
         $this->removeDirectory($root);
     }
 
-    public function testGetDirReflectsFilesAddedAfterTheFolderWasSet(): void
+    public function testGetDirKeepsItsWalkUntilTheTreeIsRefreshed(): void
     {
         $client = $this->createClientWithTokens();
 
@@ -435,16 +435,65 @@ final class EditorControllerTest extends WebTestCase
         file_put_contents($root . '/first.md', '# First');
 
         $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $client->request('GET', '/editor/dir');
 
-        // Simulates a Save as into the current folder landing on disk after the page rendered.
+        // A file written outside the app: the cached walk doesn't know it.
         file_put_contents($root . '/second.md', '# Second');
 
         $crawler = $client->request('GET', '/editor/dir');
+        self::assertSame(0, $crawler->filter('a[data-path="' . $root . '/second.md"]')->count());
 
+        $this->post($client, '/editor/dir/refresh', 'dir', []);
         self::assertResponseIsSuccessful();
+        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root], $this->responseState($client));
+        self::assertSame([], $this->responseData($client)['action']);
+
+        $crawler = $client->request('GET', '/editor/dir');
         self::assertSame(1, $crawler->filter('a[data-path="' . $root . '/second.md"]')->count());
 
         $this->removeDirectory($root);
+    }
+
+    public function testInAppWritesUpdateTheTreeWithoutARefresh(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/dir_mode_writes_' . uniqid();
+        mkdir($root);
+        mkdir($root . '/empty_yet');
+        mkdir($root . '/only_one');
+        file_put_contents($root . '/kept.md', '# Kept');
+        file_put_contents($root . '/old.md', '# Old');
+        file_put_contents($root . '/only_one/last.md', '# Last');
+
+        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $client->request('GET', '/editor/dir');
+
+        $this->post($client, '/file/save', 'file', ['path' => $root . '/empty_yet/new.md', 'content' => '# New']);
+        $this->post($client, '/file/save', 'file', ['path' => $root . '/notes.txt', 'content' => 'not listed']);
+        $this->post($client, '/file/delete', 'file', ['path' => $root . '/only_one/last.md']);
+        $this->post($client, '/file/rename', 'file', ['path' => $root . '/old.md', 'name' => 'renamed.md']);
+
+        $crawler = $client->request('GET', '/editor/dir');
+        $paths = $crawler->filter('.mode-tree a[data-path]')->each(static fn ($node) => $node->attr('data-path'));
+        sort($paths);
+        self::assertSame([$root . '/empty_yet/new.md', $root . '/kept.md', $root . '/renamed.md'], $paths);
+
+        // A folder left without any .md goes, like after a walk.
+        $dirNames = $crawler->filter('.mode-tree-dir-name')->each(static fn ($node) => trim($node->text()));
+        self::assertSame(['empty_yet'], $dirNames);
+
+        $this->removeDirectory($root);
+    }
+
+    public function testRefreshDirRejectsAnInvalidCsrfToken(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/editor/dir/refresh', [], [], ['HTTP_X_CSRF_TOKEN' => 'invalid']);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertArrayHasKey('state', $this->responseData($client));
     }
 
     public function testGetDirShowsErrorWhenTraversalCapIsExceeded(): void

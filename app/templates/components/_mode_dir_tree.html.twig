@@ -1,5 +1,5 @@
 {% macro tree_file(file) %}
-    <li class="mode-tree-file">
+    <li class="mode-tree-file" id="mode-tree-{{ file.path }}">
         <a href="#" data-action="click->mode-dir#openFile" data-path="{{ file.path }}" data-editor-leave-guard>
             <span class="mode-tree-label">{{ file.name }}</span>
         </a>
@@ -19,7 +19,7 @@
 {% endmacro %}
 
 {% macro tree_dir(node) %}
-    <li class="mode-tree-dir">
+    <li class="mode-tree-dir" id="mode-tree-{{ node.path }}">
         <details>
             <summary class="mode-tree-dir-name">
                 <span class="mode-tree-label">{{ node.name }}</span>

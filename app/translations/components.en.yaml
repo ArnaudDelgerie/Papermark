@@ -105,6 +105,7 @@ components:
             empty: No folder open
             too_large: This folder is too large to display
             no_markdown: No Markdown files in this folder
+            refresh: Refresh the tree
         file:
             rename: Rename
             delete: Delete

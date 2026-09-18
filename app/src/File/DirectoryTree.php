@@ -33,23 +33,52 @@ final class DirectoryTree
     public function build(string $root): DirectoryTreeResult
     {
         $root = rtrim($root, '/');
+        $relativePaths = $this->scan($root);
 
+        return $relativePaths === null ? DirectoryTreeResult::tooLarge() : $this->fromPaths($root, $relativePaths);
+    }
+
+    /**
+     * The walk: the .md files below `$root`, relative to it and '/'-separated,
+     * or null past the traversal cap. This is the costly part, kept apart so
+     * that OpenDirectoryTree can cache its result.
+     *
+     * @return string[]|null
+     */
+    public function scan(string $root): ?array
+    {
         $finder = new Finder();
-        $finder->in($root)->ignoreDotFiles(false)->ignoreVCS(false);
+        $finder->in(rtrim($root, '/'))->ignoreDotFiles(false)->ignoreVCS(false);
 
         $mdFiles = [];
         $count = 0;
         foreach ($finder as $fileInfo) {
             if (++$count > $this->maxItems) {
-                return DirectoryTreeResult::tooLarge();
+                return null;
             }
 
-            if ($fileInfo->isFile() && strtolower($fileInfo->getExtension()) === 'md') {
+            if ($fileInfo->isFile() && self::isListed($fileInfo->getFilename())) {
                 $mdFiles[] = $fileInfo->getRelativePathname();
             }
         }
 
-        return DirectoryTreeResult::ok($this->buildNode(basename($root), $root, $mdFiles));
+        return $mdFiles;
+    }
+
+    /**
+     * @param string[] $relativePaths as scan() returns them
+     */
+    public function fromPaths(string $root, array $relativePaths): DirectoryTreeResult
+    {
+        $root = rtrim($root, '/');
+
+        return DirectoryTreeResult::ok($this->buildNode(basename($root), $root, $relativePaths));
+    }
+
+    /** Whether the tree shows this file: .md only, whatever the case. */
+    public static function isListed(string $path): bool
+    {
+        return strtolower(pathinfo($path, \PATHINFO_EXTENSION)) === 'md';
     }
 
     /**

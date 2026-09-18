@@ -1,8 +1,15 @@
-<div class="editor-sidebar-panel" data-controller="mode-dir"
+<div class="editor-sidebar-panel mode-dir-panel" data-controller="mode-dir"
      data-mode-dir-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     {{ component('current-directory') }}
 
-    <turbo-frame id="mode-dir-tree" src="{{ path('app_editor_get_dir') }}" data-mode-dir-target="treeFrame">
-        {% include 'components/_sidebar_loading.html.twig' %}
-    </turbo-frame>
+    <div class="mode-dir-toolbar">
+        <button type="button" class="mode-dir-refresh" data-mode-dir-target="refreshButton"
+                data-action="click->mode-dir#refresh"
+                title="{{ 'components.mode.tree.refresh'|trans({}, 'components') }}">
+            <span class="visually-hidden">{{ 'components.mode.tree.refresh'|trans({}, 'components') }}</span>
+        </button>
+    </div>
+
+    <turbo-frame id="mode-dir-tree" src="{{ path('app_editor_get_dir') }}" refresh="morph"
+                 data-mode-dir-target="treeFrame" data-action="turbo:before-morph-attribute->mode-dir#keepFolderState"></turbo-frame>
 </div>
