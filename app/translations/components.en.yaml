@@ -74,6 +74,7 @@ components:
             ai_failed: The AI request failed
             invalid_directory: Folder not found
             invalid_mode: Unknown editor mode
+            request_failed: The action failed, please try again
             key_delete_failed: Could not delete the API key
             invalid_name: Invalid file name
             rename_target_exists: A file with that name already exists
@@ -98,8 +99,6 @@ components:
         dir: Folder
         open_directory: Open folder
         loading: Loading…
-        open_directory_failed: Could not open the folder
-        switch_failed: Could not switch mode
         history:
             empty: No recent files
         tree:
@@ -114,8 +113,6 @@ components:
             delete_confirm_question: 'Delete "{name}"?'
             deleted: File deleted
             renamed: File renamed
-            rename_failed: Failed to rename file
-            delete_failed: Failed to delete file
     settings:
         title: Settings
         back: ← Back

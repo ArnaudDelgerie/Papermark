@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Ai\AiAvailability;
 use App\Editor\EditorMode;
 use App\Editor\EditorState;
 use App\File\MarkdownFileReader;
@@ -19,8 +20,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Everything that reads or writes the EditorState lives under /editor. The
- * routes that write it return {state} whether or not they changed anything,
- * so the caller never has to guess (see EDITOR_REACTIVITY.md).
+ * routes that write it return {state, action} whether or not they changed
+ * anything, so the caller never has to guess, and {error, state} when they
+ * refuse: the state may have been corrected meanwhile (see EDITOR_REACTIVITY.md,
+ * S5-S6). `action` is what was done, paths realpath'd.
  */
 final class EditorController extends AbstractController
 {
@@ -40,16 +43,30 @@ final class EditorController extends AbstractController
      * decides which one shows — and it is read from the session, never from
      * the URL, otherwise a reload would undo a switch made without navigating.
      * The editor gets no file here: it fetches it itself through getFile().
+     *
+     * `state` hydrates the client store (the editor-state controller). It adds
+     * what the routes don't send yet: `readonly`, always off at load, and
+     * `ai_enabled` (see EDITOR_TS_MIGRATION.md).
      */
     #[Route('/editor', name: 'app_editor', methods: ['GET'])]
-    public function index(): Response
+    public function index(AiAvailability $aiAvailability): Response
     {
-        $mode = $this->editorState->getMode();
+        $state = $this->editorState->toArray();
 
         return $this->render('editor/page.html.twig', [
-            'mode' => $mode->value,
-            'directory' => $mode === EditorMode::Dir ? $this->editorState->getDir() : null,
+            'mode' => $state['mode'],
+            'state' => [...$state, 'readonly' => false, 'ai_enabled' => $aiAvailability->isEnabled()],
         ]);
+    }
+
+    /**
+     * The state as the session holds it, re-read by the client store after a
+     * read found it pointing at something gone (the anomaly, S5).
+     */
+    #[Route('/editor/state', name: 'app_editor_get_state', methods: ['GET'])]
+    public function getState(): JsonResponse
+    {
+        return new JsonResponse(['state' => $this->editorState->toArray()]);
     }
 
     /**
@@ -59,18 +76,18 @@ final class EditorController extends AbstractController
     public function setMode(Request $request): JsonResponse
     {
         if (!$this->isCsrfTokenValidFromHeader($request, 'mode')) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $value = $request->request->get('mode');
         $mode = \is_string($value) ? EditorMode::tryFrom($value) : null;
         if ($mode === null) {
-            return $this->errorResponse('invalid_mode', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('invalid_mode', Response::HTTP_BAD_REQUEST);
         }
 
         $this->editorState->setMode($mode);
 
-        return $this->stateResponse();
+        return $this->stateResponse(['mode' => $mode->value]);
     }
 
     /**
@@ -108,16 +125,16 @@ final class EditorController extends AbstractController
     public function setFile(Request $request): JsonResponse
     {
         if (!$this->isCsrfTokenValidFromHeader($request, 'file')) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $path = $request->request->get('path');
         if (!\is_string($path) || $path === '') {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
         if (!$this->fileReader->supports($path)) {
-            return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
         $realPath = realpath($path);
@@ -128,12 +145,12 @@ final class EditorController extends AbstractController
                 $this->editorState->setFile(null);
             }
 
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         $this->editorState->setFile($realPath);
 
-        return $this->stateResponse();
+        return $this->stateResponse(['path' => $realPath]);
     }
 
     /**
@@ -143,12 +160,12 @@ final class EditorController extends AbstractController
     public function clearFile(Request $request): JsonResponse
     {
         if (!$this->isCsrfTokenValidFromHeader($request, 'file')) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $this->editorState->setFile(null);
 
-        return $this->stateResponse();
+        return $this->stateResponse([]);
     }
 
     /**
@@ -174,18 +191,18 @@ final class EditorController extends AbstractController
     public function setDir(Request $request): JsonResponse
     {
         if (!$this->isCsrfTokenValidFromHeader($request, 'dir')) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $path = $request->request->get('path');
         $realPath = \is_string($path) ? realpath($path) : false;
         if ($realPath === false || !is_dir($realPath)) {
-            return $this->errorResponse('invalid_directory', Response::HTTP_NOT_FOUND);
+            return $this->stateErrorResponse('invalid_directory', Response::HTTP_NOT_FOUND);
         }
 
         $this->editorState->setDir($realPath);
 
-        return $this->stateResponse();
+        return $this->stateResponse(['path' => $realPath]);
     }
 
     private function isCsrfTokenValidFromHeader(Request $request, string $id): bool
@@ -195,16 +212,19 @@ final class EditorController extends AbstractController
         return \is_string($token) && $this->csrfTokenManager->isTokenValid(new CsrfToken($id, $token));
     }
 
-    private function stateResponse(): JsonResponse
+    /**
+     * @param array<string, string> $action what was done, as an object even when empty
+     */
+    private function stateResponse(array $action): JsonResponse
     {
-        return new JsonResponse(['state' => $this->editorState->toArray()]);
+        return new JsonResponse(['state' => $this->editorState->toArray(), 'action' => (object) $action]);
     }
 
-    private function errorResponse(string $key, int $status): JsonResponse
+    private function stateErrorResponse(string $key, int $status): JsonResponse
     {
-        return new JsonResponse(
-            ['error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN)],
-            $status,
-        );
+        return new JsonResponse([
+            'error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN),
+            'state' => $this->editorState->toArray(),
+        ], $status);
     }
 }

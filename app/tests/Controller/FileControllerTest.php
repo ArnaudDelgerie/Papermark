@@ -128,6 +128,8 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame($savedAs, $this->responseState($client)['file']);
+        // The markdown never comes back.
+        self::assertSame(['path' => $savedAs], json_decode((string) $client->getResponse()->getContent(), true)['action']);
 
         $client->request('GET', '/editor/file');
         self::assertSame(
@@ -178,6 +180,7 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertFileDoesNotExist($path);
+        self::assertSame(['path' => $path], json_decode((string) $client->getResponse()->getContent(), true)['action']);
     }
 
     public function testDeleteReturns404ForMissingFile(): void
@@ -189,6 +192,8 @@ final class FileControllerTest extends WebTestCase
         ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(404);
+        // A refusal still carries the state (S6).
+        self::assertSame(['mode', 'file', 'dir'], array_keys($this->responseState($client)));
     }
 
     public function testDeleteRejectsInvalidCsrf(): void
@@ -231,7 +236,7 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame($expectedPath, $data['path']);
+        self::assertSame(['oldPath' => $path, 'newPath' => $expectedPath], $data['action']);
         self::assertFileDoesNotExist($path);
         self::assertSame('# Hello', file_get_contents($expectedPath));
 

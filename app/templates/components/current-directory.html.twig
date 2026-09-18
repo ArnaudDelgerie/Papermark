@@ -1,7 +1,4 @@
-<div class="current-directory" data-controller="current-directory"
-     data-current-directory-set-dir-url-value="{{ path('app_editor_set_dir') }}"
-     data-current-directory-csrf-token-value="{{ csrf_token }}"
-     data-current-directory-i18n-value="{{ i18n|json_encode }}">
+<div class="current-directory" data-controller="current-directory">
     <button type="button" class="editor-sidebar-btn" data-current-directory-target="openButton"
             data-action="click->current-directory#change" data-editor-leave-guard>
         <span class="mode-dir-open-label">{{ 'components.mode.open_directory'|trans({}, 'components') }}</span>

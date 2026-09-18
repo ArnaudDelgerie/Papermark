@@ -2,9 +2,9 @@
 // Controllers use this to show it before a fetch, when no frame is busy yet.
 const TEMPLATE_ID = 'sidebar-loading';
 
-export function showLoading(element) {
+export function showLoading(element: Element): void {
     const template = document.getElementById(TEMPLATE_ID);
-    if (!template) {
+    if (!(template instanceof HTMLTemplateElement)) {
         return;
     }
 

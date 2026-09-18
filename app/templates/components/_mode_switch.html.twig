@@ -1,11 +1,7 @@
 {# No server-side state of its own, so a partial rather than a component: the
-   current mode comes from the shell's context, the rest is a route and a token.
+   current mode comes from the shell's context; the master (editor-state) posts it.
    Buttons, not links: the mode is posted, there is no page to navigate to. #}
-<nav class="mode-selector" data-controller="mode-switch"
-     data-mode-switch-url-value="{{ path('app_editor_set_mode') }}"
-     data-mode-switch-csrf-token-value="{{ csrf_token('mode') }}"
-     data-mode-switch-mode-value="{{ mode }}"
-     data-mode-switch-i18n-value="{{ { failed: 'components.mode.switch_failed'|trans({}, 'components') }|json_encode }}">
+<nav class="mode-selector" data-controller="mode-switch">
     <button type="button" data-mode="single"
        class="mode-selector-link{% if mode == 'single' %} is-active{% endif %}"
        data-mode-switch-target="link" data-action="mode-switch#change" data-editor-leave-guard>

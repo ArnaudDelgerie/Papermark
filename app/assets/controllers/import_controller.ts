@@ -1,8 +1,15 @@
 import { Controller } from '@hotwired/stimulus';
-import { pickPath } from '../utils/tauri.js';
-import { showToast } from '../utils/toast.js';
+import { pickPath } from '../utils/tauri';
+import { showToast } from '../utils/toast';
 
-function dirname(path) {
+interface I18n {
+    noSource: string;
+    failed: string;
+    done: string;
+    report: { title: string; empty: string };
+}
+
+function dirname(path: string): string {
     const idx = path.lastIndexOf('/');
 
     return idx > 0 ? path.slice(0, idx) : '/';
@@ -26,10 +33,19 @@ export default class extends Controller {
         i18n: Object,
     };
 
+    declare readonly archivePathTarget: HTMLElement;
+    declare readonly parentPathTarget: HTMLElement;
+    declare readonly importButtonTarget: HTMLButtonElement;
+    declare readonly reportTarget: HTMLElement;
+    declare readonly csrfTokenValue: string;
+    declare readonly runUrlValue: string;
+    declare readonly homeUrlValue: string;
+    declare readonly i18nValue: I18n;
+
     #archivePath = '';
     #parentPath = '';
 
-    async browseArchive() {
+    async browseArchive(): Promise<void> {
         const path = await pickPath('file');
         if (path === null) {
             return;
@@ -47,7 +63,7 @@ export default class extends Controller {
         }
     }
 
-    async browseParent() {
+    async browseParent(): Promise<void> {
         const path = await pickPath('directory');
         if (path === null) {
             return;
@@ -57,7 +73,7 @@ export default class extends Controller {
         this.parentPathTarget.textContent = path;
     }
 
-    async run() {
+    async run(): Promise<void> {
         if (!this.#archivePath || !this.#parentPath) {
             showToast('error', this.i18nValue.noSource);
             return;
@@ -91,13 +107,13 @@ export default class extends Controller {
             }
         } catch (err) {
             console.error('Failed to import archive:', err);
-            showToast('error', err.message || this.i18nValue.failed);
+            showToast('error', (err as Error).message || this.i18nValue.failed);
         } finally {
             this.importButtonTarget.disabled = false;
         }
     }
 
-    #renderReport(ignoredEntries) {
+    #renderReport(ignoredEntries: string[]): void {
         const i18n = this.i18nValue.report;
         this.reportTarget.replaceChildren();
 

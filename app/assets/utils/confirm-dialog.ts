@@ -1,7 +1,14 @@
-// Same native <dialog> approach as confirm-dialog.js (the webview handles no
-// native browser dialogs, so window.prompt() isn't an option either).
-// Resolves to the trimmed new name, or null if cancelled/left unchanged.
-export function renameDialog({ currentName, message, cancelLabel = 'Cancel', continueLabel = 'Rename' }) {
+// The webview shows no native confirm(): the hub doesn't handle JS dialogs.
+// `message` is optional informative context (e.g. what's about to happen);
+// `question` is the actual yes/no prompt and is always shown.
+export interface ConfirmDialogOptions {
+    message?: string;
+    question: string;
+    cancelLabel?: string;
+    continueLabel?: string;
+}
+
+export function confirmDialog({ message, question, cancelLabel = 'Cancel', continueLabel = 'Continue' }: ConfirmDialogOptions): Promise<boolean> {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.className = 'editor-confirm-dialog';
@@ -13,14 +20,10 @@ export function renameDialog({ currentName, message, cancelLabel = 'Cancel', con
             dialog.append(messageEl);
         }
 
-        const form = document.createElement('form');
-        form.method = 'dialog';
-
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'editor-confirm-dialog-input';
-        input.value = currentName;
-        form.append(input);
+        const questionEl = document.createElement('p');
+        questionEl.className = 'editor-confirm-dialog-question';
+        questionEl.textContent = question;
+        dialog.append(questionEl);
 
         const actions = document.createElement('div');
         actions.className = 'editor-confirm-dialog-actions';
@@ -31,27 +34,21 @@ export function renameDialog({ currentName, message, cancelLabel = 'Cancel', con
         cancel.addEventListener('click', () => dialog.close('cancel'));
 
         const cont = document.createElement('button');
-        cont.type = 'submit';
+        cont.type = 'button';
         cont.className = 'editor-confirm-continue';
         cont.textContent = continueLabel;
+        cont.addEventListener('click', () => dialog.close('continue'));
 
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            dialog.close('rename');
-        });
-
+        // Escape closes it too, with an empty returnValue.
         dialog.addEventListener('close', () => {
             dialog.remove();
-            const newName = input.value.trim();
-            resolve(dialog.returnValue === 'rename' && newName !== '' && newName !== currentName ? newName : null);
+            resolve(dialog.returnValue === 'continue');
         });
 
         actions.append(cancel, cont);
-        form.append(actions);
-        dialog.append(form);
+        dialog.append(actions);
         document.body.append(dialog);
         dialog.showModal();
-        input.focus();
-        input.select();
+        cancel.focus();
     });
 }

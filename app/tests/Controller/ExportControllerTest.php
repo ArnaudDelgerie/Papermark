@@ -53,8 +53,9 @@ final class ExportControllerTest extends WebTestCase
         $client->disableReboot();
 
         $crawler = $client->request('GET', '/editor');
-        $modeToken = $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-csrf-token-value');
-        $dirToken = $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-csrf-token-value');
+        $tokens = json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-tokens-value'), true);
+        $modeToken = $tokens['mode'];
+        $dirToken = $tokens['dir'];
 
         $client->request('POST', '/editor/mode', ['mode' => 'dir'], [], ['HTTP_X-CSRF-TOKEN' => $modeToken]);
         $client->request('POST', '/editor/dir', ['path' => $this->workDir], [], ['HTTP_X-CSRF-TOKEN' => $dirToken]);
@@ -293,7 +294,7 @@ final class ExportControllerTest extends WebTestCase
         $client->request('GET', '/');
         self::assertResponseRedirects('/editor');
         $crawler = $client->followRedirect();
-        self::assertSame('single', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+        self::assertSame('single', json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-state-value'), true)['mode']);
 
         $client->request('GET', '/editor/file');
         self::assertSame(
@@ -329,7 +330,7 @@ final class ExportControllerTest extends WebTestCase
         $client->request('GET', '/');
         self::assertResponseRedirects('/editor');
         $crawler = $client->followRedirect();
-        self::assertSame('dir', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+        self::assertSame('dir', json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-state-value'), true)['mode']);
     }
 
     /**

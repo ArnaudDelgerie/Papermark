@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Twig\Components;
 
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
 use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
@@ -24,19 +23,8 @@ final class ModeDir
     public bool $active = false;
 
     public function __construct(
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
-    }
-
-    /**
-     * Delete/rename (EDITOR_FIX.md #5) reuse the 'file' CSRF token already
-     * used by FileController's other fetch actions.
-     */
-    #[ExposeInTemplate(name: 'file_csrf_token')]
-    public function getFileCsrfToken(): string
-    {
-        return $this->csrfTokenManager->getToken('file')->getValue();
     }
 
     /**
@@ -53,8 +41,6 @@ final class ModeDir
             'deleteConfirmQuestion' => $this->trans('delete_confirm_question'),
             'deleted' => $this->trans('deleted'),
             'renamed' => $this->trans('renamed'),
-            'renameFailed' => $this->trans('rename_failed'),
-            'deleteFailed' => $this->trans('delete_failed'),
         ];
     }
 

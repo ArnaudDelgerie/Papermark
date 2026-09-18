@@ -1,16 +1,32 @@
 import { Controller } from '@hotwired/stimulus';
-import { pickPath, savePath } from '../utils/tauri.js';
-import { showToast } from '../utils/toast.js';
+import { type SaveFilter, pickPath, savePath } from '../utils/tauri';
+import { showToast } from '../utils/toast';
 
-const ZIP_FILTERS = [{ name: 'Zip', extensions: ['zip'] }];
+const ZIP_FILTERS: SaveFilter[] = [{ name: 'Zip', extensions: ['zip'] }];
 
-function dirname(path) {
+type Kind = 'file' | 'directory';
+
+/** A reference ExportController left at its original path. */
+interface ReportIssue {
+    originalTarget: string;
+    reason: string;
+    referencingPath: string;
+}
+
+interface I18n {
+    noSource: string;
+    failed: string;
+    done: string;
+    report: { title: string; empty: string; reason: Record<string, string> };
+}
+
+function dirname(path: string): string {
     const idx = path.lastIndexOf('/');
 
     return idx > 0 ? path.slice(0, idx) : '/';
 }
 
-function basename(path) {
+function basename(path: string): string {
     return path.slice(path.lastIndexOf('/') + 1);
 }
 
@@ -33,11 +49,24 @@ export default class extends Controller {
         i18n: Object,
     };
 
-    #kind = 'file';
+    declare readonly kindFileRadioTarget: HTMLInputElement;
+    declare readonly kindDirectoryRadioTarget: HTMLInputElement;
+    declare readonly sourcePathTarget: HTMLElement;
+    declare readonly includeExternalMarkdownTarget: HTMLInputElement;
+    declare readonly exportButtonTarget: HTMLButtonElement;
+    declare readonly reportTarget: HTMLElement;
+    declare readonly initialKindValue: string;
+    declare readonly initialPathValue: string;
+    declare readonly initialDirectoryValue: string;
+    declare readonly csrfTokenValue: string;
+    declare readonly runUrlValue: string;
+    declare readonly i18nValue: I18n;
+
+    #kind: Kind = 'file';
     #filePath = '';
     #directoryPath = '';
 
-    connect() {
+    connect(): void {
         this.#filePath = this.initialPathValue;
         this.#directoryPath = this.initialDirectoryValue;
         this.#kind = this.initialKindValue === 'directory' ? 'directory' : 'file';
@@ -46,12 +75,12 @@ export default class extends Controller {
         this.#updateSourceDisplay();
     }
 
-    changeKind(event) {
-        this.#kind = event.target.value;
+    changeKind(event: Event): void {
+        this.#kind = (event.target as HTMLInputElement).value as Kind;
         this.#updateSourceDisplay();
     }
 
-    async browse() {
+    async browse(): Promise<void> {
         const path = await pickPath(this.#kind);
         if (path === null) {
             return;
@@ -66,7 +95,7 @@ export default class extends Controller {
         this.#updateSourceDisplay();
     }
 
-    async run() {
+    async run(): Promise<void> {
         const sourcePath = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
         if (!sourcePath) {
             showToast('error', this.i18nValue.noSource);
@@ -108,17 +137,17 @@ export default class extends Controller {
             this.#renderReport(data.issues || []);
         } catch (err) {
             console.error('Failed to export archive:', err);
-            showToast('error', err.message || this.i18nValue.failed);
+            showToast('error', (err as Error).message || this.i18nValue.failed);
         } finally {
             this.exportButtonTarget.disabled = false;
         }
     }
 
-    #updateSourceDisplay() {
+    #updateSourceDisplay(): void {
         this.sourcePathTarget.textContent = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
     }
 
-    #renderReport(issues) {
+    #renderReport(issues: ReportIssue[]): void {
         const i18n = this.i18nValue.report;
         this.reportTarget.replaceChildren();
 

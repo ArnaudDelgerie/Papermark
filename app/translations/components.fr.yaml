@@ -74,6 +74,7 @@ components:
             ai_failed: La requête IA a échoué
             invalid_directory: Dossier introuvable
             invalid_mode: Mode d'éditeur inconnu
+            request_failed: "L'action a échoué, veuillez réessayer"
             key_delete_failed: Impossible de supprimer la clé API
             invalid_name: Nom de fichier invalide
             rename_target_exists: Un fichier avec ce nom existe déjà
@@ -98,8 +99,6 @@ components:
         dir: Dossier
         open_directory: Ouvrir un dossier
         loading: Chargement…
-        open_directory_failed: Impossible d'ouvrir le dossier
-        switch_failed: Impossible de changer de mode
         history:
             empty: Aucun fichier récent
         tree:
@@ -114,8 +113,6 @@ components:
             delete_confirm_question: 'Supprimer « {name} » ?'
             deleted: Fichier supprimé
             renamed: Fichier renommé
-            rename_failed: Échec du renommage du fichier
-            delete_failed: Échec de la suppression du fichier
     settings:
         title: Réglages
         back: ← Retour

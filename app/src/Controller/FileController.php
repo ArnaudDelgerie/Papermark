@@ -98,49 +98,49 @@ final class FileController extends AbstractController
     {
         $csrfToken = $request->headers->get('X-CSRF-TOKEN');
         if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $path = $request->request->get('path');
         $content = $request->request->get('content');
 
         if (!\is_string($path) || $path === '') {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
         if (!\is_string($content)) {
-            return $this->errorResponse('no_content', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_content', Response::HTTP_BAD_REQUEST);
         }
 
         $content = $this->sanitizeMarkdown($content);
         $content = $this->markdownImageUrls->toRawPaths($content);
 
         if (!$this->isAllowedExtension($path)) {
-            return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
         $parentDir = \dirname($path);
         $realParent = realpath($parentDir);
         if ($realParent === false || !is_dir($realParent) || !is_writable($realParent)) {
-            return $this->errorResponse('not_writable', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
         }
 
         $realPath = $realParent . '/' . basename($path);
 
         if (is_file($realPath) && !is_writable($realPath)) {
-            return $this->errorResponse('not_writable', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
         }
 
         $result = file_put_contents($realPath, $content);
         if ($result === false) {
-            return $this->errorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         // Same path on a plain save; on a Save as, the new file becomes the
         // current one, so a reload reopens it (see EDITOR_REACTIVITY.md).
         $this->editorState->setFile($realPath);
 
-        return $this->stateResponse();
+        return $this->stateResponse(['path' => $realPath]);
     }
 
     /**
@@ -152,28 +152,28 @@ final class FileController extends AbstractController
     {
         $csrfToken = $request->headers->get('X-CSRF-TOKEN');
         if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $path = $request->request->get('path');
         if (!\is_string($path) || $path === '') {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
         $realPath = realpath($path);
         if ($realPath === false || !is_file($realPath)) {
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         if (!@unlink($realPath)) {
-            return $this->errorResponse('delete_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->stateErrorResponse('delete_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         if ($this->editorState->getFile() === $realPath) {
             $this->editorState->setFile(null);
         }
 
-        return $this->stateResponse();
+        return $this->stateResponse(['path' => $realPath]);
     }
 
     /**
@@ -185,45 +185,45 @@ final class FileController extends AbstractController
     {
         $csrfToken = $request->headers->get('X-CSRF-TOKEN');
         if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $path = $request->request->get('path');
         $name = $request->request->get('name');
 
         if (!\is_string($path) || $path === '') {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
         if (!\is_string($name) || $name === '' || $name !== basename($name)) {
-            return $this->errorResponse('invalid_name', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('invalid_name', Response::HTTP_BAD_REQUEST);
         }
 
         if (!$this->isAllowedExtension($name)) {
-            return $this->errorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
         $realPath = realpath($path);
         if ($realPath === false || !is_file($realPath)) {
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         $newPath = \dirname($realPath) . '/' . $name;
         if (file_exists($newPath)) {
-            return $this->errorResponse('rename_target_exists', Response::HTTP_CONFLICT);
+            return $this->stateErrorResponse('rename_target_exists', Response::HTTP_CONFLICT);
         }
 
         if (!@rename($realPath, $newPath)) {
-            return $this->errorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         if ($this->editorState->getFile() === $realPath) {
             $this->editorState->setFile($newPath);
         }
 
-        // The new path whether or not it is the current file: the sidebar
-        // needs it for its own entries.
-        return $this->stateResponse(['path' => $newPath]);
+        // Both paths whether or not it is the current file: the sidebar
+        // needs them for its own entries.
+        return $this->stateResponse(['oldPath' => $realPath, 'newPath' => $newPath]);
     }
 
     private function isAllowedExtension(string $path): bool
@@ -239,11 +239,25 @@ final class FileController extends AbstractController
     }
 
     /**
-     * @param array<string, mixed> $details what the action adds to the state
+     * Same answer as the EditorController routes: the state, and what was
+     * done, paths realpath'd (see EDITOR_REACTIVITY.md, S5).
+     *
+     * @param array<string, string> $action
      */
-    private function stateResponse(array $details = []): JsonResponse
+    private function stateResponse(array $action): JsonResponse
     {
-        return new JsonResponse(['state' => $this->editorState->toArray(), ...$details]);
+        return new JsonResponse(['state' => $this->editorState->toArray(), 'action' => $action]);
+    }
+
+    /**
+     * A refusal from a route that writes the state still carries it (S6).
+     */
+    private function stateErrorResponse(string $key, int $status): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN),
+            'state' => $this->editorState->toArray(),
+        ], $status);
     }
 
     private function errorResponse(string $key, int $status): JsonResponse

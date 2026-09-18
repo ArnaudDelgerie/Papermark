@@ -1,8 +1,4 @@
 <div class="editor-sidebar-panel" data-controller="mode-single"
-     data-mode-single-set-file-url-value="{{ path('app_editor_set_file') }}"
-     data-mode-single-delete-url-value="{{ path('app_file_delete') }}"
-     data-mode-single-rename-url-value="{{ path('app_file_rename') }}"
-     data-mode-single-file-csrf-token-value="{{ file_csrf_token }}"
      data-mode-single-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     <button type="button" class="editor-sidebar-btn" data-action="click->mode-single#openFile" data-editor-leave-guard>
         {{ 'components.editor.open'|trans({}, 'components') }}

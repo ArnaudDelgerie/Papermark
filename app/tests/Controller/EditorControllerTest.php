@@ -59,6 +59,43 @@ final class EditorControllerTest extends WebTestCase
         unlink($path);
     }
 
+    public function testEditorHydratesTheClientStateWithReadonlyAndAiEnabled(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $path = $this->createFile('# Hello');
+        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+
+        $crawler = $client->request('GET', '/editor');
+
+        $master = $crawler->filter('div[data-controller="editor-state"]');
+        self::assertSame(
+            ['mode' => 'single', 'file' => realpath($path), 'dir' => null, 'readonly' => false, 'ai_enabled' => false],
+            json_decode((string) $master->attr('data-editor-state-state-value'), true),
+        );
+        self::assertSame('/editor/state', json_decode((string) $master->attr('data-editor-state-urls-value'), true)['state']);
+        // The editor and both columns are inside the master's element.
+        self::assertSame(1, $master->filter('div[data-controller="editor"]')->count());
+        self::assertSame(1, $master->filter('div[data-controller="mode-dir"]')->count());
+
+        unlink($path);
+    }
+
+    public function testGetStateReturnsTheSessionState(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $path = $this->createFile('# Hello');
+        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+
+        $client->request('GET', '/editor/state');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(['mode' => 'single', 'file' => realpath($path), 'dir' => null], $this->responseState($client));
+
+        unlink($path);
+    }
+
     public function testFlashMessagesAreEmbeddedAsInitialToastValues(): void
     {
         $client = static::createClient();
@@ -98,7 +135,7 @@ final class EditorControllerTest extends WebTestCase
 
         $crawler = $client->request('GET', '/editor');
 
-        self::assertSame('dir', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+        self::assertSame('dir', json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-state-value'), true)['mode']);
         self::assertNull($crawler->filter('div[data-controller="mode-dir"]')->attr('hidden'));
     }
 
@@ -111,7 +148,7 @@ final class EditorControllerTest extends WebTestCase
 
         $crawler = $client->request('GET', '/editor');
 
-        self::assertSame('dir', $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-mode-value'));
+        self::assertSame('dir', json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-state-value'), true)['mode']);
     }
 
     public function testSetModeReturnsTheStateWithoutTheCurrentFile(): void
@@ -125,6 +162,7 @@ final class EditorControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => null], $this->responseState($client));
+        self::assertSame(['mode' => 'dir'], $this->responseData($client)['action']);
 
         // Switching back doesn't bring the file back: one file, not one per mode.
         $this->post($client, '/editor/mode', 'mode', ['mode' => 'single']);
@@ -149,6 +187,8 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/mode', 'mode', ['mode' => 'nope']);
 
         self::assertResponseStatusCodeSame(400);
+        // A refusal still carries the state (S6).
+        self::assertSame('single', $this->responseState($client)['mode']);
     }
 
     public function testGetFileReturnsNothingWithoutACurrentFile(): void
@@ -170,7 +210,10 @@ final class EditorControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         // No content in the answer: the editor fetches it on the update.
-        self::assertSame(['state' => ['mode' => 'single', 'file' => $path, 'dir' => null]], $this->responseData($client));
+        self::assertSame(
+            ['state' => ['mode' => 'single', 'file' => $path, 'dir' => null], 'action' => ['path' => $path]],
+            $this->responseData($client),
+        );
 
         $client->request('GET', '/editor/file');
         self::assertSame(['path' => $path, 'content' => '# Hello'], $this->responseData($client));
@@ -255,6 +298,8 @@ final class EditorControllerTest extends WebTestCase
         unlink($path);
         $this->post($client, '/editor/file', 'file', ['path' => $path]);
         self::assertResponseStatusCodeSame(404);
+        // The refusal carries the state as corrected.
+        self::assertNull($this->responseState($client)['file']);
         $client->request('GET', '/editor/file');
         self::assertNull($this->responseData($client)['path']);
     }
@@ -271,6 +316,8 @@ final class EditorControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'single', 'file' => null, 'dir' => null], $this->responseState($client));
+        // An empty action is still an object, like every other one.
+        self::assertStringContainsString('"action":{}', (string) $client->getResponse()->getContent());
 
         $client->request('GET', '/editor/file');
         self::assertSame(['path' => null, 'content' => null], $this->responseData($client));
@@ -300,6 +347,7 @@ final class EditorControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root], $this->responseState($client));
+        self::assertSame(['path' => $root], $this->responseData($client)['action']);
 
         $this->removeDirectory($root);
     }
@@ -443,11 +491,11 @@ final class EditorControllerTest extends WebTestCase
     {
         $crawler = $client->request('GET', '/editor');
 
-        $this->tokens = [
-            'mode' => (string) $crawler->filter('nav[data-controller="mode-switch"]')->attr('data-mode-switch-csrf-token-value'),
-            'file' => (string) $crawler->filter('div[data-controller="mode-single"]')->attr('data-mode-single-file-csrf-token-value'),
-            'dir' => (string) $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-csrf-token-value'),
-        ];
+        // The master (editor-state) holds them all: it makes every write.
+        $this->tokens = json_decode(
+            (string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-tokens-value'),
+            true,
+        );
     }
 
     /**

@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
 
 export default [
     js.configs.recommended,
@@ -9,26 +10,19 @@ export default [
             globals: {
                 window: 'readonly',
                 document: 'readonly',
-                history: 'readonly',
-                navigator: 'readonly',
                 console: 'readonly',
                 fetch: 'readonly',
-                AbortController: 'readonly',
-                FormData: 'readonly',
                 Event: 'readonly',
-                CustomEvent: 'readonly',
-                localStorage: 'readonly',
-                sessionStorage: 'readonly',
                 btoa: 'readonly',
-                atob: 'readonly',
-                setTimeout: 'readonly',
-                requestAnimationFrame: 'readonly',
                 URL: 'readonly',
-                MutationObserver: 'readonly',
                 EventSource: 'readonly',
             },
         },
     },
+    ...tseslint.configs.recommended.map((config) => ({
+        ...config,
+        files: ['**/*.ts'],
+    })),
     {
         files: ['webpack.config.js'],
         languageOptions: {

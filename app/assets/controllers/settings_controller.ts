@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
-import { confirmDialog } from '../utils/confirm-dialog.js';
-import { showToast } from '../utils/toast.js';
-import { checkForUpdate as checkForUpdateIpc } from '../utils/tauri.js';
+import { confirmDialog } from '../utils/confirm-dialog';
+import { showToast } from '../utils/toast';
+import { checkForUpdate as checkForUpdateIpc } from '../utils/tauri';
 
 /**
  * Deleting an API key is fetch-based, like the rest of this app's write
@@ -11,6 +11,10 @@ import { checkForUpdate as checkForUpdateIpc } from '../utils/tauri.js';
  */
 export default class extends Controller {
     static targets = ['updateResult', 'tab', 'panel'];
+
+    declare readonly updateResultTarget: HTMLElement;
+    declare readonly tabTargets: HTMLElement[];
+    declare readonly panelTargets: HTMLElement[];
 
     static values = {
         csrfToken: String,
@@ -23,24 +27,33 @@ export default class extends Controller {
         updateCheckUnavailable: String,
     };
 
-    selectTab(event) {
-        this.showTab(event.currentTarget.dataset.tab);
+    declare readonly csrfTokenValue: string;
+    declare readonly deleteLabelValue: string;
+    declare readonly confirmMessageValue: string;
+    declare readonly confirmQuestionValue: string;
+    declare readonly updateAvailableValue: string;
+    declare readonly upToDateValue: string;
+    declare readonly updateCheckFailedValue: string;
+    declare readonly updateCheckUnavailableValue: string;
+
+    selectTab(event: Event): void {
+        this.showTab((event.currentTarget as HTMLElement).dataset.tab);
     }
 
     /**
      * Left/Right/Home/End move focus between tabs (WAI-ARIA tabs pattern);
      * activating a tab always follows focus.
      */
-    onTabKeydown(event) {
-        const moves = { ArrowLeft: -1, ArrowRight: 1 };
+    onTabKeydown(event: KeyboardEvent): void {
+        const moves: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 };
         if (!(event.key in moves) && event.key !== 'Home' && event.key !== 'End') {
             return;
         }
         event.preventDefault();
 
         const tabs = this.tabTargets;
-        const currentIndex = tabs.indexOf(event.target);
-        let nextIndex;
+        const currentIndex = tabs.indexOf(event.target as HTMLElement);
+        let nextIndex: number;
         if (event.key === 'Home') {
             nextIndex = 0;
         } else if (event.key === 'End') {
@@ -53,7 +66,7 @@ export default class extends Controller {
         this.showTab(tabs[nextIndex].dataset.tab);
     }
 
-    showTab(name) {
+    showTab(name: string | undefined): void {
         this.tabTargets.forEach((tab) => {
             const selected = tab.dataset.tab === name;
             tab.setAttribute('aria-selected', String(selected));
@@ -65,9 +78,9 @@ export default class extends Controller {
         });
     }
 
-    async deleteKey(event) {
+    async deleteKey(event: Event): Promise<void> {
         event.preventDefault();
-        const { url } = event.currentTarget.dataset;
+        const url = (event.currentTarget as HTMLElement).dataset.url ?? '';
 
         const confirmed = await confirmDialog({
             message: this.confirmMessageValue,
@@ -92,7 +105,7 @@ export default class extends Controller {
             window.location.reload();
         } catch (err) {
             console.error('Failed to delete API key:', err);
-            showToast('error', err.message || 'Failed to delete API key');
+            showToast('error', (err as Error).message || 'Failed to delete API key');
         }
     }
 
@@ -100,12 +113,12 @@ export default class extends Controller {
      * Manual, on-click only (CONTRACT.md §7: the check is pull, never push —
      * no automatic or startup check on this side either).
      */
-    async checkForUpdate() {
+    async checkForUpdate(): Promise<void> {
         const result = await checkForUpdateIpc();
 
         if (result.status === 'ok') {
             this.updateResultTarget.textContent = result.update_available
-                ? this.updateAvailableValue.replace('%version%', result.latest)
+                ? this.updateAvailableValue.replace('%version%', String(result.latest))
                 : this.upToDateValue;
             return;
         }

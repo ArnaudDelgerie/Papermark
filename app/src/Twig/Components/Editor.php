@@ -2,10 +2,8 @@
 
 namespace App\Twig\Components;
 
+use App\Ai\AiAvailability;
 use App\Ai\AiTopicResolver;
-use App\Ai\ApiKeyResolver;
-use App\Repository\SettingRepository;
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
@@ -21,14 +19,11 @@ final class Editor
 
     public string $height = '400';
     public bool $readonly = false;
-    public ?string $directory = null;
 
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
-        private readonly StationContextInterface $stationContext,
-        private readonly ApiKeyResolver $apiKeyResolver,
-        private readonly SettingRepository $settings,
+        private readonly AiAvailability $aiAvailability,
         private readonly RequestStack $requestStack,
         private readonly AiTopicResolver $topicResolver,
         private readonly HubInterface $hub,
@@ -123,15 +118,8 @@ final class Editor
     #[ExposeInTemplate(name: 'ai_config')]
     public function getAiConfig(): array
     {
-        $provider = $this->settings->getOrCreate()->getSelectedProvider();
         $request = $this->requestStack->getMainRequest();
-
-        $enabled = $request !== null
-            && $this->stationContext->isAsyncWorker()
-            && $provider !== null
-            && $this->apiKeyResolver->resolve($provider->getName()) !== null;
-
-        if (!$enabled) {
+        if ($request === null || !$this->aiAvailability->isEnabled()) {
             return ['enabled' => false];
         }
 

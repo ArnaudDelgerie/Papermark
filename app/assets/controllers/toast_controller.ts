@@ -1,14 +1,22 @@
 import { Controller } from '@hotwired/stimulus';
+import type { ToastType } from '../utils/toast';
 
 const DEFAULT_TIMEOUT = 4000;
 
-export default class extends Controller {
+interface Toast {
+    type?: ToastType;
+    message: string;
+    timeout?: number;
+}
+
+export default class extends Controller<HTMLElement> {
     static values = { messages: Array };
 
-    #onShow = null;
+    declare readonly messagesValue: Toast[];
 
-    connect() {
-        this.#onShow = (event) => this.#render(event.detail);
+    #onShow = (event: Event): void => this.#render((event as CustomEvent<Toast>).detail);
+
+    connect(): void {
         window.addEventListener('toast:show', this.#onShow);
 
         // Flashes from the last redirect (Symfony's addFlash, see base.html.twig):
@@ -19,11 +27,11 @@ export default class extends Controller {
         }
     }
 
-    disconnect() {
+    disconnect(): void {
         window.removeEventListener('toast:show', this.#onShow);
     }
 
-    #render({ type = 'success', message, timeout = DEFAULT_TIMEOUT }) {
+    #render({ type = 'success', message, timeout = DEFAULT_TIMEOUT }: Toast): void {
         const toast = document.createElement('div');
         toast.className = `toast toast--${type}`;
         toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
@@ -46,7 +54,7 @@ export default class extends Controller {
         }
     }
 
-    #dismiss(toast) {
+    #dismiss(toast: HTMLElement): void {
         toast.classList.remove('toast--visible');
         toast.addEventListener('transitionend', () => toast.remove(), { once: true });
     }

@@ -4,7 +4,26 @@
    columns from the start. The inactive one is hidden, not absent, so it is
    already loaded when the user switches. #}
 {% block body %}
-<div class="editor-page">
+{# editor-state is the master of the client state (EDITOR_REACTIVITY.md, S3-S4):
+   it holds the store and makes every write. Children reach it by outlet. #}
+<div class="editor-page" id="editor-state"
+     data-controller="editor-state"
+     data-editor-state-state-value="{{ state|json_encode }}"
+     data-editor-state-urls-value="{{ {
+         state: path('app_editor_get_state'),
+         mode: path('app_editor_set_mode'),
+         file: path('app_editor_set_file'),
+         dir: path('app_editor_set_dir'),
+         save: path('app_file_save'),
+         delete: path('app_file_delete'),
+         rename: path('app_file_rename'),
+     }|json_encode }}"
+     data-editor-state-tokens-value="{{ {
+         mode: csrf_token('mode'),
+         file: csrf_token('file'),
+         dir: csrf_token('dir'),
+     }|json_encode }}"
+     data-editor-state-i18n-value="{{ { failed: 'components.editor.error.request_failed'|trans({}, 'components') }|json_encode }}">
     <aside class="editor-sidebar">
         {% include 'components/_mode_switch.html.twig' %}
 
@@ -19,7 +38,6 @@
     {# No file here: the editor fetches the current one itself on connect. #}
     {{ component('editor', {
         height: '100%',
-        directory: directory,
     }) }}
 </div>
 {% endblock %}

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Twig\Components;
 
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
 use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
@@ -12,8 +11,8 @@ use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
 /**
  * Left column, single-file mode: mode selector, Open (file) and the history
  * of opened files. History lives in sessionStorage, entirely managed by the
- * mode-single Stimulus controller. Delete/rename (EDITOR_FIX.md #5) reuse the
- * 'file' CSRF token already used by FileController's other fetch actions.
+ * mode-single Stimulus controller. Delete/rename (EDITOR_FIX.md #5) are
+ * posted by the master (editor-state), which holds the tokens.
  */
 #[AsTwigComponent('mode-single')]
 final class ModeSingle
@@ -25,16 +24,10 @@ final class ModeSingle
     public bool $active = false;
 
     public function __construct(
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
     }
 
-    #[ExposeInTemplate(name: 'file_csrf_token')]
-    public function getFileCsrfToken(): string
-    {
-        return $this->csrfTokenManager->getToken('file')->getValue();
-    }
 
     /**
      * @return array<string, string>
@@ -50,8 +43,6 @@ final class ModeSingle
             'deleteConfirmQuestion' => $this->trans('delete_confirm_question'),
             'deleted' => $this->trans('deleted'),
             'renamed' => $this->trans('renamed'),
-            'renameFailed' => $this->trans('rename_failed'),
-            'deleteFailed' => $this->trans('delete_failed'),
         ];
     }
 
