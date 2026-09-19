@@ -167,6 +167,57 @@ describe('editor-state (the master)', () => {
         expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, dir: null }, anomaly: { dir: '/notes' } });
     });
 
+    describe('do-import', () => {
+        const request = { archive: '/tmp/notes.zip', parentDir: '/notes' };
+
+        it('sends the archive and the parent folder with the import token, and takes the state of the answer', async () => {
+            const action = { destination: '/notes/notes', openMode: 'single', ignoredEntries: ['a.pdf'] };
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'single', file: '/notes/notes/doc.md', dir: '/notes' }, action }));
+            const succeeded = vi.fn();
+            on('editor:do-import-succeeded', succeeded);
+
+            emit('editor:do-import-requested', { action: request });
+            await settle();
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe('/import/run');
+            expect(init.method).toBe('POST');
+            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-import' });
+            expect((init.body as FormData).get('archive')).toBe('/tmp/notes.zip');
+            expect((init.body as FormData).get('parentDir')).toBe('/notes');
+            expect(succeeded).toHaveBeenCalledWith({ state: { ...INITIAL, file: '/notes/notes/doc.md' }, action });
+            expect(toasts).toEqual([]);
+        });
+
+        it('a refusal toasts the message and fails with what was asked and the state', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'The selected file is not a valid zip archive' }, 409));
+            const failed = vi.fn();
+            on('editor:do-import-failed', failed);
+
+            emit('editor:do-import-requested', { action: request });
+            await settle();
+
+            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: request });
+            expect(toasts).toEqual([{ type: 'error', message: 'The selected file is not a valid zip archive' }]);
+        });
+
+        it('is never dropped when asked twice', async () => {
+            fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+                const archive = (init.body as FormData).get('archive');
+
+                return Promise.resolve(jsonResponse({ state: {}, action: { destination: archive, openMode: null, ignoredEntries: [] } }));
+            });
+            const succeeded = vi.fn();
+            on('editor:do-import-succeeded', succeeded);
+
+            emit('editor:do-import-requested', { action: { ...request, archive: '/tmp/a.zip' } });
+            emit('editor:do-import-requested', { action: { ...request, archive: '/tmp/b.zip' } });
+            await settle();
+
+            expect(succeeded).toHaveBeenCalledTimes(2);
+        });
+    });
+
     describe('the settings actions', () => {
         it('do-save_settings sends the form as it is, with the settings token', async () => {
             fetchMock.mockResolvedValue(jsonResponse({ state: { ai_enabled: false }, action: {} }));

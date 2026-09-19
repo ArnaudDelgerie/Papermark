@@ -38,18 +38,22 @@ final class ExportController extends AbstractController
     ) {
     }
 
+    /**
+     * The content of the Archive modal's frame, and nothing else: it carries
+     * no `src`, or Turbo would see a frame that references itself.
+     */
     #[Route('/archive', name: 'app_archive', methods: ['GET'])]
     public function index(): Response
     {
-        // The source preselected follows the mode: the current file in single
-        // mode, the current folder in dir mode (see EDITOR_REACTIVITY.md).
+        // The source preselected when the frame loads: the current file in
+        // single mode, the current folder in dir mode. The export controller
+        // then follows the state on its own (see EDITOR_ARCHIVE.md).
         return $this->render('archive/index.html.twig', [
             'initial_kind' => $this->editorState->getMode() === EditorMode::Dir ? 'directory' : 'file',
             'initial_path' => $this->editorState->getFile(),
             'initial_directory' => $this->editorState->getDir(),
             'export_csrf_token' => $this->csrfTokenManager->getToken('export')->getValue(),
             'export_i18n' => $this->exportI18n(),
-            'import_csrf_token' => $this->csrfTokenManager->getToken('import')->getValue(),
             'import_i18n' => $this->importI18n(),
         ]);
     }
@@ -75,6 +79,8 @@ final class ExportController extends AbstractController
             'report' => [
                 'title' => $trans('report.title'),
                 'empty' => $trans('report.empty'),
+                'count_one' => $trans('report.count_one'),
+                'count_other' => $trans('report.count_other'),
                 'reason' => [
                     'not_found' => $trans('report.reason.not_found'),
                     'limit_exceeded' => $trans('report.reason.limit_exceeded'),
@@ -95,7 +101,6 @@ final class ExportController extends AbstractController
             'importButton' => $trans('import_button'),
             'noSource' => $trans('no_source'),
             'done' => $trans('done'),
-            'failed' => $trans('failed'),
             'report' => [
                 'title' => $trans('report.title'),
                 'empty' => $trans('report.empty'),
@@ -165,37 +170,37 @@ final class ExportController extends AbstractController
     {
         $csrfToken = $request->headers->get('X-CSRF-TOKEN');
         if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('import', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         $archive = $request->request->get('archive');
         if (!\is_string($archive) || '' === $archive) {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
         $parentDir = $request->request->get('parentDir');
         if (!\is_string($parentDir) || '' === $parentDir) {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
         $realArchive = realpath($archive);
         if (false === $realArchive || !is_file($realArchive)) {
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         $realParentDir = realpath($parentDir);
         if (false === $realParentDir || !is_dir($realParentDir) || !is_writable($realParentDir)) {
-            return $this->errorResponse('not_writable', Response::HTTP_FORBIDDEN);
+            return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
         }
 
         try {
             $result = $this->importer->import($realArchive, $realParentDir);
         } catch (ArchiveImportRefusedException $e) {
-            return $this->errorResponse($e->reason->value, Response::HTTP_CONFLICT);
+            return $this->stateErrorResponse($e->reason->value, Response::HTTP_CONFLICT);
         }
 
-        // Only the state is updated here — the front then goes back to the
-        // editor page, which renders whatever it holds.
+        // The state now points at what the archive gave to open; the master
+        // broadcasts it, and each column follows.
         if (EditorMode::Single === $result->openMode) {
             $this->editorState->setMode(EditorMode::Single);
             $this->editorState->setFile($result->openPath);
@@ -205,11 +210,21 @@ final class ExportController extends AbstractController
         }
 
         return new JsonResponse([
-            'destination' => $result->destination,
-            'openMode' => $result->openMode?->value,
-            'openPath' => $result->openPath,
-            'ignoredEntries' => $result->ignoredEntries,
+            'state' => $this->editorState->toArray(),
+            'action' => [
+                'destination' => $result->destination,
+                'openMode' => $result->openMode?->value,
+                'ignoredEntries' => $result->ignoredEntries,
+            ],
         ]);
+    }
+
+    private function stateErrorResponse(string $key, int $status): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN),
+            'state' => $this->editorState->toArray(),
+        ], $status);
     }
 
     private function errorResponse(string $key, int $status): JsonResponse

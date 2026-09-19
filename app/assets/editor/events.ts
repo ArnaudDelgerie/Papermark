@@ -41,6 +41,8 @@ interface Requests {
     'do-save_settings': { form: FormData };
     'do-set_key': { name: string; key: string };
     'do-delete_key': { name: string };
+    /** The archive and the folder it is extracted into, both picked by the import block. */
+    'do-import': { archive: string; parentDir: string };
 }
 
 /** What the server confirms, paths normalized. Never file content. */
@@ -57,6 +59,11 @@ interface Results {
     'do-save_settings': Record<string, never>;
     'do-set_key': { name: string };
     'do-delete_key': { name: string };
+    /**
+     * `openMode` says what the archive gave to open: the state ended up on a
+     * file (`single`), on a folder (`dir`), or was left as it was (`null`).
+     */
+    'do-import': { destination: string; openMode: EditorMode | null; ignoredEntries: string[] };
 }
 
 /** One message of the settings form the server refused, naming its field. */

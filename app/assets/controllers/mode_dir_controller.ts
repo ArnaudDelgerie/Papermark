@@ -39,6 +39,11 @@ export default class extends Controller<HTMLElement> {
             this.#track(frame.loaded);
         }
         const reload = (): void => this.#reload();
+        const showNewDir = (dir: string | null): void => {
+            this.toolbarTarget.hidden = dir === null;
+            this.treeFrameTarget.replaceChildren();
+            reload();
+        };
         const reloadIfIn = (dir: string | null, path: string): void => {
             if (isIn(dir, path)) {
                 reload();
@@ -53,10 +58,12 @@ export default class extends Controller<HTMLElement> {
             // folder shares no entry with the old one. On failure the old
             // tree is still the right one, nothing to do. A reload cancels
             // the frame's own request still in flight (Turbo 8).
-            on('editor:nav-change_dir-succeeded', ({ state }) => {
-                this.toolbarTarget.hidden = state.dir === null;
-                this.treeFrameTarget.replaceChildren();
-                reload();
+            on('editor:nav-change_dir-succeeded', ({ state }) => showNewDir(state.dir)),
+            // An archive that opened a folder is a change of folder.
+            on('editor:do-import-succeeded', ({ state, action }) => {
+                if (action.openMode === 'dir') {
+                    showNewDir(state.dir);
+                }
             }),
             on('editor:do-save_as-succeeded', ({ state, action }) => reloadIfIn(state.dir, action.path)),
             on('editor:do-delete-succeeded', ({ state, action }) => reloadIfIn(state.dir, action.path)),

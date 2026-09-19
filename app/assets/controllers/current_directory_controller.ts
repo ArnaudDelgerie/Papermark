@@ -20,6 +20,12 @@ export default class extends Controller {
             on('editor:nav-change_dir-requested', () => this.#busy(true)),
             on('editor:nav-change_dir-succeeded', ({ state }) => this.#settle(state.dir)),
             on('editor:nav-change_dir-failed', ({ state }) => this.#settle(state.dir)),
+            // An archive that opened a folder is a change of folder.
+            on('editor:do-import-succeeded', ({ state, action }) => {
+                if (action.openMode === 'dir') {
+                    this.#settle(state.dir);
+                }
+            }),
             on('editor:state-resynced', ({ state, anomaly }) => {
                 if ('dir' in anomaly) {
                     this.#show(state.dir);

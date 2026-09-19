@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 
 /**
- * Opens and closes the settings modal. A native <dialog> opened by
+ * Opens and closes a modal (Settings, Archive). A native <dialog> opened by
  * `showModal()`: Escape, the focus trap and the inert background come with
  * it. The frame inside it loads on the first opening and is never emptied.
  */

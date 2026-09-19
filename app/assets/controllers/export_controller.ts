@@ -1,4 +1,5 @@
 import { Controller } from '@hotwired/stimulus';
+import { type EditorState, on } from '../editor/events';
 import { type SaveFilter, pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
@@ -17,7 +18,7 @@ interface I18n {
     noSource: string;
     failed: string;
     done: string;
-    report: { title: string; empty: string; reason: Record<string, string> };
+    report: { title: string; empty: string; count_one: string; count_other: string; reason: Record<string, string> };
 }
 
 function dirname(path: string): string {
@@ -31,7 +32,7 @@ function basename(path: string): string {
 }
 
 /**
- * The export archive page (see EDITOR_EXPORT.md): file/folder pick, the
+ * The export block of the Archive modal (see EDITOR_EXPORT.md): file/folder pick, the
  * "include external .md" option, save_path with a zip filter, then a POST
  * that writes the archive server-side and returns a report of the
  * references left at their original path.
@@ -40,7 +41,8 @@ export default class extends Controller {
     static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'includeExternalMarkdown', 'exportButton', 'report'];
 
     static values = {
-        // 'file' in single mode, 'directory' in dir mode (see EDITOR_REACTIVITY.md).
+        // At load: 'file' in single mode, 'directory' in dir mode (see
+        // EDITOR_REACTIVITY.md). The state then takes over (see #follow()).
         initialKind: { type: String, default: 'file' },
         initialPath: String,
         initialDirectory: String,
@@ -65,13 +67,45 @@ export default class extends Controller {
     #kind: Kind = 'file';
     #filePath = '';
     #directoryPath = '';
+    #unsubscribers: Array<() => void> = [];
 
     connect(): void {
         this.#filePath = this.initialPathValue;
         this.#directoryPath = this.initialDirectoryValue;
-        this.#kind = this.initialKindValue === 'directory' ? 'directory' : 'file';
+        this.#show('directory' === this.initialKindValue ? 'directory' : 'file');
 
-        (this.#kind === 'file' ? this.kindFileRadioTarget : this.kindDirectoryRadioTarget).checked = true;
+        // The frame is loaded once and never emptied: the source follows every
+        // event that can change the mode, the file or the folder, even over a
+        // source the user picked by hand in the modal.
+        const follow = ({ state }: { state: EditorState }): void => this.#follow(state);
+        this.#unsubscribers = [
+            on('editor:nav-switch_mode-succeeded', follow),
+            on('editor:nav-change_dir-succeeded', follow),
+            on('editor:nav-change_file-succeeded', follow),
+            on('editor:nav-new_file-succeeded', follow),
+            on('editor:do-save_as-succeeded', follow),
+            on('editor:do-delete-succeeded', follow),
+            on('editor:do-rename-succeeded', follow),
+            on('editor:do-import-succeeded', follow),
+            on('editor:state-resynced', follow),
+        ];
+    }
+
+    disconnect(): void {
+        this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
+        this.#unsubscribers = [];
+    }
+
+    /** The current file in single mode, the current folder in dir mode; the other keeps its path. */
+    #follow(state: EditorState): void {
+        this.#filePath = state.file ?? '';
+        this.#directoryPath = state.dir ?? '';
+        this.#show(state.mode === 'dir' ? 'directory' : 'file');
+    }
+
+    #show(kind: Kind): void {
+        this.#kind = kind;
+        (kind === 'file' ? this.kindFileRadioTarget : this.kindDirectoryRadioTarget).checked = true;
         this.#updateSourceDisplay();
     }
 
@@ -160,6 +194,13 @@ export default class extends Controller {
             empty.textContent = i18n.empty;
             this.reportTarget.appendChild(empty);
         } else {
+            // Only the count at first: the list can be long, it is behind a toggle.
+            const details = document.createElement('details');
+            details.className = 'export-report-details';
+            const summary = document.createElement('summary');
+            summary.textContent = (issues.length === 1 ? i18n.count_one : i18n.count_other).replace('{count}', String(issues.length));
+            details.appendChild(summary);
+
             const list = document.createElement('ul');
             for (const issue of issues) {
                 const item = document.createElement('li');
@@ -180,7 +221,8 @@ export default class extends Controller {
                 item.append(target, reason, referencing);
                 list.appendChild(item);
             }
-            this.reportTarget.appendChild(list);
+            details.appendChild(list);
+            this.reportTarget.appendChild(details);
         }
 
         this.reportTarget.hidden = false;

@@ -89,8 +89,38 @@ final class ExportControllerTest extends WebTestCase
 
         self::assertStringContainsString('data-controller="export"', $content);
         self::assertStringContainsString('data-controller="import"', $content);
-        self::assertStringContainsString('data-import-run-url-value="/import/run"', $content);
-        self::assertStringContainsString('data-import-home-url-value="/"', $content);
+        // The import goes through the master: the block carries no route nor token.
+        self::assertStringNotContainsString('data-import-run-url-value', $content);
+        self::assertStringNotContainsString('data-import-csrf-token-value', $content);
+    }
+
+    public function testIndexIsTheContentOfTheModalFrame(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', '/archive');
+
+        self::assertResponseIsSuccessful();
+        // A frame that carries the URL rendering it would "reference itself".
+        $frame = $crawler->filter('turbo-frame#archive');
+        self::assertCount(1, $frame);
+        self::assertNull($frame->attr('src'));
+        // No layout: the frame is the whole response.
+        self::assertStringNotContainsString('<html', (string) $client->getResponse()->getContent());
+        // The leave guard sits on the import button, not on a link out of the page.
+        self::assertCount(1, $frame->filter('button[data-import-target="importButton"][data-editor-leave-guard]'));
+        self::assertCount(0, $frame->filter('a'));
+    }
+
+    public function testMasterCarriesTheImportRouteAndToken(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', '/editor');
+
+        $master = $crawler->filter('div[data-controller="editor-state"]');
+        self::assertSame('/import/run', json_decode((string) $master->attr('data-editor-state-urls-value'), true)['import']);
+        self::assertArrayHasKey('import', json_decode((string) $master->attr('data-editor-state-tokens-value'), true));
     }
 
     public function testRunRejectsInvalidCsrf(): void
@@ -260,6 +290,9 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(409);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
         self::assertSame('The selected file is not a valid zip archive', $data['error']);
+        // A refusal still says where the state is.
+        self::assertSame('single', $data['state']['mode']);
+        self::assertArrayNotHasKey('action', $data);
     }
 
     public function testImportRunExtractsArchiveAndReportsOpenTarget(): void
@@ -283,18 +316,18 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $data = json_decode((string) $client->getResponse()->getContent(), true);
 
-        self::assertSame($this->workDir . '/notes', $data['destination']);
-        self::assertSame('single', $data['openMode']);
-        self::assertSame($this->workDir . '/notes/doc.md', $data['openPath']);
-        self::assertSame(['notes.pdf'], $data['ignoredEntries']);
+        self::assertSame([
+            'destination' => $this->workDir . '/notes',
+            'openMode' => 'single',
+            'ignoredEntries' => ['notes.pdf'],
+        ], $data['action']);
+        self::assertSame($this->workDir . '/notes/doc.md', $data['state']['file']);
+        self::assertSame('single', $data['state']['mode']);
         self::assertFileExists($this->workDir . '/notes/doc.md');
 
-        // The state now points at the imported file: the editor page shows
-        // single mode, and the editor's own fetch returns that file.
-        $client->request('GET', '/');
-        self::assertResponseRedirects('/editor');
-        $crawler = $client->followRedirect();
-        self::assertSame('single', json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-state-value'), true)['mode']);
+        // The session holds the same state: the editor's own fetch returns that file.
+        $client->request('GET', '/editor/state');
+        self::assertSame($data['state'], json_decode((string) $client->getResponse()->getContent(), true)['state']);
 
         $client->request('GET', '/editor/file');
         self::assertSame(
@@ -324,13 +357,41 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $data = json_decode((string) $client->getResponse()->getContent(), true);
 
-        self::assertSame('dir', $data['openMode']);
-        self::assertSame($this->workDir . '/project', $data['openPath']);
+        self::assertSame('dir', $data['action']['openMode']);
+        self::assertSame($this->workDir . '/project', $data['action']['destination']);
+        self::assertSame('dir', $data['state']['mode']);
+        self::assertSame($this->workDir . '/project', $data['state']['dir']);
+        self::assertNull($data['state']['file']);
 
-        $client->request('GET', '/');
-        self::assertResponseRedirects('/editor');
-        $crawler = $client->followRedirect();
-        self::assertSame('dir', json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-state-value'), true)['mode']);
+        $client->request('GET', '/editor/state');
+        self::assertSame($data['state'], json_decode((string) $client->getResponse()->getContent(), true)['state']);
+    }
+
+    public function testImportRunOfAnArchiveWithNothingToOpenLeavesTheStateAsItWas(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $client->request('GET', '/editor/state');
+        $before = json_decode((string) $client->getResponse()->getContent(), true)['state'];
+
+        $zipPath = $this->workDir . '/pdfs.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('notes.pdf', 'ignored');
+        $zip->close();
+
+        $client->request('POST', '/import/run', [
+            'archive' => $zipPath,
+            'parentDir' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertNull($data['action']['openMode']);
+        self::assertSame(['notes.pdf'], $data['action']['ignoredEntries']);
+        self::assertSame($before, $data['state']);
     }
 
     /**

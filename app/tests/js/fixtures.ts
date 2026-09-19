@@ -14,9 +14,9 @@ export function masterHtml(state: EditorState = INITIAL, inner = ''): string {
         data-editor-state-urls-value="${attr({
             state: '/editor/state', mode: '/editor/mode', file: '/editor/file', dir: '/editor/dir',
             refreshDir: '/editor/dir/refresh', save: '/file/save', delete: '/file/delete', rename: '/file/rename',
-            settings: '/settings', setKey: '/settings/provider/__name__/key', deleteKey: '/settings/provider/__name__/key',
+            settings: '/settings', setKey: '/settings/provider/__name__/key', deleteKey: '/settings/provider/__name__/key', import: '/import/run',
         })}"
-        data-editor-state-tokens-value="${attr({ mode: 'tk-mode', file: 'tk-file', dir: 'tk-dir', settings: 'tk-settings' })}"
+        data-editor-state-tokens-value="${attr({ mode: 'tk-mode', file: 'tk-file', dir: 'tk-dir', settings: 'tk-settings', import: 'tk-import' })}"
         data-editor-state-i18n-value="${attr({ failed: 'Generic failure' })}">${inner}</div>`;
 }
 

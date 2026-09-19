@@ -255,6 +255,18 @@ export default class extends Controller<HTMLElement> {
             }),
             on('editor:do-save_as-failed', () => this.#pendingSaves.shift()),
 
+            // An archive that opened a file shows it as a file the user opened;
+            // one that opened a folder empties the editor, as choosing a folder
+            // does. One that opened nothing leaves everything as it was.
+            on('editor:do-import-succeeded', ({ state, action }) => {
+                if (action.openMode === 'single') {
+                    this.#syncDirectory(state);
+                    void this.#loadCurrentFile();
+                } else if (action.openMode === 'dir') {
+                    this.#resetTo(state);
+                }
+            }),
+
             // The delete already carries its own toast (the sidebar):
             // emptying here is silent, same as New.
             on('editor:do-delete-succeeded', ({ state, action }) => {

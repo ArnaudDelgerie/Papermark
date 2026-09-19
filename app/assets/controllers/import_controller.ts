@@ -1,10 +1,10 @@
 import { Controller } from '@hotwired/stimulus';
+import { emit, on } from '../editor/events';
 import { pickPath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
 interface I18n {
     noSource: string;
-    failed: string;
     done: string;
     report: { title: string; empty: string };
 }
@@ -16,34 +16,55 @@ function dirname(path: string): string {
 }
 
 /**
- * The import block of the Archive page (see EDITOR_IMPORT.md): pick a zip
- * archive and a destination parent folder, then a POST that extracts it
- * server-side and returns a report of the entries it left out. The server
- * already pointed the session at the result (see
- * ExportController::importRun()); opening it is a plain navigation to
- * app_home, which redirects to the right editor mode.
+ * The import block of the Archive modal (see EDITOR_IMPORT.md): pick a zip
+ * archive and a destination parent folder, then ask the master to extract it
+ * (`do-import`). The answer carries the state the archive left the editor in,
+ * which the columns and the editor follow on their own; this block only shows
+ * the toast and the report of the entries it left out, and gets its button
+ * back. The modal stays open. The leave guard, on the button, has already
+ * asked about unsaved work when the click gets here.
  */
 export default class extends Controller {
     static targets = ['archivePath', 'parentPath', 'importButton', 'report'];
 
-    static values = {
-        csrfToken: String,
-        runUrl: String,
-        homeUrl: String,
-        i18n: Object,
-    };
+    static values = { i18n: Object };
 
     declare readonly archivePathTarget: HTMLElement;
     declare readonly parentPathTarget: HTMLElement;
     declare readonly importButtonTarget: HTMLButtonElement;
     declare readonly reportTarget: HTMLElement;
-    declare readonly csrfTokenValue: string;
-    declare readonly runUrlValue: string;
-    declare readonly homeUrlValue: string;
     declare readonly i18nValue: I18n;
+
+    #unsubscribers: Array<() => void> = [];
+    /** Between this block's request and its answer: the events are heard by all. */
+    #running = false;
 
     #archivePath = '';
     #parentPath = '';
+
+    connect(): void {
+        this.#unsubscribers = [
+            on('editor:do-import-succeeded', ({ action }) => {
+                if (!this.#running) {
+                    return;
+                }
+                this.#settle();
+                showToast('success', this.i18nValue.done.replace('{path}', action.destination));
+                this.#renderReport(action.ignoredEntries);
+            }),
+            // The master already toasted the failure.
+            on('editor:do-import-failed', () => {
+                if (this.#running) {
+                    this.#settle();
+                }
+            }),
+        ];
+    }
+
+    disconnect(): void {
+        this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
+        this.#unsubscribers = [];
+    }
 
     async browseArchive(): Promise<void> {
         const path = await pickPath('file');
@@ -73,44 +94,22 @@ export default class extends Controller {
         this.parentPathTarget.textContent = path;
     }
 
-    async run(): Promise<void> {
+    run(): void {
         if (!this.#archivePath || !this.#parentPath) {
             showToast('error', this.i18nValue.noSource);
             return;
         }
 
+        this.#running = true;
         this.importButtonTarget.disabled = true;
         this.reportTarget.hidden = true;
 
-        const formData = new FormData();
-        formData.append('archive', this.#archivePath);
-        formData.append('parentDir', this.#parentPath);
+        emit('editor:do-import-requested', { action: { archive: this.#archivePath, parentDir: this.#parentPath } });
+    }
 
-        try {
-            const response = await fetch(this.runUrlValue, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
-                body: formData,
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                throw new Error(data.error || this.i18nValue.failed);
-            }
-
-            showToast('success', this.i18nValue.done.replace('{path}', data.destination));
-            this.#renderReport(data.ignoredEntries || []);
-
-            if (data.openMode) {
-                window.location.href = this.homeUrlValue;
-            }
-        } catch (err) {
-            console.error('Failed to import archive:', err);
-            showToast('error', (err as Error).message || this.i18nValue.failed);
-        } finally {
-            this.importButtonTarget.disabled = false;
-        }
+    #settle(): void {
+        this.#running = false;
+        this.importButtonTarget.disabled = false;
     }
 
     #renderReport(ignoredEntries: string[]): void {

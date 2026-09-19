@@ -1,0 +1,75 @@
+/* The modals (Settings, Archive): a native <dialog> without padding (a click
+   on itself is a click on its backdrop), the header, and the frame inside. */
+
+.modal-dialog {
+    width: min(600px, calc(100vw - 2 * var(--space-4)));
+    max-height: calc(100vh - 2 * var(--space-4));
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-page);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.modal-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-dialog::backdrop {
+    background: rgb(0 0 0 / 50%);
+}
+
+.modal-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-dialog-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.modal-dialog-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.modal-dialog-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.modal-dialog-close::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    background-color: currentcolor;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l9 9M12.5 3.5l-9 9'/%3E%3C/svg%3E");
+}
+
+.modal-dialog-body {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-4);
+}

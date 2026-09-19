@@ -105,14 +105,18 @@ final class EditorComponentTest extends KernelTestCase
         // The hidden submit is what the leave guard intercepts.
         self::assertSame(1, $locale->filter('button[type="submit"][data-editor-leave-guard]')->count());
 
-        // Settings opens the modal instead of leaving: no leave guard on it, and a lazy frame.
-        $modal = $crawler->filter('[data-controller="settings-modal"]');
-        self::assertSame(1, $modal->filter('button[data-action="click->settings-modal#open"]:not([data-editor-leave-guard])')->count());
-        $frame = $modal->filter('dialog turbo-frame#settings');
-        self::assertSame('lazy', $frame->attr('loading'));
-        self::assertSame('/settings', $frame->attr('src'));
-        // Archive is still a page, so it keeps its guard.
-        self::assertSame(1, $crawler->filter('a[data-editor-leave-guard]')->count());
+        // Archive and Settings open a modal instead of leaving: no leave guard on
+        // the buttons, and a lazy frame each. Archive comes first in the bar.
+        $modals = $crawler->filter('[data-controller="modal"]');
+        self::assertCount(2, $modals);
+        foreach (['archive' => [0, '/archive'], 'settings' => [1, '/settings']] as $id => [$index, $src]) {
+            $modal = $modals->eq($index);
+            self::assertSame(1, $modal->filter('button[data-action="click->modal#open"]:not([data-editor-leave-guard])')->count());
+            $frame = $modal->filter('dialog turbo-frame#' . $id);
+            self::assertSame('lazy', $frame->attr('loading'));
+            self::assertSame($src, $frame->attr('src'));
+        }
+        self::assertSame(0, $crawler->filter('a[data-editor-leave-guard]')->count());
     }
 
     /**

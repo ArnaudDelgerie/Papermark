@@ -161,6 +161,8 @@ components:
         report:
             title: Left at their original path
             empty: Every reference was embedded.
+            count_one: '{count} reference'
+            count_other: '{count} references'
             reason:
                 not_found: Not found
                 limit_exceeded: Beyond the export limit
@@ -178,4 +180,4 @@ components:
             empty: Every entry was imported.
     archive:
         title: Archive
-        back: ← Back
+        close: Close

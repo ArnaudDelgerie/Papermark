@@ -37,6 +37,12 @@ export default class extends Controller<HTMLElement> {
             // A new path the user just created, not yet in the history built
             // from Open and history clicks (see EDITOR_FIX.md #5).
             on('editor:do-save_as-succeeded', ({ action }) => this.#push(action.path)),
+            // The file an archive opened, same as one the user just created.
+            on('editor:do-import-succeeded', ({ state, action }) => {
+                if (action.openMode === 'single' && state.file !== null) {
+                    this.#push(state.file);
+                }
+            }),
             on('editor:do-delete-succeeded', ({ action }) => this.#remove(action.path)),
             // In place: renaming isn't a re-open, so it doesn't reorder.
             on('editor:do-rename-succeeded', ({ action }) => {

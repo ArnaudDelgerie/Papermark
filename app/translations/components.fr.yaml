@@ -161,6 +161,8 @@ components:
         report:
             title: Laissées à leur chemin d'origine
             empty: Toutes les références ont été embarquées.
+            count_one: '{count} référence'
+            count_other: '{count} références'
             reason:
                 not_found: Introuvable
                 limit_exceeded: Au-delà de la limite d'export
@@ -178,4 +180,4 @@ components:
             empty: Toutes les entrées ont été importées.
     archive:
         title: Archive
-        back: ← Retour
+        close: Fermer

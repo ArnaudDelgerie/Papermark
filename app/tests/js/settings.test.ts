@@ -1,7 +1,7 @@
 import type { Application } from '@hotwired/stimulus';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SettingsController from '../../assets/controllers/settings_controller';
-import SettingsModalController from '../../assets/controllers/settings_modal_controller';
+import ModalController from '../../assets/controllers/modal_controller';
 import { emit, on } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { mount, unmount } from './stimulus';
@@ -287,13 +287,13 @@ describe('the settings form', () => {
     });
 });
 
-describe('the settings modal', () => {
+describe('the modal', () => {
     let application: Application;
     const MODAL = `
-    <div data-controller="settings-modal">
-        <button type="button" data-action="click->settings-modal#open">Open</button>
-        <dialog data-settings-modal-target="dialog" data-action="click->settings-modal#backdrop">
-            <button type="button" class="close" data-action="click->settings-modal#close">Close</button>
+    <div data-controller="modal">
+        <button type="button" data-action="click->modal#open">Open</button>
+        <dialog data-modal-target="dialog" data-action="click->modal#backdrop">
+            <button type="button" class="close" data-action="click->modal#close">Close</button>
             <p class="inside">Inside</p>
         </dialog>
     </div>`;
@@ -306,7 +306,7 @@ describe('the settings modal', () => {
         HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement): void {
             this.removeAttribute('open');
         };
-        application = await mount(MODAL, { 'settings-modal': SettingsModalController });
+        application = await mount(MODAL, { modal: ModalController });
     });
 
     afterEach(async () => {

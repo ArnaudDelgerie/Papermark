@@ -202,6 +202,52 @@ describe('the editor, with the master', () => {
         expect(calls('GET', '/editor/file')).toHaveLength(2);
     });
 
+    describe('an import', () => {
+        it('that opened a file loads it', async () => {
+            await start(current);
+            files['/notes/imported.md'] = '# Imported';
+            current = { ...current, file: '/notes/imported.md' };
+
+            emit('editor:do-import-succeeded', {
+                state: current,
+                action: { destination: '/notes/imported', openMode: 'single', ignoredEntries: [] },
+            });
+            await settle();
+
+            expect(crepe.getMarkdown()).toBe('# Imported');
+            expect(label()).toBe('/notes/imported.md');
+        });
+
+        it('that opened a folder empties the editor', async () => {
+            await start(current);
+            current = { ...current, mode: 'dir', file: null, dir: '/notes/project' };
+
+            emit('editor:do-import-succeeded', {
+                state: current,
+                action: { destination: '/notes/project', openMode: 'dir', ignoredEntries: [] },
+            });
+            await settle();
+
+            expect(crepe.getMarkdown()).toBe('');
+            expect(label()).toBe('Untitled');
+        });
+
+        it('that opened nothing leaves the document as it is', async () => {
+            await start(current);
+            crepe.type('# A, edited');
+
+            emit('editor:do-import-succeeded', {
+                state: current,
+                action: { destination: '/notes/pdfs', openMode: null, ignoredEntries: ['a.pdf'] },
+            });
+            await settle();
+
+            expect(crepe.getMarkdown()).toBe('# A, edited');
+            expect(label()).toBe('/notes/a.md');
+            expect(calls('GET', '/editor/file')).toHaveLength(1);
+        });
+    });
+
     it('loads and empties with a fresh document, so undo cannot bring another file back', async () => {
         await start(current);
         click('[data-action="click->editor#newFile"]');

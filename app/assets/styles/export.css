@@ -1,32 +1,3 @@
-.page-archive {
-    max-width: 600px;
-    margin: 0 auto;
-    padding: var(--space-4);
-    box-sizing: border-box;
-}
-
-.archive-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-bottom: var(--space-5);
-}
-
-.archive-back {
-    color: var(--color-muted);
-    text-decoration: none;
-    font-size: 0.9rem;
-}
-
-.archive-back:hover {
-    color: var(--color-text);
-}
-
-.archive-header h1 {
-    margin: 0;
-    font-size: 1.2rem;
-}
-
 .archive-block {
     padding-top: var(--space-5);
     border-top: 1px solid var(--color-border);
@@ -161,13 +132,29 @@
     gap: var(--space-2);
 }
 
+.export-report-details > summary {
+    cursor: pointer;
+    color: var(--color-danger);
+    font-size: 0.9rem;
+}
+
+.export-report-details > ul {
+    margin-top: var(--space-2);
+}
+
 .export-report-item {
     display: flex;
+    min-width: 0;
     flex-direction: column;
     padding: var(--space-2) var(--space-3);
     background: var(--color-surface);
     border-radius: var(--radius);
     font-size: 0.85rem;
+}
+
+.export-report-target,
+.export-report-referencing {
+    overflow-wrap: anywhere;
 }
 
 .export-report-target {

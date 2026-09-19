@@ -21,12 +21,14 @@
          settings: path('app_settings_save'),
          setKey: path('app_settings_set_key', {name: '__name__'}),
          deleteKey: path('app_settings_delete_key', {name: '__name__'}),
+         import: path('app_import_run'),
      }|json_encode }}"
      data-editor-state-tokens-value="{{ {
          mode: csrf_token('mode'),
          file: csrf_token('file'),
          dir: csrf_token('dir'),
          settings: csrf_token('settings'),
+         import: csrf_token('import'),
      }|json_encode }}"
      data-editor-state-i18n-value="{{ { failed: 'components.editor.error.request_failed'|trans({}, 'components') }|json_encode }}">
     <aside class="editor-sidebar">

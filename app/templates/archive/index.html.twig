@@ -1,12 +1,8 @@
-{% extends 'base.html.twig' %}
-
-{% block body %}
-<div class="page-archive">
-    <div class="archive-header">
-        <a href="{{ path('app_home') }}" class="archive-back">{{ 'components.archive.back'|trans({}, 'components') }}</a>
-        <h1>{{ 'components.archive.title'|trans({}, 'components') }}</h1>
-    </div>
-
+{# The content of the Archive modal's frame (templates/components/editor.html.twig).
+   Not a page: no layout, and no `src` on the frame — Turbo would see a frame
+   that references itself. A frame captures the links and forms inside it:
+   anything of the kind added here needs `data-turbo="false"` or `target="_top"`. #}
+<turbo-frame id="archive">
     <section class="archive-block"
          data-controller="export"
          data-export-initial-kind-value="{{ initial_kind }}"
@@ -51,9 +47,6 @@
 
     <section class="archive-block"
          data-controller="import"
-         data-import-csrf-token-value="{{ import_csrf_token }}"
-         data-import-run-url-value="{{ path('app_import_run') }}"
-         data-import-home-url-value="{{ path('app_home') }}"
          data-import-i18n-value="{{ import_i18n|json_encode }}">
         <h2>{{ 'components.import.title'|trans({}, 'components') }}</h2>
 
@@ -75,11 +68,11 @@
             </div>
         </fieldset>
 
-        <button type="button" class="export-submit" data-import-target="importButton" data-action="click->import#run">
+        {# The leave guard intercepts the click before it reaches the controller: unsaved work is asked about first. #}
+        <button type="button" class="export-submit" data-import-target="importButton" data-action="click->import#run" data-editor-leave-guard>
             {{ 'components.import.import_button'|trans({}, 'components') }}
         </button>
 
         <div class="export-report" data-import-target="report" hidden></div>
     </section>
-</div>
-{% endblock %}
+</turbo-frame>

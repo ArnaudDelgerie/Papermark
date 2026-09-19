@@ -28,6 +28,7 @@ interface Urls {
     /** With a `__name__` placeholder (a `{name}` would come out URL-encoded): the provider. */
     setKey: string;
     deleteKey: string;
+    import: string;
 }
 
 interface Tokens {
@@ -35,6 +36,7 @@ interface Tokens {
     file: string;
     dir: string;
     settings: string;
+    import: string;
 }
 
 interface Route {
@@ -56,6 +58,7 @@ const ROUTES: Record<ActionName, Route> = {
     'do-save_settings': { url: 'settings', method: 'POST', token: 'settings' },
     'do-set_key': { url: 'setKey', method: 'POST', token: 'settings' },
     'do-delete_key': { url: 'deleteKey', method: 'DELETE', token: 'settings' },
+    'do-import': { url: 'import', method: 'POST', token: 'import' },
 };
 
 /** Every state route answers this, error included (S6). */

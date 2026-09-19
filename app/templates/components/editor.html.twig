@@ -65,18 +65,29 @@
 
         <span class="editor-filebar-divider" aria-hidden="true"></span>
 
-        {# The files #}
-        <div class="editor-filebar-actions">
-            <a href="{{ path('app_archive') }}" class="editor-filebar-btn" data-editor-leave-guard title="{{ 'components.editor.export'|trans({}, 'components') }}">
+        {# The files: the Archive modal, its frame loads on the first opening (lazy: the
+           closed dialog is not visible) and is never emptied afterwards. #}
+        <div class="editor-filebar-actions" data-controller="modal">
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.export'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--export" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.export'|trans({}, 'components') }}</span>
-            </a>
+            </button>
+
+            <dialog class="modal-dialog" data-modal-target="dialog" data-action="click->modal#backdrop" aria-labelledby="archive-dialog-title">
+                <div class="modal-dialog-header">
+                    <h2 id="archive-dialog-title">{{ 'components.archive.title'|trans({}, 'components') }}</h2>
+                    <button type="button" class="modal-dialog-close" data-action="click->modal#close" title="{{ 'components.archive.close'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.archive.close'|trans({}, 'components') }}</span>
+                    </button>
+                </div>
+                <turbo-frame id="archive" class="modal-dialog-body" src="{{ path('app_archive') }}" loading="lazy"></turbo-frame>
+            </dialog>
         </div>
 
         <span class="editor-filebar-divider" aria-hidden="true"></span>
 
         {# The app #}
-        <div class="editor-filebar-actions" data-controller="settings-modal">
+        <div class="editor-filebar-actions" data-controller="modal">
             <button type="button" class="editor-filebar-btn" data-controller="theme-switch"
                     data-action="click->theme-switch#next"
                     data-value="{{ appearance.theme }}"
@@ -117,21 +128,21 @@
                 </form>
             </div>
 
-            <button type="button" class="editor-filebar-btn" data-settings-modal-target="opener" data-action="click->settings-modal#open" title="{{ 'components.editor.settings'|trans({}, 'components') }}">
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.settings'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--settings" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.settings'|trans({}, 'components') }}</span>
             </button>
 
             {# The frame loads on the first opening (lazy: the closed dialog is not visible)
                and is never emptied afterwards. #}
-            <dialog class="settings-dialog" data-settings-modal-target="dialog" data-action="click->settings-modal#backdrop" aria-labelledby="settings-dialog-title">
-                <div class="settings-dialog-header">
+            <dialog class="modal-dialog" data-modal-target="dialog" data-action="click->modal#backdrop" aria-labelledby="settings-dialog-title">
+                <div class="modal-dialog-header">
                     <h2 id="settings-dialog-title">{{ 'components.settings.title'|trans({}, 'components') }}</h2>
-                    <button type="button" class="settings-dialog-close" data-action="click->settings-modal#close" title="{{ 'components.settings.close'|trans({}, 'components') }}">
+                    <button type="button" class="modal-dialog-close" data-action="click->modal#close" title="{{ 'components.settings.close'|trans({}, 'components') }}">
                         <span class="visually-hidden">{{ 'components.settings.close'|trans({}, 'components') }}</span>
                     </button>
                 </div>
-                <turbo-frame id="settings" class="settings-dialog-body" src="{{ path('app_settings') }}" loading="lazy"></turbo-frame>
+                <turbo-frame id="settings" class="modal-dialog-body" src="{{ path('app_settings') }}" loading="lazy"></turbo-frame>
             </dialog>
         </div>
     </div>
