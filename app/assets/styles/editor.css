@@ -328,6 +328,14 @@
     display: none;
 }
 
+/* Readonly turns contenteditable off, so the browser follows links again. A
+   local one (other.md, ./img.png, #section) resolves against the app's own
+   origin and lands on a missing route: make it inert. External ones stay
+   clickable, the hub opens them in the user's browser. */
+.editor-shell.is-readonly .ProseMirror a:not([href^="http:" i], [href^="https:" i], [href^="mailto:" i]) {
+    pointer-events: none;
+}
+
 /* The frame, flex column and hidden x-overflow below used to come by
    accident from our container's class: Milkdown tags .ProseMirror with
    "editor" (prepareViewDom), which is why the container is .editor-shell.
