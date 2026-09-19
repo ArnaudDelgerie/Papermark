@@ -7,6 +7,7 @@ namespace App\Entity;
 use App\Ai\ProviderName;
 use App\Repository\ProviderRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * An AI provider and the user's choices for it. The API key is not stored
@@ -21,7 +22,11 @@ class Provider
     #[ORM\Column]
     private ?int $id = null;
 
+    // Free-form (AnyModelCatalog): `claude-opus-5`, `llama3.1:8b`, `models/gemini-2.5-pro`.
+    // The length follows the column, which has no `length` (255).
     #[ORM\Column(nullable: true)]
+    #[Assert\Length(max: 255, maxMessage: 'provider.model.too_long')]
+    #[Assert\Regex(pattern: '/^[\w.:\/@+-]+$/', message: 'provider.model.invalid')]
     private ?string $model = null;
 
     public function __construct(

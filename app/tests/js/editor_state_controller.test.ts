@@ -40,7 +40,7 @@ describe('editor-state (the master)', () => {
         expect(init.method).toBe('POST');
         expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-mode' });
         expect((init.body as FormData).get('mode')).toBe('dir');
-        // readonly and ai_enabled are not sent by the routes: they are kept.
+        // readonly is not sent by the routes: it is kept. ai_enabled is, but not by this one.
         expect(succeeded).toHaveBeenCalledWith({
             state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true },
             action: { mode: 'dir' },
@@ -165,5 +165,96 @@ describe('editor-state (the master)', () => {
         await settle();
 
         expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, dir: null }, anomaly: { dir: '/notes' } });
+    });
+
+    describe('the settings actions', () => {
+        it('do-save_settings sends the form as it is, with the settings token', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: { ai_enabled: false }, action: {} }));
+            const succeeded = vi.fn();
+            on('editor:do-save_settings-succeeded', succeeded);
+            const form = new FormData();
+            form.append('settings[selected]', 'anthropic');
+
+            emit('editor:do-save_settings-requested', { action: { form } });
+            await settle();
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe('/settings');
+            expect(init.method).toBe('POST');
+            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-settings' });
+            expect(init.body).toBe(form);
+            // The state of the answer is taken: the AI went off.
+            expect(succeeded).toHaveBeenCalledWith({ state: { ...INITIAL, ai_enabled: false }, action: {} });
+            expect(toasts).toEqual([]);
+        });
+
+        it('an invalid form (422, errors, no error) fails with the errors and no toast', async () => {
+            const errors = [{ field: 'settings[providers][anthropic][model]', message: 'Anthropic · Model: not allowed' }];
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'single', file: '/notes/a.md', dir: '/notes', ai_enabled: true }, action: { errors } }, 422));
+            const failed = vi.fn();
+            on('editor:do-save_settings-failed', failed);
+            const form = new FormData();
+
+            emit('editor:do-save_settings-requested', { action: { form } });
+            await settle();
+
+            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, errors } });
+            expect(toasts).toEqual([]);
+        });
+
+        it('a technical failure of the save toasts, with no errors to show', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'Could not save the setting' }, 500));
+            const failed = vi.fn();
+            on('editor:do-save_settings-failed', failed);
+            const form = new FormData();
+
+            emit('editor:do-save_settings-requested', { action: { form } });
+            await settle();
+
+            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, errors: [] } });
+            expect(toasts).toEqual([{ type: 'error', message: 'Could not save the setting' }]);
+        });
+
+        it('do-set_key puts the provider in the url and the key in the body', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: { ai_enabled: true }, action: { name: 'mistral' } }));
+            const succeeded = vi.fn();
+            on('editor:do-set_key-succeeded', succeeded);
+
+            emit('editor:do-set_key-requested', { action: { name: 'mistral', key: 'sk-secret' } });
+            await settle();
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe('/settings/provider/mistral/key');
+            expect(init.method).toBe('POST');
+            expect((init.body as FormData).get('key')).toBe('sk-secret');
+            expect(succeeded).toHaveBeenCalledWith({ state: INITIAL, action: { name: 'mistral' } });
+        });
+
+        it('never repeats the key in a failure', async () => {
+            fetchMock.mockRejectedValue(new TypeError('Network down'));
+            const failed = vi.fn();
+            on('editor:do-set_key-failed', failed);
+
+            emit('editor:do-set_key-requested', { action: { name: 'mistral', key: 'sk-secret' } });
+            await settle();
+
+            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { name: 'mistral' } });
+            expect(JSON.stringify(failed.mock.calls)).not.toContain('sk-secret');
+        });
+
+        it('do-delete_key is a DELETE on the provider, without a body', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: { ai_enabled: false }, action: { name: 'anthropic' } }));
+            const succeeded = vi.fn();
+            on('editor:do-delete_key-succeeded', succeeded);
+
+            emit('editor:do-delete_key-requested', { action: { name: 'anthropic' } });
+            await settle();
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe('/settings/provider/anthropic/key');
+            expect(init.method).toBe('DELETE');
+            expect(init.body).toBeUndefined();
+            expect(succeeded).toHaveBeenCalledWith({ state: { ...INITIAL, ai_enabled: false }, action: { name: 'anthropic' } });
+        });
     });
 });

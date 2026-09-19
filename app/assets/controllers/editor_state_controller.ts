@@ -6,6 +6,7 @@ import {
     type FailureOf,
     type RequestOf,
     type ResultOf,
+    type SettingsError,
     emit,
     failed,
     on,
@@ -23,12 +24,17 @@ interface Urls {
     save: string;
     delete: string;
     rename: string;
+    settings: string;
+    /** With a `__name__` placeholder (a `{name}` would come out URL-encoded): the provider. */
+    setKey: string;
+    deleteKey: string;
 }
 
 interface Tokens {
     mode: string;
     file: string;
     dir: string;
+    settings: string;
 }
 
 interface Route {
@@ -47,12 +53,15 @@ const ROUTES: Record<ActionName, Route> = {
     'do-save_as': { url: 'save', method: 'POST', token: 'file' },
     'do-delete': { url: 'delete', method: 'POST', token: 'file' },
     'do-rename': { url: 'rename', method: 'POST', token: 'file' },
+    'do-save_settings': { url: 'settings', method: 'POST', token: 'settings' },
+    'do-set_key': { url: 'setKey', method: 'POST', token: 'settings' },
+    'do-delete_key': { url: 'deleteKey', method: 'DELETE', token: 'settings' },
 };
 
 /** Every state route answers this, error included (S6). */
 interface StateResponse {
     state?: Partial<EditorState>;
-    action?: ResultOf<ActionName>;
+    action?: ResultOf<ActionName> & { errors?: SettingsError[] };
     error?: string;
 }
 
@@ -115,7 +124,7 @@ export default class extends Controller {
         let response: Response;
         let data: StateResponse | null;
         try {
-            response = await fetch(this.urlsValue[route.url], {
+            response = await fetch(this.#url(route, action), {
                 method: route.method,
                 headers: { 'X-CSRF-TOKEN': this.tokensValue[route.token] },
                 body: route.method === 'POST' ? toFormData(action) : undefined,
@@ -153,12 +162,25 @@ export default class extends Controller {
             return;
         }
 
-        this.#fail(name, action, data?.error ?? null);
+        // A refusal that comes with the state and an action but no `error`
+        // (an invalid settings form, 422) is for its asker to show, not a toast.
+        const quiet = data?.state !== undefined && data.action !== undefined && data.error === undefined;
+        this.#fail(name, action, data?.error ?? null, quiet, data?.action?.errors);
     }
 
-    #fail(name: ActionName, action: RequestOf<ActionName>, message: string | null): void {
-        showToast('error', message ?? this.i18nValue.failed);
-        emit(failed(name), { state: this.#state, action: withoutContent(action) } as never);
+    #fail(name: ActionName, action: RequestOf<ActionName>, message: string | null, quiet = false, errors?: SettingsError[]): void {
+        if (!quiet) {
+            showToast('error', message ?? this.i18nValue.failed);
+        }
+        const extras = name === 'do-save_settings' ? { errors: errors ?? [] } : {};
+        emit(failed(name), { state: this.#state, action: { ...withoutSecrets(action), ...extras } } as never);
+    }
+
+    /** `__name__` is the provider of a key action. */
+    #url(route: Route, action: RequestOf<ActionName>): string {
+        const url = this.urlsValue[route.url];
+
+        return 'name' in action ? url.replace('__name__', encodeURIComponent(action.name)) : url;
     }
 
     /**
@@ -182,13 +204,18 @@ export default class extends Controller {
         emit('editor:state-resynced', { state: this.#state, anomaly });
     }
 
-    /** Keys the answer lacks keep their value (`readonly`, `ai_enabled`). */
+    /** Keys the answer lacks keep their value (`readonly`). */
     #merge(state: Partial<EditorState>): void {
         this.#state = { ...this.#state, ...state };
     }
 }
 
 function toFormData(action: object): FormData {
+    // The settings form is sent as it is.
+    if ('form' in action && action.form instanceof FormData) {
+        return action.form;
+    }
+
     const body = new FormData();
     for (const [key, value] of Object.entries(action)) {
         body.append(key, String(value));
@@ -197,9 +224,10 @@ function toFormData(action: object): FormData {
     return body;
 }
 
-function withoutContent<A extends ActionName>(action: RequestOf<A>): FailureOf<A> {
+function withoutSecrets<A extends ActionName>(action: RequestOf<A>): Omit<FailureOf<A>, 'errors'> {
     const copy: Record<string, unknown> = { ...action };
     delete copy.content;
+    delete copy.key;
 
-    return copy as FailureOf<A>;
+    return copy as Omit<FailureOf<A>, 'errors'>;
 }

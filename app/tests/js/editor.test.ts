@@ -15,18 +15,23 @@ vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }))
 vi.mock('@milkdown/utils', () => ({ replaceAll: (markdown: string, flush = false) => ({ replaceAll: markdown, flush }) }));
 
 /** Just enough of Crepe for the controller: markdown in, markdown out, updates. */
-function fakeCrepe(): { getMarkdown: () => string; type: (markdown: string) => void; flushes: boolean[] } {
-    let markdown = '';
+function fakeCrepe(initial = '', serialize: (markdown: string) => string = (markdown) => markdown): {
+    getMarkdown: () => string;
+    type: (markdown: string) => void;
+    flushes: boolean[];
+    destroy: ReturnType<typeof vi.fn>;
+} {
+    let markdown = initial;
     // The flush flag of each replaceAll(): true starts a fresh state.
     const flushes: boolean[] = [];
     const listeners: Array<(ctx: unknown, markdown: string) => void> = [];
     const set = (value: string): void => {
         markdown = value;
-        listeners.forEach((listener) => listener(null, markdown));
+        listeners.forEach((listener) => listener(null, serialize(markdown)));
     };
 
     return {
-        getMarkdown: () => markdown,
+        getMarkdown: () => serialize(markdown),
         // What typing in the editor does.
         type: set,
         flushes,
@@ -273,6 +278,119 @@ describe('the editor, with the master', () => {
         expect(toasts).toEqual([{ type: 'error', message: 'File not found' }]);
         expect(calls('GET', '/editor/state')).toHaveLength(1);
         expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, file: null }, anomaly: { file: '/notes/a.md' } });
+    });
+
+    describe('the AI, following the state', () => {
+        interface Creation {
+            aiEnabled: boolean;
+            defaultValue: string;
+        }
+        let crepes: Array<ReturnType<typeof fakeCrepe>>;
+        // How the next Crepe serializes what it is given.
+        let serialize: (markdown: string) => string;
+
+        const creations = (): Creation[] => vi.mocked(EditorFactory.create).mock.calls.map(([options]) => options as unknown as Creation);
+        const withAi = (aiEnabled: boolean): EditorState => ({ ...current, ai_enabled: aiEnabled });
+
+        beforeEach(() => {
+            crepes = [];
+            serialize = (markdown) => markdown;
+            vi.mocked(EditorFactory.create).mockImplementation((async (options: Creation) => {
+                const created = fakeCrepe(options.defaultValue, serialize);
+                crepes.push(created);
+
+                return created;
+            }) as never);
+        });
+
+        it('creates Crepe with the AI as the state has it at load', async () => {
+            await start(withAi(false));
+            expect(creations().map((creation) => creation.aiEnabled)).toEqual([false]);
+
+            await unmount(application);
+            vi.mocked(EditorFactory.create).mockClear();
+            await start(withAi(true));
+            expect(creations().map((creation) => creation.aiEnabled)).toEqual([true]);
+        });
+
+        it.each([
+            ['do-save_settings-succeeded', {}],
+            ['do-set_key-succeeded', { name: 'mistral' }],
+            ['do-delete_key-succeeded', { name: 'mistral' }],
+        ] as const)('%s turning the AI on recreates Crepe around the same markdown, with no confirmation', async (name, action) => {
+            await start(withAi(false));
+            crepes[0].type('# A, edited');
+
+            emit(`editor:${name}`, { state: withAi(true), action } as never);
+            await settle();
+
+            expect(creations()).toEqual([
+                expect.objectContaining({ aiEnabled: false }),
+                expect.objectContaining({ aiEnabled: true, defaultValue: '# A, edited' }),
+            ]);
+            expect(crepes[0].destroy).toHaveBeenCalledTimes(1);
+            expect(confirmDialog).not.toHaveBeenCalled();
+            // What was on screen is still there: the file, and the unsaved state.
+            expect(crepes[1].getMarkdown()).toBe('# A, edited');
+            expect(label()).toBe('/notes/a.md');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+        });
+
+        it('turning the AI off recreates it without', async () => {
+            await start(withAi(true));
+
+            emit('editor:do-delete_key-succeeded', { state: withAi(false), action: { name: 'anthropic' } });
+            await settle();
+
+            expect(creations().map((creation) => creation.aiEnabled)).toEqual([true, false]);
+        });
+
+        it('does nothing when the state agrees with what Crepe was created with', async () => {
+            await start(withAi(true));
+
+            emit('editor:do-save_settings-succeeded', { state: withAi(true), action: {} });
+            await settle();
+
+            expect(creations()).toHaveLength(1);
+            expect(crepes[0].destroy).not.toHaveBeenCalled();
+        });
+
+        it('a clean document stays clean even if Crepe serializes it differently the second time', async () => {
+            await start(withAi(false));
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+            serialize = (markdown) => `${markdown}\n`;
+
+            emit('editor:do-set_key-succeeded', { state: withAi(true), action: { name: 'mistral' } });
+            await settle();
+
+            expect(crepes[1].getMarkdown()).toBe('# A\n');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        });
+
+        it('changes met one after the other are handled one at a time, the last one wins', async () => {
+            await start(withAi(false));
+
+            emit('editor:do-set_key-succeeded', { state: withAi(true), action: { name: 'mistral' } });
+            emit('editor:do-delete_key-succeeded', { state: withAi(false), action: { name: 'mistral' } });
+            await settle();
+
+            expect(creations().map((creation) => creation.aiEnabled)).toEqual([false, true, false]);
+            expect(crepes[1].destroy).toHaveBeenCalledTimes(1);
+        });
+
+        it('Save still works on the new Crepe, with its markdown', async () => {
+            await start(withAi(false));
+            emit('editor:do-save_settings-succeeded', { state: withAi(true), action: {} });
+            await settle();
+            crepes[1].type('# A, edited');
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            const [, init] = calls('POST', '/file/save')[0];
+            expect((init!.body as FormData).get('content')).toBe('# A, edited');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        });
     });
 
     describe('the leave guard', () => {

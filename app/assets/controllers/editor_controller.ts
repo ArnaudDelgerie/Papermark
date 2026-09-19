@@ -18,8 +18,14 @@ import { pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 import type EditorStateController from './editor_state_controller';
 
-/** Editor::getAiConfig(): the hub and topic only come with AI enabled. */
-type AiConfig = { enabled: false } | { enabled: true; mercureUrl: string; topic: string };
+/**
+ * Editor::getAiConfig(): the hub and topic, always given. Whether the AI is on
+ * is the `ai_enabled` of the state, which can change without a reload.
+ */
+interface AiConfig {
+    mercureUrl?: string;
+    topic?: string;
+}
 
 interface Urls {
     file: string;
@@ -63,6 +69,11 @@ interface FileResponse {
  * everyone else's: it empties on a switch of mode or folder and when its file
  * is deleted, relabels when it is renamed (see EDITOR_REACTIVITY.md).
  *
+ * The AI is on or off with the state's `ai_enabled`, read at load and on the
+ * settings actions that can change it. Crepe fixes its features when it is
+ * created, so a change recreates it around the same markdown (see
+ * EDITOR_SETTINGS.md).
+ *
  * The leave guard runs on window, capture phase, before any `…-requested`:
  * the master only ever sees confirmed requests (S11).
  */
@@ -71,7 +82,7 @@ export default class extends Controller<HTMLElement> {
         fileCsrfToken: String,
         aiCsrfToken: String,
         urls: Object,
-        aiConfig: { type: Object, default: { enabled: false } },
+        aiConfig: { type: Object, default: {} },
         readonly: { type: Boolean, default: false },
         // Defaults for the editor's own texts (placeholder, slash menu, AI panel)
         // live in EditorFactory; only controller-owned UI text falls back here.
@@ -109,6 +120,13 @@ export default class extends Controller<HTMLElement> {
     // starts the outlet observer first): it waits on this.
     #crepeReady!: Promise<Crepe>;
     #resolveCrepe!: (crepe: Crepe) => void;
+    // Crepe is created once the state is known: it says whether the AI is on.
+    #stateReady!: Promise<EditorState>;
+    #resolveState!: (state: EditorState) => void;
+    // What Crepe was created with.
+    #aiEnabled = false;
+    // Set while Crepe is being recreated for a change of `ai_enabled`.
+    #recreation: Promise<void> | null = null;
     #currentPath: string | null = null;
     // Save as opens its dialog in the current folder, in dir mode only.
     #directory: string | null = null;
@@ -129,21 +147,15 @@ export default class extends Controller<HTMLElement> {
 
     initialize(): void {
         this.#crepeReady = new Promise((resolve) => (this.#resolveCrepe = resolve));
+        this.#stateReady = new Promise((resolve) => (this.#resolveState = resolve));
     }
 
     async connect(): Promise<void> {
         this.#isReadonly = this.readonlyValue;
 
-        const aiConfig = this.aiConfigValue;
-        if (aiConfig.enabled) {
-            this.#aiClient = new AiClient({
-                csrfToken: this.aiCsrfTokenValue,
-                urls: { subscribe: this.urlsValue.aiSubscribe, instruct: this.urlsValue.aiInstruct, abort: this.urlsValue.aiAbort },
-                mercureUrl: aiConfig.mercureUrl,
-                topic: aiConfig.topic,
-                requestFailedMessage: this.i18nValue.ai?.requestFailed,
-            });
-        }
+        const { ai_enabled: aiEnabled } = await this.#stateReady;
+        this.#aiEnabled = aiEnabled;
+        this.#connectAiClient();
 
         const crepe = await this.#createCrepe();
         this.#crepe = crepe;
@@ -191,8 +203,9 @@ export default class extends Controller<HTMLElement> {
      * through the same path as after an event.
      */
     async editorStateOutletConnected(outlet: EditorStateController): Promise<void> {
-        await this.#crepeReady;
         const { state } = outlet;
+        this.#resolveState({ ...state });
+        await this.#crepeReady;
         this.#syncDirectory(state);
         if (state.file !== null) {
             await this.#loadCurrentFile();
@@ -258,6 +271,11 @@ export default class extends Controller<HTMLElement> {
                 this.#updateFilePath();
             }),
 
+            // Saving the settings, setting or deleting a key can turn the AI on or off.
+            on('editor:do-save_settings-succeeded', ({ state }) => void this.#followAi(state)),
+            on('editor:do-set_key-succeeded', ({ state }) => void this.#followAi(state)),
+            on('editor:do-delete_key-succeeded', ({ state }) => void this.#followAi(state)),
+
             on('editor:state-resynced', ({ state, anomaly }) => {
                 if (anomaly.file !== undefined && anomaly.file === this.#currentPath) {
                     this.#resetTo(state);
@@ -273,7 +291,7 @@ export default class extends Controller<HTMLElement> {
             i18n: this.i18nValue,
             onInsertImage: (ctx: Ctx) => this.#insertImageFromPicker(ctx),
             onCopyCode: (text: string) => this.#copyCode(text),
-            aiEnabled: this.#isAiEnabled(),
+            aiEnabled: this.#aiEnabled,
             aiProvider: this.#aiClient?.createProvider(),
             // Crepe prefixes the message ("AI provider error: ..."); show the original one.
             onAiError: (error: Error) => showToast('error', (error.cause as Error | undefined)?.message ?? error.message),
@@ -291,6 +309,85 @@ export default class extends Controller<HTMLElement> {
         });
 
         return crepe;
+    }
+
+    /** The AI client, once the hub and topic are known: only with AI on. */
+    #connectAiClient(): void {
+        const { mercureUrl, topic } = this.aiConfigValue;
+        if (!this.#aiEnabled || mercureUrl === undefined || topic === undefined) {
+            return;
+        }
+
+        this.#aiClient = new AiClient({
+            csrfToken: this.aiCsrfTokenValue,
+            urls: { subscribe: this.urlsValue.aiSubscribe, instruct: this.urlsValue.aiInstruct, abort: this.urlsValue.aiAbort },
+            mercureUrl,
+            topic,
+            requestFailedMessage: this.i18nValue.ai?.requestFailed,
+        });
+    }
+
+    /**
+     * If the state's `ai_enabled` is no longer what Crepe was created with,
+     * recreates it. One at a time: a change met meanwhile waits for the
+     * running one, then compares again.
+     */
+    #followAi(state: EditorState): Promise<void> {
+        const run = async (): Promise<void> => {
+            await this.#recreation;
+            if (state.ai_enabled === this.#aiEnabled || this.#crepe === null) {
+                return;
+            }
+            await this.#recreateCrepe(state.ai_enabled);
+        };
+        const pending = run();
+        this.#recreation = pending.finally(() => {
+            if (this.#recreation === pending) {
+                this.#recreation = null;
+            }
+        });
+
+        return pending;
+    }
+
+    /**
+     * Extracts the markdown, recreates Crepe with or without the AI feature,
+     * puts the markdown back. Nothing is lost, so no leave guard. The file,
+     * the read-only mode and the "unsaved" state stay; the undo history
+     * starts over, as when a file is opened.
+     */
+    async #recreateCrepe(aiEnabled: boolean): Promise<void> {
+        const previous = this.#crepe!;
+        const markdown = previous.getMarkdown();
+        const wasDirty = this.#isDirty(markdown);
+
+        // A generation in progress dies with the editor it runs in.
+        this.#discardAi();
+
+        this.#crepe = null;
+        await previous.destroy();
+        // Crepe leaves its empty container behind; the next one makes its own.
+        this.element.querySelectorAll(':scope > .milkdown').forEach((container) => container.remove());
+        this.#aiClient?.close();
+        this.#aiClient = null;
+
+        this.#aiEnabled = aiEnabled;
+        this.#connectAiClient();
+
+        const crepe = await this.#createCrepe(markdown);
+        this.#crepe = crepe;
+        // A clean document stays clean even if Crepe serializes it a little
+        // differently the second time.
+        if (!wasDirty) {
+            this.#savedRef = crepe.getMarkdown();
+        }
+        if (this.#isReadonly) {
+            this.#applyReadonlyState();
+        }
+        this.#updateSaveButton(crepe.getMarkdown());
+        this.#updatePrintButton(crepe.getMarkdown());
+        this.#updateCopyMarkdownButton(crepe.getMarkdown());
+        this.#updateDirtyIndicator();
     }
 
     toggleReadonly(): void {
@@ -348,6 +445,12 @@ export default class extends Controller<HTMLElement> {
 
             if (!response.ok) {
                 throw new Error(data.error || `Open failed: ${response.status}`);
+            }
+
+            // Crepe may be mid-recreation: the file lands in the new one.
+            await this.#recreation;
+            if (request.signal.aborted) {
+                return;
             }
 
             if (data.path === null || data.path === undefined) {
@@ -678,7 +781,7 @@ export default class extends Controller<HTMLElement> {
 
     // Aborting ends the provider's generator, whose finally tells the worker to stop.
     #discardAi(): void {
-        if (!this.#isAiEnabled()) {
+        if (!this.#aiEnabled) {
             return;
         }
 
@@ -696,8 +799,4 @@ export default class extends Controller<HTMLElement> {
         });
     }
 
-    // The server enables AI only with a worker, a selected provider and its key.
-    #isAiEnabled(): boolean {
-        return this.aiConfigValue?.enabled === true;
-    }
 }

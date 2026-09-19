@@ -9,6 +9,8 @@ components:
         copy_markdown: Copier en Markdown
         export: Archive
         settings: Réglages
+        theme_button: 'Thème : {theme}'
+        locale_button: 'Langue : {language}'
         untitled: Sans titre
         unsaved:
             indicator: Non enregistré
@@ -76,6 +78,8 @@ components:
             invalid_mode: Mode d'éditeur inconnu
             request_failed: "L'action a échoué, veuillez réessayer"
             key_delete_failed: Impossible de supprimer la clé API
+            key_save_failed: Impossible d'enregistrer la clé API
+            no_key: Aucune clé API fournie
             invalid_name: Nom de fichier invalide
             rename_target_exists: Un fichier avec ce nom existe déjà
             delete_error: Impossible de supprimer le fichier
@@ -116,25 +120,23 @@ components:
             renamed: Fichier renommé
     settings:
         title: Réglages
-        back: ← Retour
         tabs_label: Sections des réglages
         tab_providers: Fournisseurs IA
-        tab_editor: Éditeur & apparence
+        tab_editor: Éditeur
         tab_updates: Mises à jour
         model_label: Modèle
         api_key_label: Clé API
         key_placeholder: Entrez la clé API…
         key_set: Clé définie
-        save: Enregistrer
-        save_and_close: Enregistrer et fermer
-        saved: Réglages enregistrés
+        close: Fermer
+        saving: Enregistrement…
+        set_key: Enregistrer la clé
+        errors_title: 'Ces réglages n''ont pas été enregistrés :'
+        error_line: '{field} : {message}'
         mode_title: Mode par défaut
-        theme_title: Thème
-        locale_title: Langue
         delete_key: Supprimer la clé
         delete_key_confirm_message: Ceci supprime la clé API stockée pour ce fournisseur. Vous devrez la saisir à nouveau pour utiliser l'IA avec lui.
         delete_key_confirm_question: Supprimer cette clé API ?
-        key_deleted: Clé API supprimée
         update_title: Mises à jour
         update_check_button: Vérifier les mises à jour
         update_available: 'Mise à jour disponible : %version%'

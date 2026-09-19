@@ -7,21 +7,20 @@ namespace App\Form;
 use App\Ai\ProviderName;
 use App\Editor\EditorMode;
 use App\Entity\Provider;
-use App\Locale\AppLocale;
-use App\Theme\ThemeMode;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
-use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
- * Settings page: one ProviderType per provider (keyed by name), plus a single
- * radio group for the selected provider. Each radio is rendered inside its
- * provider block by the template (form.selected[name]).
+ * Settings form, saved as a whole on every change: one ProviderType per
+ * provider (keyed by name), plus a single radio group for the selected
+ * provider. Each radio is rendered inside its provider block by the template
+ * (form.selected[name]). Theme and language are not here: they have their own
+ * buttons in the file bar.
  *
- * @extends AbstractType<array{providers: array<string, Provider>, selected: ?ProviderName, defaultMode: EditorMode, themeMode: ThemeMode, locale: AppLocale}>
+ * @extends AbstractType<array{providers: array<string, Provider>, selected: ?ProviderName, defaultMode: EditorMode}>
  */
 final class SettingsType extends AbstractType
 {
@@ -44,22 +43,6 @@ final class SettingsType extends AbstractType
                 'class' => EditorMode::class,
                 'expanded' => true,
                 'choice_label' => static fn (EditorMode $mode): string => 'components.mode.' . $mode->value,
-            ])
-            ->add('themeMode', EnumType::class, [
-                'class' => ThemeMode::class,
-                'expanded' => true,
-                'choice_label' => static fn (ThemeMode $mode): string => 'components.theme.' . $mode->value,
-            ])
-            ->add('locale', EnumType::class, [
-                'class' => AppLocale::class,
-                'expanded' => true,
-                'choice_label' => static fn (AppLocale $locale): string => 'components.locale.' . $locale->value,
-            ])
-            ->add('save', SubmitType::class, [
-                'label' => 'components.settings.save',
-            ])
-            ->add('saveAndClose', SubmitType::class, [
-                'label' => 'components.settings.save_and_close',
             ]);
     }
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Ai\AiAvailability;
 use App\Editor\EditorMode;
 use App\Editor\EditorState;
 use App\File\MarkdownFileReader;
@@ -45,17 +44,16 @@ final class EditorController extends AbstractController
      * The editor gets no file here: it fetches it itself through getFile().
      *
      * `state` hydrates the client store (the editor-state controller). It adds
-     * what the routes don't send yet: `readonly`, always off at load, and
-     * `ai_enabled` (see EDITOR_TS_MIGRATION.md).
+     * what the routes don't send: `readonly`, always off at load.
      */
     #[Route('/editor', name: 'app_editor', methods: ['GET'])]
-    public function index(AiAvailability $aiAvailability): Response
+    public function index(): Response
     {
         $state = $this->editorState->toArray();
 
         return $this->render('editor/page.html.twig', [
             'mode' => $state['mode'],
-            'state' => [...$state, 'readonly' => false, 'ai_enabled' => $aiAvailability->isEnabled()],
+            'state' => [...$state, 'readonly' => false],
         ]);
     }
 

@@ -18,6 +18,7 @@
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">
     <div class="editor-file-bar">
+        {# The file #}
         <div class="editor-filebar-actions">
             <button type="button" class="editor-filebar-btn" data-action="click->editor#newFile" data-editor-leave-guard title="{{ 'components.editor.new'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--new" aria-hidden="true"></span>
@@ -31,6 +32,12 @@
                 <span class="editor-filebar-icon editor-filebar-icon--save-as" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.save_as'|trans({}, 'components') }}</span>
             </button>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# Getting the content out #}
+        <div class="editor-filebar-actions">
             <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled title="{{ 'components.editor.print'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--print" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.print'|trans({}, 'components') }}</span>
@@ -46,6 +53,7 @@
             <span class="editor-file-path" data-editor-target="filePath">{{ 'components.editor.untitled'|trans({}, 'components') }}</span>
         </div>
 
+        {# The display #}
         <div class="editor-filebar-actions editor-filebar-actions--end">
             <button type="button" class="editor-filebar-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly" title="{{ readonly ? 'components.editor.toggle.edit'|trans({}, 'components') : 'components.editor.toggle.readonly'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--toggle" aria-hidden="true"></span>
@@ -53,14 +61,78 @@
                     ? 'components.editor.toggle.edit'|trans({}, 'components')
                     : 'components.editor.toggle.readonly'|trans({}, 'components') }}</span>
             </button>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# The files #}
+        <div class="editor-filebar-actions">
             <a href="{{ path('app_archive') }}" class="editor-filebar-btn" data-editor-leave-guard title="{{ 'components.editor.export'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--export" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.export'|trans({}, 'components') }}</span>
             </a>
-            <a href="{{ path('app_settings') }}" class="editor-filebar-btn" data-editor-leave-guard title="{{ 'components.editor.settings'|trans({}, 'components') }}">
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# The app #}
+        <div class="editor-filebar-actions" data-controller="settings-modal">
+            <button type="button" class="editor-filebar-btn" data-controller="theme-switch"
+                    data-action="click->theme-switch#next"
+                    data-value="{{ appearance.theme }}"
+                    data-theme-switch-current-value="{{ appearance.theme }}"
+                    data-theme-switch-labels-value="{{ appearance.themeLabels|json_encode }}"
+                    data-theme-switch-url-value="{{ path('app_settings_theme') }}"
+                    data-theme-switch-token-value="{{ settings_csrf_token }}"
+                    data-theme-switch-i18n-value="{{ {
+                        label: 'components.editor.theme_button'|trans({}, 'components'),
+                        failed: 'components.editor.error.request_failed'|trans({}, 'components'),
+                    }|json_encode }}"
+                    title="{{ 'components.editor.theme_button'|trans({'{theme}': appearance.themeLabels[appearance.theme]}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--theme" aria-hidden="true"></span>
+                <span class="visually-hidden" data-theme-switch-target="label">{{ 'components.editor.theme_button'|trans({'{theme}': appearance.themeLabels[appearance.theme]}, 'components') }}</span>
+            </button>
+
+            <div class="locale-stepper" data-controller="locale-stepper"
+                 data-locale-stepper-current-value="{{ appearance.locale }}"
+                 data-locale-stepper-locales-value="{{ appearance.locales|json_encode }}"
+                 data-locale-stepper-labels-value="{{ appearance.localeLabels|json_encode }}"
+                 data-locale-stepper-label-value="{{ 'components.editor.locale_button'|trans({}, 'components') }}"
+                 data-action="keydown@window->locale-stepper#keydown">
+                <button type="button" class="editor-filebar-btn locale-stepper-btn" data-locale-stepper-target="button"
+                        data-action="click->locale-stepper#step"
+                        aria-label="{{ 'components.editor.locale_button'|trans({'{language}': appearance.localeLabels[appearance.locale]}, 'components') }}"
+                        title="{{ 'components.editor.locale_button'|trans({'{language}': appearance.localeLabels[appearance.locale]}, 'components') }}">
+                    <svg class="locale-stepper-ring" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+                        <rect x="0.5" y="0.5" width="27" height="27" rx="4" pathLength="1" data-locale-stepper-target="ring"></rect>
+                    </svg>
+                    <span class="locale-stepper-code" aria-hidden="true" data-locale-stepper-target="code">{{ appearance.locale|upper }}</span>
+                </button>
+                {# The switch itself: a native post, then a full reload. The submit button
+                   is what the leave guard intercepts, so unsaved work is asked about. #}
+                <form method="post" action="{{ path('app_settings_locale') }}" data-locale-stepper-target="form" hidden>
+                    <input type="hidden" name="_token" value="{{ settings_csrf_token }}">
+                    <input type="hidden" name="locale" value="{{ appearance.locale }}" data-locale-stepper-target="input">
+                    <button type="submit" data-locale-stepper-target="submit" data-editor-leave-guard tabindex="-1"></button>
+                </form>
+            </div>
+
+            <button type="button" class="editor-filebar-btn" data-settings-modal-target="opener" data-action="click->settings-modal#open" title="{{ 'components.editor.settings'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--settings" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.settings'|trans({}, 'components') }}</span>
-            </a>
+            </button>
+
+            {# The frame loads on the first opening (lazy: the closed dialog is not visible)
+               and is never emptied afterwards. #}
+            <dialog class="settings-dialog" data-settings-modal-target="dialog" data-action="click->settings-modal#backdrop" aria-labelledby="settings-dialog-title">
+                <div class="settings-dialog-header">
+                    <h2 id="settings-dialog-title">{{ 'components.settings.title'|trans({}, 'components') }}</h2>
+                    <button type="button" class="settings-dialog-close" data-action="click->settings-modal#close" title="{{ 'components.settings.close'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.settings.close'|trans({}, 'components') }}</span>
+                    </button>
+                </div>
+                <turbo-frame id="settings" class="settings-dialog-body" src="{{ path('app_settings') }}" loading="lazy"></turbo-frame>
+            </dialog>
         </div>
     </div>
 </div>

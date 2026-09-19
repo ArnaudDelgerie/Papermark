@@ -2,8 +2,10 @@
 
 namespace App\Twig\Components;
 
-use App\Ai\AiAvailability;
 use App\Ai\AiTopicResolver;
+use App\Locale\AppLocale;
+use App\Repository\SettingRepository;
+use App\Theme\ThemeMode;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
@@ -23,7 +25,7 @@ final class Editor
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
-        private readonly AiAvailability $aiAvailability,
+        private readonly SettingRepository $settings,
         private readonly RequestStack $requestStack,
         private readonly AiTopicResolver $topicResolver,
         private readonly HubInterface $hub,
@@ -110,26 +112,56 @@ final class Editor
     }
 
     /**
-     * AI is offered only with a worker, a selected provider, and a key for it.
-     * The subscriber cookie is minted on demand by /ai/subscribe, not at render.
+     * The hub and topic are always given: whether the AI is on comes from the
+     * client state (`ai_enabled`), which can change without a reload. The
+     * subscriber cookie is minted on demand by /ai/subscribe, not at render.
      *
-     * @return array{enabled: bool, mercureUrl?: string, topic?: string}
+     * @return array{mercureUrl?: string, topic?: string}
      */
     #[ExposeInTemplate(name: 'ai_config')]
     public function getAiConfig(): array
     {
         $request = $this->requestStack->getMainRequest();
-        if ($request === null || !$this->aiAvailability->isEnabled()) {
-            return ['enabled' => false];
+        if ($request === null) {
+            return [];
         }
 
-        $topic = $this->topicResolver->resolve($request);
+        return [
+            'mercureUrl' => $this->hub->getPublicUrl(),
+            'topic' => $this->topicResolver->resolve($request),
+        ];
+    }
+
+    /**
+     * What the theme and language buttons of the file bar start from. The
+     * languages come from the enum, so a new one shows up without any JS.
+     *
+     * @return array{theme: string, themeLabels: array<string, string>, locale: string, locales: list<string>, localeLabels: array<string, string>}
+     */
+    #[ExposeInTemplate(name: 'appearance')]
+    public function getAppearance(): array
+    {
+        $setting = $this->settings->getOrCreate();
 
         return [
-            'enabled' => true,
-            'mercureUrl' => $this->hub->getPublicUrl(),
-            'topic' => $topic,
+            'theme' => $setting->getThemeMode()->value,
+            'themeLabels' => array_combine(
+                array_map(static fn (ThemeMode $mode): string => $mode->value, ThemeMode::cases()),
+                array_map(fn (ThemeMode $mode): string => $this->translator->trans('components.theme.' . $mode->value, [], self::TRANSLATION_DOMAIN), ThemeMode::cases()),
+            ),
+            'locale' => $setting->getLocale()->value,
+            'locales' => array_map(static fn (AppLocale $locale): string => $locale->value, AppLocale::cases()),
+            'localeLabels' => array_combine(
+                array_map(static fn (AppLocale $locale): string => $locale->value, AppLocale::cases()),
+                array_map(fn (AppLocale $locale): string => $this->translator->trans('components.locale.' . $locale->value, [], self::TRANSLATION_DOMAIN), AppLocale::cases()),
+            ),
         ];
+    }
+
+    #[ExposeInTemplate(name: 'settings_csrf_token')]
+    public function getSettingsCsrfToken(): string
+    {
+        return $this->csrfTokenManager->getToken('settings')->getValue();
     }
 
     #[ExposeInTemplate(name: 'css_height')]

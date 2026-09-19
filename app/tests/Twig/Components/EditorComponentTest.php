@@ -4,6 +4,8 @@ namespace App\Tests\Twig\Components;
 
 use App\Ai\AiTopicResolver;
 use App\Ai\ProviderName;
+use App\Locale\AppLocale;
+use App\Theme\ThemeMode;
 use App\Entity\Provider;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
@@ -61,30 +63,56 @@ final class EditorComponentTest extends KernelTestCase
         self::assertSame('Edit', trim($toggle->text()));
     }
 
-    public function testAiDisabledWithoutSelectedProvider(): void
+    public function testAiConfigAlwaysCarriesTheHubAndTopic(): void
     {
-        $this->configureAi(selected: null, secrets: ['anthropic' => 'key']);
-
-        self::assertFalse($this->renderAiConfig()['enabled']);
-    }
-
-    public function testAiDisabledWithoutKeyForSelectedProvider(): void
-    {
-        $this->configureAi(selected: ProviderName::Anthropic, secrets: ['openai' => 'key']);
-
-        self::assertFalse($this->renderAiConfig()['enabled']);
-    }
-
-    public function testAiEnabledWithSelectedProviderAndKey(): void
-    {
-        $request = $this->configureAi(selected: ProviderName::Anthropic, secrets: ['anthropic' => 'key']);
+        // Whether the AI is on comes from the client state, not from here: it
+        // can change without a reload, so the hub and topic are always given.
+        $request = $this->configureAi(selected: null, secrets: []);
 
         $aiConfig = $this->renderAiConfig();
 
-        self::assertTrue($aiConfig['enabled']);
+        self::assertArrayNotHasKey('enabled', $aiConfig);
         self::assertSame('http://localhost/.well-known/mercure', $aiConfig['mercureUrl']);
         // The topic is the session's one; the cookie is minted on demand by /ai/subscribe.
         self::assertSame(self::getContainer()->get(AiTopicResolver::class)->resolve($request), $aiConfig['topic']);
+    }
+
+    public function testFileBarGroupsAndAppButtons(): void
+    {
+        $this->configureAi(selected: null, secrets: []);
+        $setting = self::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setThemeMode(ThemeMode::Light);
+        $setting->setLocale(AppLocale::Fr);
+        self::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $html = $this->twig()->createTemplate("{{ component('editor') }}")->render([]);
+        $crawler = new Crawler($html);
+
+        // Five groups around the file path, told apart by three dividers.
+        self::assertSame(3, $crawler->filter('.editor-file-bar > .editor-filebar-divider')->count());
+
+        $theme = $crawler->filter('button[data-controller="theme-switch"]');
+        self::assertSame('light', $theme->attr('data-theme-switch-current-value'));
+        self::assertSame('/settings/theme', $theme->attr('data-theme-switch-url-value'));
+        self::assertSame('Theme: Light', trim($theme->text()));
+
+        // The languages come from the enum, the labels are translated.
+        $locale = $crawler->filter('div[data-controller="locale-stepper"]');
+        self::assertSame('fr', $locale->attr('data-locale-stepper-current-value'));
+        self::assertSame(['en', 'fr'], json_decode((string) $locale->attr('data-locale-stepper-locales-value'), true));
+        self::assertSame('FR', trim($locale->filter('[data-locale-stepper-target="code"]')->text()));
+        self::assertSame('/settings/locale', $locale->filter('form')->attr('action'));
+        // The hidden submit is what the leave guard intercepts.
+        self::assertSame(1, $locale->filter('button[type="submit"][data-editor-leave-guard]')->count());
+
+        // Settings opens the modal instead of leaving: no leave guard on it, and a lazy frame.
+        $modal = $crawler->filter('[data-controller="settings-modal"]');
+        self::assertSame(1, $modal->filter('button[data-action="click->settings-modal#open"]:not([data-editor-leave-guard])')->count());
+        $frame = $modal->filter('dialog turbo-frame#settings');
+        self::assertSame('lazy', $frame->attr('loading'));
+        self::assertSame('/settings', $frame->attr('src'));
+        // Archive is still a page, so it keeps its guard.
+        self::assertSame(1, $crawler->filter('a[data-editor-leave-guard]')->count());
     }
 
     /**

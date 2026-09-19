@@ -4,28 +4,41 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Ai\ApiKeyResolver;
 use App\Ai\ProviderName;
+use App\Ai\ApiKeyResolver;
+use App\Editor\EditorState;
 use App\Form\SettingsType;
+use App\Locale\AppLocale;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
+use App\Theme\ThemeMode;
 use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\BridgeException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Form\ClickableInterface;
-use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+/**
+ * The settings live in a modal of the editor page (see EDITOR_SETTINGS.md).
+ * GET /settings is the content of its frame; every change is then saved by
+ * itself, through the routes below. The ones that can change the editor state
+ * (`ai_enabled`) answer {state, action} like EditorController's, and
+ * {error, state} when they refuse.
+ */
 final class SettingsController extends AbstractController
 {
     private const TRANSLATION_DOMAIN = 'components';
+    private const CSRF_TOKEN_ID = 'settings';
 
     public function __construct(
         private readonly SecretStoreInterface $secretStore,
@@ -35,56 +48,18 @@ final class SettingsController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly EditorState $editorState,
     ) {
     }
 
-    #[Route('/settings', name: 'app_settings', methods: ['GET', 'POST'])]
-    public function index(Request $request): Response
+    /**
+     * The content of the frame, and nothing else: it carries no `src`, or
+     * Turbo would see a frame that references itself.
+     */
+    #[Route('/settings', name: 'app_settings', methods: ['GET'])]
+    public function index(): Response
     {
-        $setting = $this->settings->getOrCreate();
-        $providersByName = $this->providers->findAllByName();
-
-        $form = $this->createForm(SettingsType::class, [
-            'providers' => $providersByName,
-            'selected' => $setting->getSelectedProvider()?->getName(),
-            'defaultMode' => $setting->getDefaultMode(),
-            'themeMode' => $setting->getThemeMode(),
-            'locale' => $setting->getLocale(),
-        ]);
-        $form->handleRequest($request);
-
-        if ($form->isSubmitted() && $form->isValid()) {
-            $selected = $form->get('selected')->getData();
-
-            try {
-                foreach ($form->get('providers') as $providerForm) {
-                    $provider = $providerForm->getData();
-
-                    $apiKey = $providerForm->get('apiKey')->getData();
-                    if (\is_string($apiKey) && $apiKey !== '') {
-                        $this->secretStore->set($provider->getName()->value, $apiKey);
-                    }
-                }
-
-                $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
-                $setting->setDefaultMode($form->get('defaultMode')->getData());
-                $setting->setThemeMode($form->get('themeMode')->getData());
-                $setting->setLocale($form->get('locale')->getData());
-
-                $this->entityManager->flush();
-
-                $this->addFlash('success', $this->translator->trans('components.settings.saved', [], self::TRANSLATION_DOMAIN));
-
-                $saveAndClose = $form->get('saveAndClose');
-                $closeAfterSave = $saveAndClose instanceof ClickableInterface && $saveAndClose->isClicked();
-
-                return $this->redirectToRoute($closeAfterSave ? 'app_home' : 'app_settings');
-            } catch (BridgeException) {
-                $form->addError(new FormError(
-                    $this->translator->trans('components.editor.error.save_failed', [], 'components'),
-                ));
-            }
-        }
+        $form = $this->createSettingsForm();
 
         $hasKey = [];
         foreach (ProviderName::cases() as $name) {
@@ -94,27 +69,92 @@ final class SettingsController extends AbstractController
         return $this->render('settings/index.html.twig', [
             'form' => $form,
             'has_key' => $hasKey,
-            'delete_key_csrf_token' => $this->csrfTokenManager->getToken('delete_key')->getValue(),
         ]);
     }
 
     /**
-     * Removes a provider's stored API key from the keyring. Fetch-based, like
-     * the rest of this app's write actions (see FileController) — the CSRF
-     * token travels in a header, not a form field.
+     * Saves the whole form: the provider models, the selected provider and
+     * the default mode. Answers 422 with the `errors` of the form, and no
+     * `error`, when it is invalid: the client shows them itself.
      */
-    #[Route('/settings/provider/{name}/key', name: 'app_settings_delete_key', methods: ['POST'])]
+    #[Route('/settings', name: 'app_settings_save', methods: ['POST'])]
+    public function save(Request $request): JsonResponse
+    {
+        $form = $this->createSettingsForm();
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted()) {
+            return $this->stateErrorResponse('request_failed', Response::HTTP_BAD_REQUEST);
+        }
+
+        if (!$form->isValid()) {
+            // The submitted values are already in the entities: none may be flushed.
+            $this->entityManager->clear();
+
+            return new JsonResponse([
+                'state' => $this->editorState->toArray(),
+                'action' => ['errors' => $this->formErrors($form)],
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $setting = $this->settings->getOrCreate();
+        $providersByName = $this->providers->findAllByName();
+        $selected = $form->get('selected')->getData();
+
+        // Changing the default mode must not switch what the editor shows now.
+        $this->editorState->keepMode();
+        $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
+        $setting->setDefaultMode($form->get('defaultMode')->getData());
+        $this->entityManager->flush();
+
+        $this->editorState->refreshAiEnabled();
+
+        return $this->stateResponse([]);
+    }
+
+    /**
+     * Puts a provider's API key in the keyring. Its own action, not part of
+     * the form: a key typed halfway must never be stored, and storing one
+     * can turn the AI on.
+     */
+    #[Route('/settings/provider/{name}/key', name: 'app_settings_set_key', methods: ['POST'])]
+    public function setKey(ProviderName $name, Request $request): JsonResponse
+    {
+        if (!$this->isCsrfTokenValidFromHeader($request)) {
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $key = $request->request->get('key');
+        if (!\is_string($key) || trim($key) === '') {
+            return $this->stateErrorResponse('no_key', Response::HTTP_BAD_REQUEST);
+        }
+
+        try {
+            $this->secretStore->set($name->value, trim($key));
+        } catch (BridgeException) {
+            return $this->stateErrorResponse('key_save_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $this->editorState->refreshAiEnabled();
+
+        return $this->stateResponse(['name' => $name->value]);
+    }
+
+    /**
+     * Removes a provider's API key from the keyring, and deselects the
+     * provider if it was the selected one.
+     */
+    #[Route('/settings/provider/{name}/key', name: 'app_settings_delete_key', methods: ['DELETE'])]
     public function deleteKey(ProviderName $name, Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('delete_key', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        if (!$this->isCsrfTokenValidFromHeader($request)) {
+            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
         }
 
         try {
             $this->secretStore->delete($name->value);
         } catch (BridgeException) {
-            return $this->errorResponse('key_delete_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->stateErrorResponse('key_delete_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         $setting = $this->settings->getOrCreate();
@@ -123,18 +163,151 @@ final class SettingsController extends AbstractController
             $this->entityManager->flush();
         }
 
-        // No immediate toast: the front end reloads the page to reflect the
-        // removed key and possible deselection, and the flash renders then.
-        $this->addFlash('success', $this->translator->trans('components.settings.key_deleted', [], self::TRANSLATION_DOMAIN));
+        $this->editorState->refreshAiEnabled();
 
-        return new JsonResponse(['ok' => true]);
+        return $this->stateResponse(['name' => $name->value]);
+    }
+
+    /**
+     * The theme button of the file bar. The page is already showing it: this
+     * only remembers it, and it is not part of the editor state.
+     */
+    #[Route('/settings/theme', name: 'app_settings_theme', methods: ['POST'])]
+    public function theme(Request $request): JsonResponse
+    {
+        if (!$this->isCsrfTokenValidFromHeader($request)) {
+            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
+        }
+
+        $value = $request->request->get('theme');
+        $theme = \is_string($value) ? ThemeMode::tryFrom($value) : null;
+        if ($theme === null) {
+            return $this->errorResponse('request_failed', Response::HTTP_BAD_REQUEST);
+        }
+
+        $this->settings->getOrCreate()->setThemeMode($theme);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['theme' => $theme->value]);
+    }
+
+    /**
+     * The language button of the file bar: a native form post, then a full
+     * reload on the home page, where the server renders everything translated.
+     */
+    #[Route('/settings/locale', name: 'app_settings_locale', methods: ['POST'])]
+    public function locale(Request $request): RedirectResponse
+    {
+        $token = $request->request->get('_token');
+        if (!\is_string($token) || !$this->csrfTokenManager->isTokenValid(new CsrfToken(self::CSRF_TOKEN_ID, $token))) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $value = $request->request->get('locale');
+        $locale = \is_string($value) ? AppLocale::tryFrom($value) : null;
+        if ($locale === null) {
+            throw new BadRequestHttpException();
+        }
+
+        $this->settings->getOrCreate()->setLocale($locale);
+        $this->entityManager->flush();
+
+        return $this->redirectToRoute('app_home');
+    }
+
+    /**
+     * @return FormInterface<mixed>
+     */
+    private function createSettingsForm(): FormInterface
+    {
+        $setting = $this->settings->getOrCreate();
+
+        return $this->createForm(SettingsType::class, [
+            'providers' => $this->providers->findAllByName(),
+            'selected' => $setting->getSelectedProvider()?->getName(),
+            'defaultMode' => $setting->getDefaultMode(),
+        ], [
+            // Stateless token, checked by the request's origin (config/packages/csrf.yaml).
+            'csrf_token_id' => self::CSRF_TOKEN_ID,
+        ]);
+    }
+
+    /**
+     * @param FormInterface<mixed> $form
+     *
+     * @return list<array{field: string, message: string}>
+     */
+    private function formErrors(FormInterface $form): array
+    {
+        $errors = [];
+        foreach ($form->getErrors(true) as $error) {
+            $origin = $error->getOrigin();
+            $label = $origin !== null ? $this->fieldLabel($origin) : null;
+
+            $errors[] = [
+                'field' => $origin?->createView()->vars['full_name'] ?? '',
+                'message' => $label !== null
+                    ? $this->trans('components.settings.error_line', ['{field}' => $label, '{message}' => $error->getMessage()])
+                    : $error->getMessage(),
+            ];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * What the user sees for a field, so an error can name it.
+     *
+     * @param FormInterface<mixed> $field
+     */
+    private function fieldLabel(FormInterface $field): ?string
+    {
+        $providerName = $field->getParent() !== null ? ProviderName::tryFrom($field->getParent()->getName()) : null;
+        if ($field->getName() === 'model' && $providerName !== null) {
+            return $this->trans('components.settings.provider.' . $providerName->value)
+                . ' · ' . $this->trans('components.settings.model_label');
+        }
+
+        return match ($field->getName()) {
+            'selected' => $this->trans('components.settings.tab_providers'),
+            'defaultMode' => $this->trans('components.settings.mode_title'),
+            default => null,
+        };
+    }
+
+    private function isCsrfTokenValidFromHeader(Request $request): bool
+    {
+        $token = $request->headers->get('X-CSRF-TOKEN');
+
+        return \is_string($token) && $this->csrfTokenManager->isTokenValid(new CsrfToken(self::CSRF_TOKEN_ID, $token));
+    }
+
+    /**
+     * @param array<string, string> $action what was done, as an object even when empty
+     */
+    private function stateResponse(array $action): JsonResponse
+    {
+        return new JsonResponse(['state' => $this->editorState->toArray(), 'action' => (object) $action]);
+    }
+
+    private function stateErrorResponse(string $key, int $status): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $this->trans('components.editor.error.' . $key),
+            'state' => $this->editorState->toArray(),
+        ], $status);
     }
 
     private function errorResponse(string $key, int $status): JsonResponse
     {
-        return new JsonResponse(
-            ['error' => $this->translator->trans('components.editor.error.' . $key, [], self::TRANSLATION_DOMAIN)],
-            $status,
-        );
+        return new JsonResponse(['error' => $this->trans('components.editor.error.' . $key)], $status);
+    }
+
+    /**
+     * @param array<string, string> $parameters
+     */
+    private function trans(string $id, array $parameters = []): string
+    {
+        return $this->translator->trans($id, $parameters, self::TRANSLATION_DOMAIN);
     }
 }

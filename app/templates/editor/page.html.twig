@@ -18,11 +18,15 @@
          save: path('app_file_save'),
          delete: path('app_file_delete'),
          rename: path('app_file_rename'),
+         settings: path('app_settings_save'),
+         setKey: path('app_settings_set_key', {name: '__name__'}),
+         deleteKey: path('app_settings_delete_key', {name: '__name__'}),
      }|json_encode }}"
      data-editor-state-tokens-value="{{ {
          mode: csrf_token('mode'),
          file: csrf_token('file'),
          dir: csrf_token('dir'),
+         settings: csrf_token('settings'),
      }|json_encode }}"
      data-editor-state-i18n-value="{{ { failed: 'components.editor.error.request_failed'|trans({}, 'components') }|json_encode }}">
     <aside class="editor-sidebar">

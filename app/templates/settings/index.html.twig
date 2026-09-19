@@ -1,14 +1,26 @@
-{% extends 'base.html.twig' %}
-
-{% block body %}
-<div class="page-settings">
-    <div class="settings-header">
-        <a href="{{ path('app_home') }}" class="settings-back">{{ 'components.settings.back'|trans({}, 'components') }}</a>
-        <h1>{{ 'components.settings.title'|trans({}, 'components') }}</h1>
-    </div>
-
-    {{ form_start(form, {attr: {class: 'settings-form', 'data-controller': 'settings'}}) }}
-        {{ form_errors(form) }}
+{# The content of the settings modal's frame (templates/components/editor.html.twig).
+   Not a page: no layout, and no `src` on the frame — Turbo would see a frame
+   that references itself. Every field saves the whole form by itself (the
+   `settings` controller); the API keys are outside of it, each with its own
+   actions. `data-turbo="false"`: a frame would otherwise capture the submit. #}
+<turbo-frame id="settings">
+    {{ form_start(form, {attr: {
+        class: 'settings-form',
+        'data-turbo': 'false',
+        'data-controller': 'settings',
+        'data-action': 'submit->settings#submit',
+        'data-settings-delete-label-value': 'components.settings.delete_key'|trans({}, 'components'),
+        'data-settings-confirm-message-value': 'components.settings.delete_key_confirm_message'|trans({}, 'components'),
+        'data-settings-confirm-question-value': 'components.settings.delete_key_confirm_question'|trans({}, 'components'),
+        'data-settings-update-available-value': 'components.settings.update_available'|trans({}, 'components'),
+        'data-settings-up-to-date-value': 'components.settings.up_to_date'|trans({}, 'components'),
+        'data-settings-update-check-failed-value': 'components.editor.error.update_check_failed'|trans({}, 'components'),
+        'data-settings-update-check-unavailable-value': 'components.settings.update_check_unavailable'|trans({}, 'components'),
+    }}) }}
+        <div class="settings-errors" role="alert" data-settings-target="errors" hidden>
+            <p>{{ 'components.settings.errors_title'|trans({}, 'components') }}</p>
+            <ul data-settings-target="errorList"></ul>
+        </div>
 
         <div class="settings-tabs" role="tablist" aria-label="{{ 'components.settings.tabs_label'|trans({}, 'components') }}" data-action="keydown->settings#onTabKeydown">
             <button type="button" class="settings-tab" role="tab" id="tab-providers" aria-controls="panel-providers" aria-selected="true"
@@ -23,30 +35,44 @@
                     data-settings-target="tab" data-tab="updates" data-action="click->settings#selectTab">
                 {{ 'components.settings.tab_updates'|trans({}, 'components') }}
             </button>
+            <span class="settings-activity" data-settings-target="activity" title="{{ 'components.settings.saving'|trans({}, 'components') }}" hidden></span>
         </div>
 
+        {# The panels share one grid cell: the modal keeps the height of the tallest. #}
+        <div class="settings-panels">
         <div class="settings-tabpanel" id="panel-providers" role="tabpanel" aria-labelledby="tab-providers" data-settings-target="panel" data-tab="providers">
             {% for name, provider in form.providers %}
             <fieldset class="settings-fieldset">
                 <legend class="settings-provider{% if form.selected[name].vars.checked %} is-selected{% endif %}">
-                    {{ form_widget(form.selected[name]) }}
+                    {{ form_widget(form.selected[name], {attr: {'data-action': 'change->settings#autosave'}}) }}
                     {{ form_label(form.selected[name], null, {label_attr: {class: 'settings-provider-name'}}) }}
-                    {% if has_key[name] %}
-                    <span class="settings-provider-badge">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
-                    <button type="button" class="settings-delete-key-btn" title="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
-                            data-controller="settings" data-action="click->settings#deleteKey"
-                            data-url="{{ path('app_settings_delete_key', {name: name}) }}"
-                            data-settings-csrf-token-value="{{ delete_key_csrf_token }}"
-                            data-settings-delete-label-value="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
-                            data-settings-confirm-message-value="{{ 'components.settings.delete_key_confirm_message'|trans({}, 'components') }}"
-                            data-settings-confirm-question-value="{{ 'components.settings.delete_key_confirm_question'|trans({}, 'components') }}">
-                        <span class="visually-hidden">{{ 'components.settings.delete_key'|trans({}, 'components') }}</span>
-                    </button>
-                    {% endif %}
                 </legend>
 
-                {{ form_row(provider.model) }}
-                {{ form_row(provider.apiKey) }}
+                {{ form_row(provider.model, {attr: {'data-action': 'input->settings#autosave'}}) }}
+
+                {# Both displays are in the markup: the server picks the visible one,
+                   the controller switches after a set or a delete. The key field has
+                   no name: it is not part of the form. #}
+                <div class="settings-key" data-settings-target="keyBlock" data-name="{{ name }}">
+                    <div class="settings-key-set"{% if not has_key[name] %} hidden{% endif %}>
+                        <span class="settings-key-status">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
+                        <button type="button" class="settings-delete-key-btn" title="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
+                                data-action="click->settings#deleteKey" data-name="{{ name }}">
+                            <span class="visually-hidden">{{ 'components.settings.delete_key'|trans({}, 'components') }}</span>
+                        </button>
+                    </div>
+                    <div class="settings-key-new"{% if has_key[name] %} hidden{% endif %}>
+                        <label for="settings-key-{{ name }}">{{ 'components.settings.api_key_label'|trans({}, 'components') }}</label>
+                        <input type="password" id="settings-key-{{ name }}" autocomplete="off"
+                               placeholder="{{ 'components.settings.key_placeholder'|trans({}, 'components') }}"
+                               data-settings-target="keyInput" data-name="{{ name }}"
+                               data-action="keydown.enter->settings#setKey">
+                        <button type="button" class="settings-key-save" data-settings-target="keySave" data-name="{{ name }}"
+                                data-action="click->settings#setKey">
+                            {{ 'components.settings.set_key'|trans({}, 'components') }}
+                        </button>
+                    </div>
+                </div>
             </fieldset>
             {% endfor %}
         </div>
@@ -56,27 +82,7 @@
                 <legend>{{ 'components.settings.mode_title'|trans({}, 'components') }}</legend>
                 {% for radio in form.defaultMode %}
                 <label class="settings-mode-option">
-                    {{ form_widget(radio) }}
-                    {{ form_label(radio) }}
-                </label>
-                {% endfor %}
-            </fieldset>
-
-            <fieldset class="settings-fieldset">
-                <legend>{{ 'components.settings.theme_title'|trans({}, 'components') }}</legend>
-                {% for radio in form.themeMode %}
-                <label class="settings-mode-option">
-                    {{ form_widget(radio) }}
-                    {{ form_label(radio) }}
-                </label>
-                {% endfor %}
-            </fieldset>
-
-            <fieldset class="settings-fieldset">
-                <legend>{{ 'components.settings.locale_title'|trans({}, 'components') }}</legend>
-                {% for radio in form.locale %}
-                <label class="settings-mode-option">
-                    {{ form_widget(radio) }}
+                    {{ form_widget(radio, {attr: {'data-action': 'change->settings#autosave'}}) }}
                     {{ form_label(radio) }}
                 </label>
                 {% endfor %}
@@ -84,11 +90,7 @@
         </div>
 
         <div class="settings-tabpanel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" data-settings-target="panel" data-tab="updates" hidden>
-            <fieldset class="settings-fieldset" data-controller="settings"
-                    data-settings-update-available-value="{{ 'components.settings.update_available'|trans({}, 'components') }}"
-                    data-settings-up-to-date-value="{{ 'components.settings.up_to_date'|trans({}, 'components') }}"
-                    data-settings-update-check-failed-value="{{ 'components.editor.error.update_check_failed'|trans({}, 'components') }}"
-                    data-settings-update-check-unavailable-value="{{ 'components.settings.update_check_unavailable'|trans({}, 'components') }}">
+            <fieldset class="settings-fieldset">
                 <legend>{{ 'components.settings.update_title'|trans({}, 'components') }}</legend>
                 <button type="button" class="settings-submit settings-submit-secondary" data-action="click->settings#checkForUpdate">
                     {{ 'components.settings.update_check_button'|trans({}, 'components') }}
@@ -96,11 +98,6 @@
                 <span class="settings-update-result" data-settings-target="updateResult"></span>
             </fieldset>
         </div>
-
-        <div class="settings-submit-row">
-            {{ form_widget(form.save, {attr: {class: 'settings-submit'}}) }}
-            {{ form_widget(form.saveAndClose, {attr: {class: 'settings-submit settings-submit-secondary'}}) }}
         </div>
     {{ form_end(form) }}
-</div>
-{% endblock %}
+</turbo-frame>

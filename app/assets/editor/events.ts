@@ -15,8 +15,8 @@ export type EditorMode = 'single' | 'dir';
 
 /**
  * Mirror of App\Editor\EditorState::toArray(), copied by hand: nothing checks
- * they stay aligned. `readonly` and `ai_enabled` are not sent by the routes
- * yet; the master fills them at hydration and keeps them across merges.
+ * they stay aligned. `readonly` is not sent by the routes; the master fills it
+ * at hydration and keeps it across merges.
  */
 export interface EditorState {
     mode: EditorMode;
@@ -37,6 +37,10 @@ interface Requests {
     'do-save_as': { path: string; content: string };
     'do-delete': { path: string };
     'do-rename': { path: string; name: string };
+    /** The whole settings form, as the modal's controller reads it. */
+    'do-save_settings': { form: FormData };
+    'do-set_key': { name: string; key: string };
+    'do-delete_key': { name: string };
 }
 
 /** What the server confirms, paths normalized. Never file content. */
@@ -50,6 +54,24 @@ interface Results {
     'do-save_as': { path: string };
     'do-delete': { path: string };
     'do-rename': { oldPath: string; newPath: string };
+    'do-save_settings': Record<string, never>;
+    'do-set_key': { name: string };
+    'do-delete_key': { name: string };
+}
+
+/** One message of the settings form the server refused, naming its field. */
+export interface SettingsError {
+    field: string;
+    message: string;
+}
+
+/**
+ * What a failure carries besides what was asked. An invalid settings form
+ * answers 422 with its errors and no `error`, so the master shows no toast:
+ * the modal shows them. Empty for a technical failure (that one has a toast).
+ */
+interface FailureExtras {
+    'do-save_settings': { errors: SettingsError[] };
 }
 
 export type ActionName = keyof Requests;
@@ -59,9 +81,10 @@ export type RequestOf<A extends ActionName> = Requests[A];
 export type ResultOf<A extends ActionName> = Results[A];
 /**
  * A failure may come without any server answer, so it can only repeat what
- * was asked — minus the markdown, which never travels back.
+ * was asked — minus the markdown and the API key, which never travel back.
  */
-export type FailureOf<A extends ActionName> = Omit<Requests[A], 'content'>;
+export type FailureOf<A extends ActionName> = Omit<Requests[A], 'content' | 'key'> &
+    (A extends keyof FailureExtras ? FailureExtras[A] : unknown);
 
 /**
  * The old values of the state properties a read found stale (the new state

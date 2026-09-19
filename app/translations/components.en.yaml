@@ -9,6 +9,8 @@ components:
         copy_markdown: Copy as Markdown
         export: Archive
         settings: Settings
+        theme_button: 'Theme: {theme}'
+        locale_button: 'Language: {language}'
         untitled: Untitled
         unsaved:
             indicator: Unsaved
@@ -76,6 +78,8 @@ components:
             invalid_mode: Unknown editor mode
             request_failed: The action failed, please try again
             key_delete_failed: Could not delete the API key
+            key_save_failed: Could not save the API key
+            no_key: No API key provided
             invalid_name: Invalid file name
             rename_target_exists: A file with that name already exists
             delete_error: Could not delete the file
@@ -116,25 +120,23 @@ components:
             renamed: File renamed
     settings:
         title: Settings
-        back: ← Back
         tabs_label: Settings sections
         tab_providers: AI providers
-        tab_editor: Editor & appearance
+        tab_editor: Editor
         tab_updates: Updates
         model_label: Model
         api_key_label: API key
         key_placeholder: Enter API key…
         key_set: Key set
-        save: Save
-        save_and_close: Save and close
-        saved: Settings saved
+        close: Close
+        saving: Saving…
+        set_key: Save key
+        errors_title: 'These settings were not saved:'
+        error_line: '{field}: {message}'
         mode_title: Default mode
-        theme_title: Theme
-        locale_title: Language
         delete_key: Delete key
         delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
         delete_key_confirm_question: Delete this API key?
-        key_deleted: API key deleted
         update_title: Updates
         update_check_button: Check for update
         update_available: 'Update available: %version%'

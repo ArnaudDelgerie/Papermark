@@ -193,7 +193,7 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(404);
         // A refusal still carries the state (S6).
-        self::assertSame(['mode', 'file', 'dir'], array_keys($this->responseState($client)));
+        self::assertSame(['mode', 'file', 'dir', 'ai_enabled'], array_keys($this->responseState($client)));
     }
 
     public function testDeleteRejectsInvalidCsrf(): void
