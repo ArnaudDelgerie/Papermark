@@ -146,6 +146,25 @@ describe('the left column, with the master', () => {
             expect(toasts).toEqual([{ type: 'error', message: 'Folder not found' }]);
         });
 
+        it('shows the refresh button only once a folder is open', async () => {
+            invoke.mockResolvedValue('/notes');
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: { path: '/notes' } }));
+            // Rendered without a folder: the server hides it.
+            sessionStorage.setItem(HISTORY_KEY, '[]');
+            application = await mount(masterHtml({ ...INITIAL, mode: 'dir', dir: null }, sidebarHtml('dir', null)), {
+                'editor-state': EditorStateController,
+                'mode-dir': ModeDirController,
+                'current-directory': CurrentDirectoryController,
+            });
+            Object.assign($('turbo-frame'), { reload: vi.fn().mockResolvedValue(undefined) });
+            expect($('[data-mode-dir-target="toolbar"]').hidden).toBe(true);
+
+            click('[data-action="click->current-directory#change"]');
+            await settle();
+
+            expect($('[data-mode-dir-target="toolbar"]').hidden).toBe(false);
+        });
+
         it('asks nothing when the picker is cancelled', async () => {
             invoke.mockResolvedValue(null);
             await start([], 'dir');

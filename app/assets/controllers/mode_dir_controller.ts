@@ -15,11 +15,12 @@ import { onModeShown } from '../editor/mode-shown';
  */
 export default class extends Controller<HTMLElement> {
     static values = { i18n: Object };
-    static targets = ['treeFrame', 'refreshButton'];
+    static targets = ['treeFrame', 'refreshButton', 'toolbar'];
 
     declare readonly i18nValue: FileEntryI18n;
     declare readonly treeFrameTarget: TurboFrameElement;
     declare readonly refreshButtonTarget: HTMLButtonElement;
+    declare readonly toolbarTarget: HTMLElement;
 
     #entries = new FileEntries(() => this.i18nValue);
     #unsubscribers: Array<() => void> = [];
@@ -52,7 +53,8 @@ export default class extends Controller<HTMLElement> {
             // folder shares no entry with the old one. On failure the old
             // tree is still the right one, nothing to do. A reload cancels
             // the frame's own request still in flight (Turbo 8).
-            on('editor:nav-change_dir-succeeded', () => {
+            on('editor:nav-change_dir-succeeded', ({ state }) => {
+                this.toolbarTarget.hidden = state.dir === null;
                 this.treeFrameTarget.replaceChildren();
                 reload();
             }),
@@ -72,8 +74,9 @@ export default class extends Controller<HTMLElement> {
                 this.#refreshing = false;
                 this.#showBusy();
             }),
-            on('editor:state-resynced', ({ anomaly }) => {
+            on('editor:state-resynced', ({ state, anomaly }) => {
                 if ('dir' in anomaly) {
+                    this.toolbarTarget.hidden = state.dir === null;
                     reload();
                 }
             }),

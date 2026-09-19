@@ -2,7 +2,7 @@
      data-mode-dir-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     {{ component('current-directory') }}
 
-    <div class="mode-dir-toolbar">
+    <div class="mode-dir-toolbar" data-mode-dir-target="toolbar"{% if not has_directory %} hidden{% endif %}>
         <button type="button" class="mode-dir-refresh" data-mode-dir-target="refreshButton"
                 data-action="click->mode-dir#refresh"
                 title="{{ 'components.mode.tree.refresh'|trans({}, 'components') }}">

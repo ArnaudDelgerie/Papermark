@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Twig\Components;
 
+use App\Editor\EditorState;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
 use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
@@ -24,7 +25,17 @@ final class ModeDir
 
     public function __construct(
         private readonly TranslatorInterface $translator,
+        private readonly EditorState $editorState,
     ) {
+    }
+
+    /**
+     * The refresh button only makes sense with a folder open.
+     */
+    #[ExposeInTemplate(name: 'has_directory')]
+    public function hasDirectory(): bool
+    {
+        return $this->editorState->getDir() !== null;
     }
 
     /**

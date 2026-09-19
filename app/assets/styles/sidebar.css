@@ -141,6 +141,10 @@ turbo-frame {
     grid-column: 2;
 }
 
+.mode-dir-toolbar[hidden] {
+    display: none;
+}
+
 .mode-dir-refresh {
     display: inline-flex;
     align-items: center;
