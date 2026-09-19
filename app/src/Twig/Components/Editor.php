@@ -4,7 +4,7 @@ namespace App\Twig\Components;
 
 use App\Ai\AiTopicResolver;
 use App\Locale\AppLocale;
-use App\Repository\SettingRepository;
+use App\Setting\SettingStore;
 use App\Theme\ThemeMode;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
@@ -25,7 +25,7 @@ final class Editor
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
-        private readonly SettingRepository $settings,
+        private readonly SettingStore $settings,
         private readonly RequestStack $requestStack,
         private readonly AiTopicResolver $topicResolver,
         private readonly HubInterface $hub,
@@ -141,15 +141,13 @@ final class Editor
     #[ExposeInTemplate(name: 'appearance')]
     public function getAppearance(): array
     {
-        $setting = $this->settings->getOrCreate();
-
         return [
-            'theme' => $setting->getThemeMode()->value,
+            'theme' => $this->settings->getThemeMode()->value,
             'themeLabels' => array_combine(
                 array_map(static fn (ThemeMode $mode): string => $mode->value, ThemeMode::cases()),
                 array_map(fn (ThemeMode $mode): string => $this->translator->trans('components.theme.' . $mode->value, [], self::TRANSLATION_DOMAIN), ThemeMode::cases()),
             ),
-            'locale' => $setting->getLocale()->value,
+            'locale' => $this->settings->getLocale()->value,
             'locales' => array_map(static fn (AppLocale $locale): string => $locale->value, AppLocale::cases()),
             'localeLabels' => array_combine(
                 array_map(static fn (AppLocale $locale): string => $locale->value, AppLocale::cases()),

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Editor;
 
 use App\Ai\AiAvailability;
-use App\Repository\SettingRepository;
+use App\Setting\SettingStore;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
@@ -32,7 +32,7 @@ final class EditorState
 
     public function __construct(
         private readonly RequestStack $requestStack,
-        private readonly SettingRepository $settings,
+        private readonly SettingStore $settings,
         private readonly AiAvailability $aiAvailability,
     ) {
     }
@@ -45,7 +45,7 @@ final class EditorState
         $value = $this->requestStack->getSession()->get(self::MODE);
         $mode = \is_string($value) ? EditorMode::tryFrom($value) : null;
 
-        return $mode ?? $this->settings->getOrCreate()->getDefaultMode();
+        return $mode ?? $this->settings->getDefaultMode();
     }
 
     public function setMode(EditorMode $mode): void

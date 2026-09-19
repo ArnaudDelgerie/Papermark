@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventListener;
 
-use App\Repository\SettingRepository;
+use App\Setting\SettingStore;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -19,7 +19,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
 final class LocaleRequestListener
 {
     public function __construct(
-        private readonly SettingRepository $settings,
+        private readonly SettingStore $settings,
     ) {
     }
 
@@ -29,6 +29,6 @@ final class LocaleRequestListener
             return;
         }
 
-        $event->getRequest()->setLocale($this->settings->getOrCreate()->getLocale()->value);
+        $event->getRequest()->setLocale($this->settings->getLocale()->value);
     }
 }

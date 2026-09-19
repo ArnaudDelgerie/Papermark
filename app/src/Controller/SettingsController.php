@@ -11,6 +11,7 @@ use App\Form\SettingsType;
 use App\Locale\AppLocale;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
+use App\Setting\SettingStore;
 use App\Theme\ThemeMode;
 use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\BridgeException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
@@ -45,6 +46,7 @@ final class SettingsController extends AbstractController
         private readonly ApiKeyResolver $apiKeyResolver,
         private readonly ProviderRepository $providers,
         private readonly SettingRepository $settings,
+        private readonly SettingStore $settingStore,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
@@ -105,7 +107,7 @@ final class SettingsController extends AbstractController
         $this->editorState->keepMode();
         $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
         $setting->setDefaultMode($form->get('defaultMode')->getData());
-        $this->entityManager->flush();
+        $this->settings->update($setting);
 
         $this->editorState->refreshAiEnabled();
 
@@ -160,7 +162,7 @@ final class SettingsController extends AbstractController
         $setting = $this->settings->getOrCreate();
         if ($setting->getSelectedProvider()?->getName() === $name) {
             $setting->setSelectedProvider(null);
-            $this->entityManager->flush();
+            $this->settings->update($setting);
         }
 
         $this->editorState->refreshAiEnabled();
@@ -185,8 +187,9 @@ final class SettingsController extends AbstractController
             return $this->errorResponse('request_failed', Response::HTTP_BAD_REQUEST);
         }
 
-        $this->settings->getOrCreate()->setThemeMode($theme);
-        $this->entityManager->flush();
+        $setting = $this->settings->getOrCreate();
+        $setting->setThemeMode($theme);
+        $this->settings->update($setting);
 
         return new JsonResponse(['theme' => $theme->value]);
     }
@@ -209,8 +212,9 @@ final class SettingsController extends AbstractController
             throw new BadRequestHttpException();
         }
 
-        $this->settings->getOrCreate()->setLocale($locale);
-        $this->entityManager->flush();
+        $setting = $this->settings->getOrCreate();
+        $setting->setLocale($locale);
+        $this->settings->update($setting);
 
         return $this->redirectToRoute('app_home');
     }
@@ -220,12 +224,10 @@ final class SettingsController extends AbstractController
      */
     private function createSettingsForm(): FormInterface
     {
-        $setting = $this->settings->getOrCreate();
-
         return $this->createForm(SettingsType::class, [
             'providers' => $this->providers->findAllByName(),
-            'selected' => $setting->getSelectedProvider()?->getName(),
-            'defaultMode' => $setting->getDefaultMode(),
+            'selected' => $this->settingStore->getSelectedProviderName(),
+            'defaultMode' => $this->settingStore->getDefaultMode(),
         ], [
             // Stateless token, checked by the request's origin (config/packages/csrf.yaml).
             'csrf_token_id' => self::CSRF_TOKEN_ID,

@@ -34,4 +34,13 @@ class SettingRepository extends ServiceEntityRepository
 
         return $setting;
     }
+
+    /**
+     * Flushes a change of the setting; the SettingStore follows through its
+     * entity listener.
+     */
+    public function update(Setting $setting): void
+    {
+        $this->getEntityManager()->flush();
+    }
 }

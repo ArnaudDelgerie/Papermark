@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
-use App\Repository\SettingRepository;
+use App\Setting\SettingStore;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 final class AiAvailability
 {
     public function __construct(
-        private readonly SettingRepository $settings,
+        private readonly SettingStore $settings,
         private readonly RequestStack $requestStack,
         private readonly StationContextInterface $stationContext,
         private readonly ApiKeyResolver $apiKeyResolver,
@@ -25,11 +25,11 @@ final class AiAvailability
 
     public function isEnabled(): bool
     {
-        $provider = $this->settings->getOrCreate()->getSelectedProvider();
+        $providerName = $this->settings->getSelectedProviderName();
 
         return $this->requestStack->getMainRequest() !== null
             && $this->stationContext->isAsyncWorker()
-            && $provider !== null
-            && $this->apiKeyResolver->resolve($provider->getName()) !== null;
+            && $providerName !== null
+            && $this->apiKeyResolver->resolve($providerName) !== null;
     }
 }
