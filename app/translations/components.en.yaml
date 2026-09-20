@@ -81,6 +81,7 @@ components:
             key_save_failed: Could not save the API key
             no_key: No API key provided
             invalid_name: Invalid file name
+            symbolic_link: A symbolic link cannot be modified
             rename_target_exists: A file with that name already exists
             delete_error: Could not delete the file
             update_check_failed: Could not check for updates
@@ -107,11 +108,13 @@ components:
             empty: No recent files
         tree:
             empty: No folder open
+            gone: The open folder no longer exists
             too_large: This folder is too large to display
             no_markdown: No Markdown files in this folder
             refresh: Refresh the tree
         file:
             rename: Rename
+            symlink: 'Symbolic link: rename and delete are disabled'
             delete: Delete
             rename_prompt: 'Enter a new name for "{name}"'
             delete_confirm_message: This permanently deletes the file from disk. Images referenced in it are not affected.

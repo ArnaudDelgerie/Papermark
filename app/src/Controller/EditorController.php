@@ -8,6 +8,7 @@ use App\Editor\EditorMode;
 use App\Editor\EditorState;
 use App\File\MarkdownFileReader;
 use App\File\OpenDirectoryTree;
+use App\File\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,6 +33,7 @@ final class EditorController extends AbstractController
     public function __construct(
         private readonly EditorState $editorState,
         private readonly MarkdownFileReader $fileReader,
+        private readonly PathPolicy $pathPolicy,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -49,6 +51,10 @@ final class EditorController extends AbstractController
     #[Route('/editor', name: 'app_editor', methods: ['GET'])]
     public function index(): Response
     {
+        // The marker /file/image gates on: this render is the page the user
+        // actually opened, a third-party one never gets here (lot 02, SEC-04).
+        $this->editorState->markOpened();
+
         $state = $this->editorState->toArray();
 
         return $this->render('editor/page.html.twig', [
@@ -135,8 +141,8 @@ final class EditorController extends AbstractController
             return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
-        $realPath = realpath($path);
-        if ($realPath === false || !is_file($realPath) || !is_readable($realPath)) {
+        $realPath = $this->pathPolicy->read($path);
+        if ($realPath === null) {
             // Whoever finds the file gone drops it — but only if it is the
             // current one, a bad path picked by hand must not clear it.
             if ($this->editorState->getFile() === $path) {
@@ -176,8 +182,15 @@ final class EditorController extends AbstractController
     #[Route('/editor/dir', name: 'app_editor_get_dir', methods: ['GET'])]
     public function getDir(OpenDirectoryTree $openDirectoryTree): Response
     {
+        $dir = $this->editorState->getDir();
+        $treeResult = $openDirectoryTree->build();
+        // build() drops a folder it found gone: the tree would say "no
+        // folder" like any other, the anomaly tells what really happened.
+        $goneDir = $dir !== null && $this->editorState->getDir() === null ? $dir : null;
+
         return $this->render('dir/tree.html.twig', [
-            'tree_result' => $openDirectoryTree->build(),
+            'tree_result' => $treeResult,
+            'gone_dir' => $goneDir,
         ]);
     }
 
@@ -194,8 +207,8 @@ final class EditorController extends AbstractController
         }
 
         $path = $request->request->get('path');
-        $realPath = \is_string($path) ? realpath($path) : false;
-        if ($realPath === false || !is_dir($realPath)) {
+        $realPath = \is_string($path) ? $this->pathPolicy->list($path) : null;
+        if ($realPath === null) {
             return $this->stateErrorResponse('invalid_directory', Response::HTTP_NOT_FOUND);
         }
 

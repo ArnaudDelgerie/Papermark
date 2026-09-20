@@ -24,18 +24,21 @@ final class MarkdownImageUrls
     ) {
     }
 
-    public function toServiceUrls(string $markdown, string $anchor): string
+    public function toServiceUrls(string $markdown): string
     {
         return preg_replace_callback(
             self::IMAGE_PATTERN,
-            function (array $match) use ($anchor): string {
+            function (array $match): string {
                 [, $alt, $path, $title] = $match + [2 => '', 3 => ''];
 
                 if (!$this->isLocalPath($path)) {
                     return $match[0];
                 }
 
-                $url = $this->urlGenerator->generate('app_file_image', ['path' => $path, 'anchor' => $anchor]);
+                // The URL carries the path alone: the anchor that resolves a
+                // relative one lives in the session, not in the markdown
+                // (lot 02-chemins.md, SEC-04).
+                $url = $this->urlGenerator->generate('app_file_image', ['path' => $path]);
 
                 return "![{$alt}]({$url}{$title})";
             },

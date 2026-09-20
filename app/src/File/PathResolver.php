@@ -26,9 +26,11 @@ final class PathResolver
 
     /**
      * @return string|null the resolved, validated real path, or null if the
-     *                      path can't be resolved or fails the constraint
+     *                      path can't be resolved or fails the constraint; a
+     *                      null constraint skips the validation, resolution
+     *                      alone
      */
-    public function resolve(string $path, ?string $anchor, Constraint $constraint): ?string
+    public function resolve(string $path, ?string $anchor, ?Constraint $constraint = null): ?string
     {
         if (!$this->filesystem->isAbsolutePath($path)) {
             if ($anchor === null || $anchor === '') {
@@ -43,7 +45,7 @@ final class PathResolver
             return null;
         }
 
-        if (\count($this->validator->validate($realPath, $constraint)) > 0) {
+        if ($constraint !== null && \count($this->validator->validate($realPath, $constraint)) > 0) {
             return null;
         }
 

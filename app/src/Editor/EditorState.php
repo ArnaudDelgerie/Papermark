@@ -19,7 +19,8 @@ use Symfony\Component\HttpFoundation\RequestStack;
  * keyring, then kept until an action that can change it (saving the
  * settings, setting or deleting a key) asks for it again.
  *
- * Only paths are stored, never content or any scroll/cursor position.
+ * Only paths are stored, never content or any scroll/cursor position — plus
+ * the one boolean marker that the editor page was opened (markOpened()).
  */
 final class EditorState
 {
@@ -29,6 +30,7 @@ final class EditorState
     private const FILE = 'editor.file';
     private const DIR = 'editor.open_directory';
     private const AI_ENABLED = 'editor.ai_enabled';
+    private const OPENED = 'editor.opened';
 
     public function __construct(
         private readonly RequestStack $requestStack,
@@ -88,10 +90,38 @@ final class EditorState
         return \is_string($value) ? $value : null;
     }
 
-    public function setDir(string $path): void
+    /**
+     * A null clears the folder without touching the current file: that is
+     * how a folder found gone is dropped (lot 02-chemins.md), and the
+     * current file may well live outside it. A new folder still drops the
+     * file, as ever.
+     */
+    public function setDir(?string $path): void
     {
+        if ($path === null) {
+            $this->requestStack->getSession()->remove(self::DIR);
+
+            return;
+        }
+
         $this->requestStack->getSession()->set(self::DIR, $path);
         $this->setFile(null);
+    }
+
+    /**
+     * Set when the /editor page is rendered: the page the user actually
+     * opened. A third-party page holds no session cookie (SameSite=lax),
+     * so the routes that gate on it answer it like a stranger (lot
+     * 02-chemins.md, SEC-04).
+     */
+    public function markOpened(): void
+    {
+        $this->requestStack->getSession()->set(self::OPENED, true);
+    }
+
+    public function hasOpened(): bool
+    {
+        return $this->requestStack->getSession()->get(self::OPENED) === true;
     }
 
     /**

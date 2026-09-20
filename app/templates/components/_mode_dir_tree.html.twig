@@ -1,17 +1,19 @@
 {% macro tree_file(file) %}
-    <li class="mode-tree-file" id="mode-tree-{{ file.path }}">
+    {% set symlink_title = 'components.mode.file.symlink'|trans({}, 'components') %}
+    <li class="mode-tree-file{% if file.symlink %} mode-tree-file--symlink{% endif %}" id="mode-tree-{{ file.path }}">
         <a href="#" data-action="click->mode-dir#openFile" data-path="{{ file.path }}" data-editor-leave-guard>
             <span class="mode-tree-label">{{ file.name }}</span>
         </a>
         <span class="mode-entry-actions">
+            {# A symbolic link is read-only here: acting on it would act on its target (lot 02-chemins.md). #}
             <button type="button" class="mode-entry-action mode-entry-action--rename"
                     data-action="click->mode-dir#renameEntry" data-path="{{ file.path }}"
-                    title="{{ 'components.mode.file.rename'|trans({}, 'components') }}">
+                    title="{{ file.symlink ? symlink_title : 'components.mode.file.rename'|trans({}, 'components') }}"{% if file.symlink %} disabled{% endif %}>
                 <span class="visually-hidden">{{ 'components.mode.file.rename'|trans({}, 'components') }}</span>
             </button>
             <button type="button" class="mode-entry-action mode-entry-action--delete"
                     data-action="click->mode-dir#deleteEntry" data-path="{{ file.path }}"
-                    title="{{ 'components.mode.file.delete'|trans({}, 'components') }}">
+                    title="{{ file.symlink ? symlink_title : 'components.mode.file.delete'|trans({}, 'components') }}"{% if file.symlink %} disabled{% endif %}>
                 <span class="visually-hidden">{{ 'components.mode.file.delete'|trans({}, 'components') }}</span>
             </button>
         </span>
@@ -36,7 +38,11 @@
     </li>
 {% endmacro %}
 
-{% if tree_result is null %}
+{% if gone_dir is not null %}
+    {# data-dir-gone tells the front the folder disappeared, so the label and
+       the state resync like for a file gone (EDITOR_REACTIVITY.md, S5). #}
+    <p class="mode-tree-gone" data-dir-gone="{{ gone_dir }}">{{ 'components.mode.tree.gone'|trans({}, 'components') }}</p>
+{% elseif tree_result is null %}
     <p class="mode-tree-empty">{{ 'components.mode.tree.empty'|trans({}, 'components') }}</p>
 {% elseif tree_result.tooLarge %}
     <p class="mode-tree-error">{{ 'components.mode.tree.too_large'|trans({}, 'components') }}</p>

@@ -111,6 +111,22 @@ final class ArchiveImporterTest extends TestCase
         self::assertSame(['notes.pdf'], $result->ignoredEntries);
     }
 
+    /** SVG is a document with scripts, not an image (lot 02, SEC-05). */
+    public function testSvgEntriesAreIgnoredAndReported(): void
+    {
+        $zipPath = $this->makeZip([
+            'doc.md' => '# Hello',
+            'img/logo.svg' => '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+            'img/photo.png' => 'PNG-BYTES',
+        ]);
+
+        $result = $this->importer->import($zipPath, $this->parentDir);
+
+        self::assertFileDoesNotExist($result->destination . '/img/logo.svg');
+        self::assertFileExists($result->destination . '/img/photo.png');
+        self::assertSame(['img/logo.svg'], $result->ignoredEntries);
+    }
+
     public function testArchiveWithOnlyIgnoredEntriesReportsNoOpen(): void
     {
         $zipPath = $this->makeZip(['notes.pdf' => 'not extracted']);

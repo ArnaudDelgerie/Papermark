@@ -28,7 +28,7 @@ final class MarkdownFileReaderTest extends KernelTestCase
 
         $content = $this->reader->read($path);
 
-        self::assertSame('![alt](/file/image?path=./photo.png&anchor=' . $path . ')', $content);
+        self::assertSame('![alt](/file/image?path=./photo.png)', $content);
 
         unlink($path);
     }

@@ -51,15 +51,57 @@ final class FileControllerTest extends WebTestCase
         self::assertResponseHeaderSame('Content-Type', 'image/png');
     }
 
-    public function testImageResolvesRelativePathAgainstAnchor(): void
+    /**
+     * A third-party page holds no session cookie (SameSite=lax), so it never
+     * rendered /editor and the route answers 404, whatever the path — the
+     * SEC-04 existence oracle dies here.
+     */
+    public function testImageRefusesASessionThatNeverOpenedTheEditor(): void
     {
-        [$client] = $this->createClientWithCsrf();
+        $client = static::createClient();
         $path = $this->createTestImage();
-        $anchor = \dirname($path) . '/document.md';
 
-        $client->request('GET', '/file/image', ['path' => basename($path), 'anchor' => $anchor]);
+        $client->request('GET', '/file/image', ['path' => $path]);
+
+        self::assertResponseStatusCodeSame(404);
+        unlink($path);
+    }
+
+    public function testImageResolvesRelativePathAgainstTheCurrentFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+        $path = $this->createTestImage();
+
+        $doc = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($doc, '# Doc next to the image');
+        $client->request('POST', '/editor/file', ['path' => $doc], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        $client->request('GET', '/file/image', ['path' => basename($path)]);
 
         self::assertResponseIsSuccessful();
+
+        unlink($doc);
+    }
+
+    /** No current file: nothing to resolve a relative path against. */
+    public function testImageRefusesARelativePathWithoutACurrentFile(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+
+        $client->request('GET', '/file/image', ['path' => 'photo.png']);
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    /** The caller can't pick the anchor anymore: it's the session's file or nothing. */
+    public function testImageIgnoresAnAnchorParameterFromTheCaller(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+
+        $client->request('GET', '/file/image', ['path' => 'photo.png', 'anchor' => '/etc']);
+
+        self::assertResponseStatusCodeSame(404);
     }
 
     public function testImageReturns404WithoutPath(): void
@@ -78,6 +120,21 @@ final class FileControllerTest extends WebTestCase
         $client->request('GET', '/file/image', ['path' => '/tmp/this_image_does_not_exist_12345.png']);
 
         self::assertResponseStatusCodeSame(404);
+    }
+
+    /** SVG is a document with scripts, not an image (lot 02, SEC-05). */
+    public function testImageReturns404ForSvg(): void
+    {
+        [$client] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.svg';
+        file_put_contents($path, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+
+        $client->request('GET', '/file/image', ['path' => $path]);
+
+        self::assertResponseStatusCodeSame(404);
+
+        unlink($path);
     }
 
     public function testImageReturns404ForUnsupportedExtension(): void
@@ -102,7 +159,7 @@ final class FileControllerTest extends WebTestCase
 
         $client->request('POST', '/file/save', [
             'path' => $docPath,
-            'content' => '![alt](/file/image?path=./photo.png&anchor=' . $docPath . ')',
+            'content' => '![alt](/file/image?path=./photo.png)',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
@@ -146,7 +203,7 @@ final class FileControllerTest extends WebTestCase
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
         $client->request('POST', '/file/copy', [
-            'content' => '![alt](/file/image?path=/home/user/photo.png&anchor=/home/user/doc.md)',
+            'content' => '![alt](/file/image?path=/home/user/photo.png)',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
@@ -319,6 +376,74 @@ final class FileControllerTest extends WebTestCase
         ]);
 
         self::assertResponseStatusCodeSame(403);
+    }
+
+    /**
+     * The SEC-02 scenario: `innocent.md` in an open folder links to an
+     * important file elsewhere. Writing through the link — save, delete,
+     * rename — must be refused, the target left intact.
+     *
+     * @return array{0: string, 1: string} the link, the target
+     */
+    private function createSymlinkedMarkdown(): array
+    {
+        if (\PHP_OS_FAMILY !== 'Linux' && \PHP_OS_FAMILY !== 'Darwin') {
+            self::markTestSkipped('Symbolic links are a Unix matter here.');
+        }
+
+        $target = tempnam(sys_get_temp_dir(), 'important_') . '.md';
+        file_put_contents($target, '# Important');
+        $link = tempnam(sys_get_temp_dir(), 'innocent_') . '.md';
+        unlink($link);
+        symlink($target, $link);
+
+        return [$link, $target];
+    }
+
+    public function testSaveRefusesASymlinkAndLeavesTheTargetIntact(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        [$link, $target] = $this->createSymlinkedMarkdown();
+
+        $client->request('POST', '/file/save', ['path' => $link, 'content' => '# Overwritten'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame('# Important', file_get_contents($target));
+        self::assertTrue(is_link($link));
+
+        unlink($link);
+        unlink($target);
+    }
+
+    public function testDeleteRefusesASymlinkAndLeavesTheTargetIntact(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        [$link, $target] = $this->createSymlinkedMarkdown();
+
+        $client->request('POST', '/file/delete', ['path' => $link], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertFileExists($target);
+        self::assertSame('# Important', file_get_contents($target));
+
+        unlink($link);
+        unlink($target);
+    }
+
+    public function testRenameRefusesASymlinkAndLeavesTheTargetIntact(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        [$link, $target] = $this->createSymlinkedMarkdown();
+
+        $client->request('POST', '/file/rename', ['path' => $link, 'name' => 'moved.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertFileExists($target);
+        self::assertSame('# Important', file_get_contents($target));
+        self::assertFileDoesNotExist(\dirname($link) . '/moved.md');
+
+        unlink($link);
+        unlink($target);
     }
 
     /**

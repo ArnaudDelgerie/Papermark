@@ -287,6 +287,27 @@ turbo-frame {
     font-size: 0.8rem;
 }
 
+.mode-tree-gone {
+    color: var(--color-danger);
+    font-size: 0.8rem;
+}
+
+/* A linked .md reads as its target: shown, but never acted on (lot 02-chemins.md). */
+.mode-tree-file--symlink .mode-tree-label {
+    font-style: italic;
+    opacity: 0.7;
+}
+
+.mode-entry-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.mode-entry-action:disabled:hover {
+    background: transparent;
+    color: var(--color-muted);
+}
+
 .mode-tree-dir ul {
     list-style: none;
     margin: 0;

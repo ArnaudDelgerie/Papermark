@@ -81,6 +81,7 @@ components:
             key_save_failed: Impossible d'enregistrer la clé API
             no_key: Aucune clé API fournie
             invalid_name: Nom de fichier invalide
+            symbolic_link: Un lien symbolique ne peut pas être modifié
             rename_target_exists: Un fichier avec ce nom existe déjà
             delete_error: Impossible de supprimer le fichier
             update_check_failed: Impossible de vérifier les mises à jour
@@ -107,11 +108,13 @@ components:
             empty: Aucun fichier récent
         tree:
             empty: Aucun dossier ouvert
+            gone: Le dossier ouvert n'existe plus
             too_large: Ce dossier est trop volumineux pour être affiché
             no_markdown: Aucun fichier Markdown dans ce dossier
             refresh: Rafraîchir l'arborescence
         file:
             rename: Renommer
+            symlink: 'Lien symbolique : renommer et supprimer sont désactivés'
             delete: Supprimer
             rename_prompt: 'Entrez un nouveau nom pour « {name} »'
             delete_confirm_message: Ceci supprime définitivement le fichier du disque. Les images qui y sont référencées ne sont pas affectées.

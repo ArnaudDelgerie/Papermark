@@ -57,6 +57,27 @@ final class DirectoryTreeTest extends TestCase
     }
 
     /**
+     * A linked .md stays listed — the file exists, the user looks for it —
+     * but flagged, so the tree can tell it apart and disable its actions
+     * (lot 02-chemins.md, SEC-02).
+     */
+    public function testListsASymlinkedMarkdownFileFlaggedAsOne(): void
+    {
+        $target = tempnam(sys_get_temp_dir(), 'target_') . '.md';
+        file_put_contents($target, '# Target');
+        symlink($target, $this->root . '/linked.md');
+
+        $result = (new DirectoryTree())->build($this->root);
+
+        self::assertSame(['linked.md'], array_map(static fn ($f) => $f->name, $result->root->files));
+        self::assertTrue($result->root->files[0]->symlink);
+        self::assertSame($this->root . '/linked.md', $result->root->files[0]->path);
+
+        unlink($this->root . '/linked.md');
+        unlink($target);
+    }
+
+    /**
      * A .gitignore describes what to commit, not what's noise — a file
      * matching it is still real content and still counts (see EDITOR_FOLDER_MODE.md).
      */

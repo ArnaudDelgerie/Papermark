@@ -40,7 +40,9 @@ final readonly class OpenDirectoryTree
         }
 
         if (!is_dir($directory)) {
-            // The session held a path that no longer exists (moved, unmounted…).
+            // The session held a path that no longer exists (moved, unmounted…):
+            // the state forgets it too, not just the cache (lot 02-chemins.md).
+            $this->editorState->setDir(null);
             $this->forget();
 
             return null;
@@ -51,6 +53,10 @@ final readonly class OpenDirectoryTree
             try {
                 $paths = $this->directoryTree->scan($directory);
             } catch (DirectoryNotFoundException) {
+                // Gone between the is_dir check and the walk: same correction.
+                $this->editorState->setDir(null);
+                $this->forget();
+
                 return null;
             }
             $listing = ['root' => $directory, 'paths' => $paths === null ? null : array_fill_keys($paths, true)];

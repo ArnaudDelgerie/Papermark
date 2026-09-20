@@ -146,6 +146,27 @@ describe('the left column, with the master', () => {
             expect(toasts).toEqual([{ type: 'error', message: 'Folder not found' }]);
         });
 
+        it('keeps the gone-folder message the tree rendered instead of flashing it', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: null } }));
+            await start([], 'dir');
+
+            // The tree found the folder gone: the server rendered its message
+            // instead of the entries, and the frame just finished loading.
+            const gone = document.createElement('p');
+            gone.className = 'mode-tree-gone';
+            gone.dataset.dirGone = '/notes';
+            $('turbo-frame').replaceChildren(gone);
+            $('turbo-frame').dispatchEvent(new Event('turbo:frame-load'));
+            await settle();
+
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(fetchMock.mock.calls[0][0]).toBe('/editor/state');
+            expect(reload).not.toHaveBeenCalled();
+            expect($('turbo-frame').querySelector('[data-dir-gone]')).toBe(gone);
+            expect($('[data-mode-dir-target="toolbar"]').hidden).toBe(true);
+            expect($('[data-current-directory-target="path"]').hidden).toBe(true);
+        });
+
         it('shows the refresh button only once a folder is open', async () => {
             invoke.mockResolvedValue('/notes');
             fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: { path: '/notes' } }));

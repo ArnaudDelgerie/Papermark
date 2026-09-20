@@ -41,6 +41,6 @@ final class MarkdownFileReader
             return null;
         }
 
-        return $this->markdownImageUrls->toServiceUrls($content, $realPath);
+        return $this->markdownImageUrls->toServiceUrls($content);
     }
 }

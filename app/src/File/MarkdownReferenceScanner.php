@@ -18,7 +18,7 @@ namespace App\File;
  */
 final class MarkdownReferenceScanner
 {
-    public const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'];
+    public const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
     public const DOCUMENT_EXTENSIONS = ['md', 'markdown', 'txt'];
 
     private const IMAGE_PATTERN = '/!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/';

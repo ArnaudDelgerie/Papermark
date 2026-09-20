@@ -29,9 +29,15 @@ export default class extends Controller<HTMLElement> {
     /** The load in flight, 0 when none; see #track(). */
     #loading = 0;
     #loads = 0;
+    /** Bound so disconnect() can remove it; see #reportGoneDir(). */
+    readonly #onFrameLoad = (): void => this.#reportGoneDir();
 
     connect(): void {
         this.#entries.connect();
+        // A tree that says the open folder is gone carries data-dir-gone: the
+        // server already dropped it, the master hears the anomaly and re-reads
+        // the state so the label, the refresh button and Save as follow (S5).
+        this.treeFrameTarget.addEventListener('turbo:frame-load', this.#onFrameLoad);
         // The frame starts empty and loads by itself (eager): the button
         // turns until the first tree is in, as after a folder change.
         const frame = this.treeFrameTarget;
@@ -84,16 +90,35 @@ export default class extends Controller<HTMLElement> {
             on('editor:state-resynced', ({ state, anomaly }) => {
                 if ('dir' in anomaly) {
                     this.toolbarTarget.hidden = state.dir === null;
-                    reload();
+                    // The tree that reported the gone folder already shows the
+                    // message: reloading it would render "no folder open" and
+                    // erase what just happened. It leaves with the next folder.
+                    if (this.treeFrameTarget.querySelector('[data-dir-gone]') === null) {
+                        reload();
+                    }
                 }
             }),
         ];
     }
 
     disconnect(): void {
+        this.treeFrameTarget.removeEventListener('turbo:frame-load', this.#onFrameLoad);
         this.#entries.disconnect();
         this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
         this.#unsubscribers = [];
+    }
+
+    /**
+     * The marker the tree renders when the open folder disappeared, its
+     * former path inside. Nothing to do when the frame says anything else.
+     */
+    #reportGoneDir(): void {
+        const gone = this.treeFrameTarget.querySelector<HTMLElement>('[data-dir-gone]');
+        if (gone === null) {
+            return;
+        }
+
+        emit('editor:state-anomaly-reported', { anomaly: { dir: gone.dataset.dirGone ?? '' } });
     }
 
     /** Walks the folder again: the tree only follows the in-app changes. */

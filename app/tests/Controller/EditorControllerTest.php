@@ -27,6 +27,11 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame(1, $crawler->filter('div[data-controller="editor"]')->count());
         self::assertSame('Single file', trim($crawler->filter('.mode-selector-link.is-active')->text()));
 
+        // The /file/image gate depends on it (lot 02, SEC-04): written out,
+        // not left to the framework's default.
+        $options = static::getContainer()->getParameter('session.storage.options');
+        self::assertSame('lax', $options['cookie_samesite'] ?? null);
+
         // Both columns are in the page, the inactive one hidden.
         self::assertNull($crawler->filter('div[data-controller="mode-single"]')->attr('hidden'));
         self::assertNotNull($crawler->filter('div[data-controller="mode-dir"]')->attr('hidden'));
@@ -237,9 +242,37 @@ final class EditorControllerTest extends WebTestCase
 
         $client->request('GET', '/editor/file');
 
-        self::assertSame('![alt](/file/image?path=./photo.png&anchor=' . $path . ')', $this->responseData($client)['content']);
+        self::assertSame('![alt](/file/image?path=./photo.png)', $this->responseData($client)['content']);
 
         unlink($path);
+    }
+
+    /**
+     * Reading a linked .md is a normal use; it opens as its target (lot 02,
+     * "Liens symboliques : lecture oui").
+     */
+    public function testSetFileOpensASymlinkedFileByItsTarget(): void
+    {
+        if (\PHP_OS_FAMILY !== 'Linux' && \PHP_OS_FAMILY !== 'Darwin') {
+            self::markTestSkipped('Symbolic links are a Unix matter here.');
+        }
+
+        $client = $this->createClientWithTokens();
+
+        $target = $this->createFile('# Target');
+        $link = sys_get_temp_dir() . '/editor_state_link_' . uniqid() . '.md';
+        symlink($target, $link);
+
+        $this->post($client, '/editor/file', 'file', ['path' => $link]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(realpath($target), $this->responseState($client)['file']);
+
+        $client->request('GET', '/editor/file');
+        self::assertSame('# Target', $this->responseData($client)['content']);
+
+        unlink($link);
+        unlink($target);
     }
 
     public function testGetFileDropsACurrentFileGoneFromDiskAndNamesIt(): void
@@ -384,6 +417,43 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/dir', 'dir', ['path' => '/nope/nope']);
 
         self::assertResponseStatusCodeSame(404);
+    }
+
+    /**
+     * A folder deleted from outside: the tree says it disappeared — not
+     * "no folder open" — and the state, session included, forgets it (lot
+     * 02, FIL-10). The current file stays: it may well live elsewhere.
+     */
+    public function testGoneDirIsDroppedFromTheStateAndReportedByTheTree(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/dir_mode_gone_' . uniqid();
+        mkdir($root);
+        file_put_contents($root . '/note.md', '# Note');
+        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $outside = $this->createFile('# Outside');
+        $this->post($client, '/editor/file', 'file', ['path' => $outside]);
+
+        $this->removeDirectory($root);
+        $crawler = $client->request('GET', '/editor/dir');
+
+        $gone = $crawler->filter('.mode-tree-gone');
+        self::assertSame(1, $gone->count());
+        self::assertSame($root, $gone->attr('data-dir-gone'));
+        self::assertSame(0, $crawler->filter('.mode-tree-empty')->count());
+
+        $client->request('GET', '/editor/state');
+        self::assertNull($this->responseState($client)['dir']);
+        // The current file survives the folder's disappearance.
+        self::assertSame($outside, $this->responseState($client)['file']);
+
+        // The next render says "no folder open", the anomaly is one-time.
+        $crawler = $client->request('GET', '/editor/dir');
+        self::assertSame(0, $crawler->filter('.mode-tree-gone')->count());
+        self::assertSame(1, $crawler->filter('.mode-tree-empty')->count());
+
+        unlink($outside);
     }
 
     public function testGetDirIsEmptyWithNoCurrentFolder(): void

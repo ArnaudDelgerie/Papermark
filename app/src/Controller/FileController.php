@@ -4,8 +4,11 @@ namespace App\Controller;
 
 use App\Editor\EditorState;
 use App\File\MarkdownImageUrls;
+use App\File\NoReplaceRename;
+use App\File\NoReplaceRenameResult;
 use App\File\OpenDirectoryTree;
-use App\File\PathResolver;
+use App\File\PathPolicy;
+use App\File\PathRefusal;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,8 +25,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class FileController extends AbstractController
 {
     private const ALLOWED_EXTENSIONS = ['md', 'markdown', 'txt'];
-    private const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'];
-    private const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/avif'];
+    private const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
+    private const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'];
     private const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MiB
     private const TRANSLATION_DOMAIN = 'components';
     private const TRANSLATION_PREFIX = 'components.editor.error.';
@@ -31,7 +34,8 @@ final class FileController extends AbstractController
     public function __construct(
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
-        private readonly PathResolver $pathResolver,
+        private readonly PathPolicy $pathPolicy,
+        private readonly NoReplaceRename $noReplaceRename,
         private readonly MarkdownImageUrls $markdownImageUrls,
         private readonly EditorState $editorState,
         private readonly OpenDirectoryTree $openDirectoryTree,
@@ -61,22 +65,28 @@ final class FileController extends AbstractController
 
     /**
      * Serves an image referenced from an opened document: `path` as written
-     * in the markdown (relative or absolute), `anchor` the document's own
-     * path (used to resolve a relative `path`). No containment under a
-     * parent directory: trust comes from having opened the document, not
-     * from a per-image gesture — see EDITOR_IMAGES.md.
+     * in the markdown (relative or absolute). A relative path resolves
+     * against the session's current file — never an anchor the caller picks
+     * — and the whole route answers 404 unless the /editor page was rendered
+     * for this session: a third-party page holds no session cookie
+     * (SameSite=lax), so it can't use this route as an existence oracle
+     * (lot 02-chemins.md, SEC-04). No containment under a parent directory:
+     * trust comes from having opened the document, not from a per-image
+     * gesture — see EDITOR_IMAGES.md.
      */
     #[Route('/file/image', name: 'app_file_image', methods: ['GET'])]
     public function image(Request $request): Response
     {
+        if (!$this->editorState->hasOpened()) {
+            throw new NotFoundHttpException();
+        }
+
         $path = $request->query->get('path');
         if (!\is_string($path) || $path === '') {
             throw new NotFoundHttpException();
         }
 
-        $anchor = $request->query->get('anchor');
-
-        $realPath = $this->pathResolver->resolve($path, \is_string($anchor) ? $anchor : null, new FileConstraint(
+        $realPath = $this->pathPolicy->read($path, $this->editorState->getFile(), new FileConstraint(
             extensions: self::IMAGE_EXTENSIONS,
             mimeTypes: self::IMAGE_MIME_TYPES,
             maxSize: self::MAX_IMAGE_SIZE,
@@ -121,15 +131,18 @@ final class FileController extends AbstractController
             return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
-        $parentDir = \dirname($path);
-        $realParent = realpath($parentDir);
-        if ($realParent === false || !is_dir($realParent) || !is_writable($realParent)) {
-            return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
+        $permission = $this->pathPolicy->write($path);
+        if ($permission->path === null) {
+            // A symlink is refused for what it is; an unresolvable parent or
+            // a non-file lands as unwritable, as before.
+            $key = $permission->refusal === PathRefusal::Symlink ? 'symbolic_link' : 'not_writable';
+
+            return $this->stateErrorResponse($key, Response::HTTP_FORBIDDEN);
         }
 
-        $realPath = $realParent . '/' . basename($path);
+        $realPath = $permission->path;
 
-        if (is_file($realPath) && !is_writable($realPath)) {
+        if (!is_writable(\dirname($realPath)) || (is_file($realPath) && !is_writable($realPath))) {
             return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
         }
 
@@ -163,8 +176,16 @@ final class FileController extends AbstractController
             return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
-        $realPath = realpath($path);
-        if ($realPath === false || !is_file($realPath)) {
+        $permission = $this->pathPolicy->write($path);
+        if ($permission->path === null) {
+            // A symlink is refused for what it is, the rest as not found.
+            return $permission->refusal === PathRefusal::Symlink
+                ? $this->stateErrorResponse('symbolic_link', Response::HTTP_FORBIDDEN)
+                : $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        $realPath = $permission->path;
+        if (!is_file($realPath)) {
             return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
@@ -182,7 +203,9 @@ final class FileController extends AbstractController
 
     /**
      * Renames a file in place: only the last path segment changes, the file
-     * stays in the same directory (see EDITOR_FIX.md).
+     * stays in the same directory (see EDITOR_FIX.md). The move itself is a
+     * no-replace one: a target created meanwhile is refused, not silently
+     * overwritten (lot 02-chemins.md, FIL-06).
      */
     #[Route('/file/rename', name: 'app_file_rename', methods: ['POST'])]
     public function rename(Request $request): JsonResponse
@@ -207,17 +230,27 @@ final class FileController extends AbstractController
             return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
-        $realPath = realpath($path);
-        if ($realPath === false || !is_file($realPath)) {
+        $permission = $this->pathPolicy->write($path);
+        if ($permission->path === null) {
+            // A symlink is refused for what it is, the rest as not found.
+            return $permission->refusal === PathRefusal::Symlink
+                ? $this->stateErrorResponse('symbolic_link', Response::HTTP_FORBIDDEN)
+                : $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        $realPath = $permission->path;
+        if (!is_file($realPath)) {
             return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
         }
 
         $newPath = \dirname($realPath) . '/' . $name;
-        if (file_exists($newPath)) {
+
+        $outcome = $this->noReplaceRename->rename($realPath, $newPath);
+        if ($outcome === NoReplaceRenameResult::TargetExists) {
             return $this->stateErrorResponse('rename_target_exists', Response::HTTP_CONFLICT);
         }
 
-        if (!@rename($realPath, $newPath)) {
+        if ($outcome === NoReplaceRenameResult::Failed) {
             return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
         $this->openDirectoryTree->fileRenamed($realPath, $newPath);

@@ -94,7 +94,7 @@ final class DirectoryTree
             $fileName = array_pop($segments);
 
             if ($segments === []) {
-                $filesHere[] = new DirectoryFile($fileName, $path . '/' . $fileName);
+                $filesHere[] = new DirectoryFile($fileName, $path . '/' . $fileName, is_link($path . '/' . $fileName));
                 continue;
             }
 

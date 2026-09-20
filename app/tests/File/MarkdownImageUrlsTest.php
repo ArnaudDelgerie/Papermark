@@ -22,10 +22,10 @@ final class MarkdownImageUrlsTest extends KernelTestCase
     {
         $markdown = 'Text ![alt](./img/photo.png) more text';
 
-        $result = $this->converter->toServiceUrls($markdown, '/home/user/doc.md');
+        $result = $this->converter->toServiceUrls($markdown);
 
         self::assertSame(
-            'Text ![alt](/file/image?path=./img/photo.png&anchor=/home/user/doc.md) more text',
+            'Text ![alt](/file/image?path=./img/photo.png) more text',
             $result,
         );
     }
@@ -34,14 +34,14 @@ final class MarkdownImageUrlsTest extends KernelTestCase
     {
         $markdown = '![alt](https://example.com/photo.png)';
 
-        self::assertSame($markdown, $this->converter->toServiceUrls($markdown, '/home/user/doc.md'));
+        self::assertSame($markdown, $this->converter->toServiceUrls($markdown));
     }
 
     public function testToServiceUrlsPreservesTitle(): void
     {
         $markdown = '![alt](./photo.png "A title")';
 
-        $result = $this->converter->toServiceUrls($markdown, '/home/user/doc.md');
+        $result = $this->converter->toServiceUrls($markdown);
 
         self::assertStringEndsWith(' "A title")', $result);
     }
@@ -50,7 +50,7 @@ final class MarkdownImageUrlsTest extends KernelTestCase
     {
         $original = '![alt](./img/photo.png "caption")';
 
-        $serviceUrls = $this->converter->toServiceUrls($original, '/home/user/doc.md');
+        $serviceUrls = $this->converter->toServiceUrls($original);
         $rawPaths = $this->converter->toRawPaths($serviceUrls);
 
         self::assertSame($original, $rawPaths);
@@ -73,6 +73,17 @@ final class MarkdownImageUrlsTest extends KernelTestCase
     public function testToRawPathsUnescapesBackslashEscapedAmpersand(): void
     {
         $markdown = '![alt](/file/image?path=/home/user/photo.png\&anchor=/home/user/doc.md)';
+
+        self::assertSame('![alt](/home/user/photo.png)', $this->converter->toRawPaths($markdown));
+    }
+
+    /**
+     * Documents written before the lot 02 change carry the anchor in the
+     * URL: the path comes back from them all the same.
+     */
+    public function testToRawPathsReadsUrlsFromBeforeTheAnchorRemoval(): void
+    {
+        $markdown = '![alt](/file/image?path=/home/user/photo.png&anchor=/home/user/doc.md)';
 
         self::assertSame('![alt](/home/user/photo.png)', $this->converter->toRawPaths($markdown));
     }
