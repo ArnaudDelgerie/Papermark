@@ -14,6 +14,11 @@
         <ini name="display_errors" value="1" />
         <ini name="error_reporting" value="-1" />
         <server name="APP_ENV" value="test" force="true" />
+        <!-- QUA-01: never drop a database chosen by an exported DATABASE_URL;
+             the bootstrap guard is the belt on top of these braces. <env> covers
+             the subprocesses (bin/console) but not $_SERVER, <server> does. -->
+        <server name="DATABASE_URL" value="sqlite:///%kernel.project_dir%/var/data_test.db" force="true" />
+        <env name="DATABASE_URL" value="sqlite:///%kernel.project_dir%/var/data_test.db" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
     </php>
 

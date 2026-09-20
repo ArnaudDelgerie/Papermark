@@ -150,6 +150,9 @@ export default class extends Controller<HTMLElement> {
         this.#stateReady = new Promise((resolve) => (this.#resolveState = resolve));
     }
 
+    // FRT-11, lot Front éditeur: Stimulus never awaits connect(); a rejection
+    // leaves the editor empty with no message.
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     async connect(): Promise<void> {
         this.#isReadonly = this.readonlyValue;
 
@@ -193,6 +196,9 @@ export default class extends Controller<HTMLElement> {
         this.#fileRequest?.abort();
         this.#removePrintCopy();
         this.#aiClient?.close();
+        // FRT-11, lot Front éditeur: destroy() is not awaited; the editor can
+        // be torn down while it is still cleaning up.
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this.#crepe?.destroy();
         this.#crepe = null;
         this.initialize();
@@ -301,7 +307,11 @@ export default class extends Controller<HTMLElement> {
             root: this.element,
             defaultValue,
             i18n: this.i18nValue,
+            // FRT-11, lot Front éditeur: both callbacks are async and run
+            // unwatched; their rejections are unobserved.
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onInsertImage: (ctx: Ctx) => this.#insertImageFromPicker(ctx),
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onCopyCode: (text: string) => this.#copyCode(text),
             aiEnabled: this.#aiEnabled,
             aiProvider: this.#aiClient?.createProvider(),

@@ -1,8 +1,8 @@
 SHELL := /bin/bash
 
-.PHONY: lint lint-php lint-twig lint-js lint-css lint-staged hooks-install test
+.PHONY: lint lint-php lint-twig lint-js lint-css lint-yaml lint-container lint-translations lint-composer build lint-staged hooks-install test
 
-lint: lint-php lint-twig lint-js lint-css
+lint: lint-php lint-twig lint-js lint-css lint-yaml lint-container lint-translations lint-composer build
 
 test:
 	cd app && vendor/bin/phpunit
@@ -20,6 +20,25 @@ lint-js:
 
 lint-css:
 	cd app && npx stylelint "assets/styles/**/*.css"
+
+lint-yaml:
+	cd app && bin/console lint:yaml config translations
+
+lint-container:
+	cd app && bin/console lint:container
+
+lint-translations:
+	cd app && bin/console lint:translations --locale=fr --locale=en
+
+# --no-check-publish: composer.json resolves tfs-app-bundle from a local path
+# (HUB-01, Release lot); --strict would fail on it out of the box.
+lint-composer:
+	cd app && composer validate --no-check-publish
+
+# The full asset build (QUA-09): an unresolvable import in a .js passes eslint,
+# tsc and the vitest suite, and only fails here.
+build:
+	cd app && npm run build
 
 # Lints only the files touched by the staged commit, bucketed by extension.
 # A linter with nothing to check in its bucket is skipped, not run full-repo.

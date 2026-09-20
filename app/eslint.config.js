@@ -21,8 +21,35 @@ export default [
     },
     ...tseslint.configs.recommended.map((config) => ({
         ...config,
-        files: ['**/*.ts'],
+        files: ['tests/js/**/*.ts'],
     })),
+    // Typed rules on the shipped code only (QUA-09); tests stay untyped.
+    // no-floating-promises and no-misused-promises come with recommendedTypeChecked.
+    ...tseslint.configs.recommendedTypeChecked.map((config) => ({
+        ...config,
+        files: ['assets/**/*.ts'],
+        languageOptions: {
+            ...config.languageOptions,
+            parserOptions: {
+                ...config.languageOptions?.parserOptions,
+                project: ['./tsconfig.json'],
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    })),
+    {
+        files: ['assets/**/*.ts'],
+        rules: {
+            // QUA-03, lot Front éditeur: the editor modules are still untyped
+            // .js, so the unsafe-* family only fires across those boundaries
+            // and on response.json(). Re-enable it when they are converted.
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-call': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            '@typescript-eslint/no-unsafe-return': 'off',
+        },
+    },
     {
         files: ['webpack.config.js'],
         languageOptions: {
