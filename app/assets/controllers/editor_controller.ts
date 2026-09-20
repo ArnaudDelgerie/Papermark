@@ -776,11 +776,17 @@ export default class extends Controller<HTMLElement> {
      * Anomaly (lot 03): the current file is gone or was deleted, but nobody
      * asked for the text to go. It stays, the path falls, the document
      * becomes an untitled one, and the toast says how to keep it.
+     *
+     * Untitled *and unsaved*: its copy on disk is gone, so what is on screen
+     * exists nowhere else. The saved reference goes back to empty, which makes
+     * the dot show and the leave guard ask — an empty document stays clean,
+     * there is nothing to lose.
      */
     #currentFileGone(message: string): void {
         this.#discardAi();
         this.#currentPath = null;
         this.#revision = null;
+        this.#savedRef = '';
         this.#updateSaveButton(this.#crepe?.getMarkdown());
         this.#updateDirtyIndicator();
         this.#updateFilePath();

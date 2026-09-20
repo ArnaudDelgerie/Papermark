@@ -488,6 +488,32 @@ describe('the editor, with the master', () => {
             expect(toasts).toEqual([{ type: 'error', message: 'a.md was deleted: save it under another name' }]);
         });
 
+        it('marks a clean document unsaved when its file goes: the text is nowhere else now', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(current);
+
+            // Not a line typed: the document matches what was read from disk.
+            emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/a.md' } });
+
+            expect(crepe.getMarkdown()).toBe('# A');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+
+            // And leaving asks, instead of dropping the text without a word.
+            click('[data-mode="dir"]');
+            await settle();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+            expect(calls('POST', '/editor/mode')).toHaveLength(0);
+        });
+
+        it('leaves an empty document clean when its file goes: nothing to lose', async () => {
+            await start({ ...current, file: null });
+
+            emit('editor:state-resynced', { state: { ...current, file: null }, anomaly: { file: '/notes/a.md' } });
+
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        });
+
         it('same when a re-read finds it gone', async () => {
             await start(current);
 
@@ -558,11 +584,12 @@ describe('the editor, with the master', () => {
         expect(label()).toBe('/notes/b.md');
         expect(crepe.getMarkdown()).toBe('# A');
 
-        // An anomaly (lot 03): the text stays, only the path falls.
+        // An anomaly (lot 03): the text stays, only the path falls — and it
+        // counts as unsaved, its copy on disk having just gone.
         emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/b.md' } });
         expect(crepe.getMarkdown()).toBe('# A');
         expect(label()).toBe('Untitled');
-        expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
         expect(toasts).toEqual([{ type: 'error', message: 'b.md was deleted: save it under another name' }]);
     });
 
