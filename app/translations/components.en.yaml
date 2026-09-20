@@ -17,6 +17,13 @@ components:
             confirm: Continue and lose unsaved changes?
             cancel: Cancel
             continue: Continue
+        conflict:
+            question: What should happen to your changes?
+            cancel: Cancel
+            save_as: Save as…
+            overwrite: Overwrite
+        load_error: The file could not be loaded
+        load_error_retry: Retry
         toggle:
             edit: Edit
             readonly: Read only
@@ -52,6 +59,8 @@ components:
             copy_markdown_failed: Failed to copy markdown
             copied_code: Code copied to clipboard
             copy_code_failed: Failed to copy code
+            current_file_deleted: '"{name}" has been deleted: its content stays open, unsaved. Save it under another name to keep it.'
+            current_file_gone: '"{name}" no longer exists: its content stays open, unsaved. Save it under another name to keep it.'
         ai:
             ask_ai: Ask AI
             instruction_placeholder: Tell AI what to do with the selection…
@@ -83,6 +92,9 @@ components:
             invalid_name: Invalid file name
             symbolic_link: A symbolic link cannot be modified
             rename_target_exists: A file with that name already exists
+            save_conflict_modified: The file was modified outside of Papermark
+            save_conflict_gone: The file no longer exists on disk
+            not_utf8: The file is not UTF-8 encoded; only UTF-8 files can be opened
             delete_error: Could not delete the file
             update_check_failed: Could not check for updates
             ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
@@ -118,6 +130,7 @@ components:
             delete: Delete
             rename_prompt: 'Enter a new name for "{name}"'
             delete_confirm_message: This permanently deletes the file from disk. Images referenced in it are not affected.
+            delete_confirm_message_current: This file is open in the editor with unsaved changes. After the deletion its content stays open as an unsaved document, to save under another name.
             delete_confirm_question: 'Delete "{name}"?'
             deleted: File deleted
             renamed: File renamed

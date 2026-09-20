@@ -54,6 +54,13 @@ final class Editor
                 'cancel' => $this->trans('unsaved.cancel'),
                 'continue' => $this->trans('unsaved.continue'),
             ],
+            'conflict' => [
+                'question' => $this->trans('conflict.question'),
+                'cancel' => $this->trans('conflict.cancel'),
+                'saveAs' => $this->trans('conflict.save_as'),
+                'overwrite' => $this->trans('conflict.overwrite'),
+            ],
+            'loadError' => $this->trans('load_error'),
             'slashMenu' => [
                 'text' => $this->trans('slash_menu.text'),
                 'paragraph' => $this->trans('slash_menu.paragraph'),
@@ -85,6 +92,8 @@ final class Editor
                 'copyMarkdownFailed' => $this->trans('toast.copy_markdown_failed'),
                 'copiedCode' => $this->trans('toast.copied_code'),
                 'copyCodeFailed' => $this->trans('toast.copy_code_failed'),
+                'currentFileDeleted' => $this->trans('toast.current_file_deleted'),
+                'currentFileGone' => $this->trans('toast.current_file_gone'),
             ],
             'ai' => [
                 'askAi' => $this->trans('ai.ask_ai'),

@@ -33,7 +33,12 @@ interface Requests {
     'nav-change_file': { path: string };
     'nav-new_file': Record<string, never>;
     'nav-refresh_dir': Record<string, never>;
-    'do-save': { path: string; content: string };
+    /**
+     * `revision` is what GET /editor/file gave with the content: save()
+     * refuses to write when the file changed since (409). Absent means
+     * Save as, or Écraser after a conflict — no control (lot 03).
+     */
+    'do-save': { path: string; content: string; revision?: string };
     'do-save_as': { path: string; content: string };
     'do-delete': { path: string };
     'do-rename': { path: string; name: string };
@@ -52,8 +57,9 @@ interface Results {
     'nav-change_file': { path: string };
     'nav-new_file': Record<string, never>;
     'nav-refresh_dir': Record<string, never>;
-    'do-save': { path: string };
-    'do-save_as': { path: string };
+    /** The renewed revision of what was written, even when nothing was. */
+    'do-save': { path: string; revision: string };
+    'do-save_as': { path: string; revision: string };
     'do-delete': { path: string };
     'do-rename': { oldPath: string; newPath: string };
     'do-save_settings': Record<string, never>;
@@ -75,9 +81,19 @@ export interface SettingsError {
 /**
  * What a failure carries besides what was asked. An invalid settings form
  * answers 422 with its errors and no `error`, so the master shows no toast:
- * the modal shows them. Empty for a technical failure (that one has a toast).
+ * the modal shows them. A save answered by the server carries its status
+ * and message: 409 is a conflict, and the editor asks Enregistrer sous or
+ * Écraser instead of the master's toast. Empty for a technical failure
+ * (that one has a toast).
  */
+interface SaveFailure {
+    status?: number;
+    message?: string | null;
+}
+
 interface FailureExtras {
+    'do-save': SaveFailure;
+    'do-save_as': SaveFailure;
     'do-save_settings': { errors: SettingsError[] };
 }
 
@@ -110,6 +126,13 @@ export type EditorEvents = {
     'editor:state-anomaly-reported': { anomaly: Anomaly };
     /** The master re-read the state after an anomaly. */
     'editor:state-resynced': { state: EditorState; anomaly: Anomaly };
+    /**
+     * A synchronous query, answered by the editor: whether it holds unsaved
+     * changes for that exact path. The delete confirmation asks before
+     * showing its single dialog, so it can say both things at once (lot 03).
+     * The emitter reads `unsaved` back once the event returned.
+     */
+    'editor:unsaved-file-query': { path: string; unsaved: boolean };
 };
 
 export type EventName = keyof EditorEvents;

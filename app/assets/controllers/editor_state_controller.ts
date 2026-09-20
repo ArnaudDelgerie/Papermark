@@ -167,16 +167,36 @@ export default class extends Controller {
 
         // A refusal that comes with the state and an action but no `error`
         // (an invalid settings form, 422) is for its asker to show, not a toast.
-        const quiet = data?.state !== undefined && data.action !== undefined && data.error === undefined;
-        this.#fail(name, action, data?.error ?? null, quiet, data?.action?.errors);
+        // So is a save conflict: the editor asks Enregistrer sous or Écraser
+        // (lot 03) — the dialog replaces the toast.
+        const saveConflict = response.status === 409 && (name === 'do-save' || name === 'do-save_as');
+        const quiet = saveConflict
+            || (data?.state !== undefined && data.action !== undefined && data.error === undefined);
+        this.#fail(name, action, data?.error ?? null, quiet, data?.action?.errors, response.status);
     }
 
-    #fail(name: ActionName, action: RequestOf<ActionName>, message: string | null, quiet = false, errors?: SettingsError[]): void {
+    #fail(
+        name: ActionName,
+        action: RequestOf<ActionName>,
+        message: string | null,
+        quiet = false,
+        errors?: SettingsError[],
+        status?: number,
+    ): void {
         if (!quiet) {
             showToast('error', message ?? this.i18nValue.failed);
         }
-        const extras = name === 'do-save_settings' ? { errors: errors ?? [] } : {};
-        emit(failed(name), { state: this.#state, action: { ...withoutSecrets(action), ...extras } } as never);
+        const extras: Record<string, unknown> = {};
+        if (name === 'do-save_settings') {
+            extras.errors = errors ?? [];
+        }
+        if ((name === 'do-save' || name === 'do-save_as') && status !== undefined) {
+            // What the editor's conflict dialog needs: the status that says
+            // 409, and the server's own words for what happened.
+            extras.status = status;
+            extras.message = message;
+        }
+        emit(failed(name), { state: this.#state, action: { ...withoutSecrets(action), ...extras } });
     }
 
     /** `__name__` is the provider of a key action. */

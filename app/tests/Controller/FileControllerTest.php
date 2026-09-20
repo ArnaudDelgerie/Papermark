@@ -185,17 +185,182 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame($savedAs, $this->responseState($client)['file']);
-        // The markdown never comes back.
-        self::assertSame(['path' => $savedAs], json_decode((string) $client->getResponse()->getContent(), true)['action']);
+        // The markdown never comes back; the revision does (lot 03).
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(['path' => $savedAs, 'revision' => hash('xxh128', '# Saved as')], $data['action']);
 
         $client->request('GET', '/editor/file');
         self::assertSame(
-            ['path' => $savedAs, 'content' => '# Saved as'],
+            ['path' => $savedAs, 'content' => '# Saved as', 'revision' => hash('xxh128', '# Saved as')],
             json_decode((string) $client->getResponse()->getContent(), true),
         );
 
         unlink($opened);
         unlink($savedAs);
+    }
+
+    /**
+     * FIL-03 (lot 03): a save carrying the revision it read answers 409 when
+     * the file changed outside of Papermark, without touching anything. The
+     * same save without a revision (Écraser) then writes.
+     */
+    public function testSaveRefusesAStaleRevisionAndWritesWithoutOne(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# On disk');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        // The file changes outside of Papermark after the read.
+        file_put_contents($path, "# Changed outside\n");
+
+        $client->request('POST', '/file/save', [
+            'path' => $path,
+            'content' => '# Mine',
+            'revision' => hash('xxh128', '# On disk'),
+        ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(409);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('The file was modified outside of Papermark', $data['error']);
+        self::assertSame("# Changed outside\n", file_get_contents($path));
+
+        // Écraser: the same save without a revision, blind write.
+        $client->request('POST', '/file/save', ['path' => $path, 'content' => '# Mine'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('# Mine', file_get_contents($path));
+
+        unlink($path);
+    }
+
+    /** The other 409: the file disappeared since the read. */
+    public function testSaveRefusesTheRevisionOfAGoneFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# On disk');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        unlink($path);
+
+        $client->request('POST', '/file/save', [
+            'path' => $path,
+            'content' => '# Mine',
+            'revision' => hash('xxh128', '# On disk'),
+        ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(409);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('The file no longer exists on disk', $data['error']);
+        self::assertFileDoesNotExist($path);
+    }
+
+    public function testSaveAnswersWithTheRenewedRevisionAndAcceptsItBack(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# On disk');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        $client->request('POST', '/file/save', [
+            'path' => $path,
+            'content' => '# First',
+            'revision' => hash('xxh128', '# On disk'),
+        ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(hash('xxh128', '# First'), $data['action']['revision']);
+
+        // The renewed revision is what the next save compares against.
+        $client->request('POST', '/file/save', [
+            'path' => $path,
+            'content' => '# Second',
+            'revision' => $data['action']['revision'],
+        ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('# Second', file_get_contents($path));
+
+        unlink($path);
+    }
+
+    /** FIL-11 (lot 03): a content already on disk answers success without writing. */
+    public function testSaveSkipsTheWriteWhenTheContentIsIdentical(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, "# Same\n");
+        touch($path, 1000000000);
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        $client->request('POST', '/file/save', [
+            'path' => $path,
+            'content' => "# Same\n",
+            'revision' => hash('xxh128', "# Same\n"),
+        ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(hash('xxh128', "# Same\n"), $data['action']['revision']);
+        clearstatcache();
+        // No write: the file keeps its date, no other app sees it move.
+        self::assertSame(1000000000, filemtime($path));
+        self::assertSame("# Same\n", file_get_contents($path));
+
+        unlink($path);
+    }
+
+    public function testSaveReappliesTheBomAndCrLfOfTheExistingFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        $disk = "\xEF\xBB\xBF# A\r\n# B\r\n";
+        file_put_contents($path, $disk);
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        $client->request('POST', '/file/save', [
+            'path' => $path,
+            'content' => "# A\n# B, edited\n",
+            'revision' => hash('xxh128', $disk),
+        ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseIsSuccessful();
+        $expected = "\xEF\xBB\xBF# A\r\n# B, edited\r\n";
+        self::assertSame($expected, file_get_contents($path));
+        self::assertSame(hash('xxh128', $expected), json_decode((string) $client->getResponse()->getContent(), true)['action']['revision']);
+
+        unlink($path);
+    }
+
+    /**
+     * rename() only asks the folder: this control is what keeps a read-only
+     * file unreplaceable now that the write is atomic (lot 03).
+     */
+    public function testSaveRefusesAReadOnlyFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Read only');
+        chmod($path, 0444);
+
+        $client->request('POST', '/file/save', ['path' => $path, 'content' => '# No'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame('# Read only', file_get_contents($path));
+
+        chmod($path, 0644);
+        unlink($path);
     }
 
     public function testCopyConvertsServiceUrlsBackToRawPaths(): void

@@ -5,37 +5,41 @@ declare(strict_types=1);
 namespace App\Tests\File;
 
 use App\File\MarkdownFileReader;
-use App\File\MarkdownImageUrls;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use PHPUnit\Framework\TestCase;
 
-final class MarkdownFileReaderTest extends KernelTestCase
+final class MarkdownFileReaderTest extends TestCase
 {
     private MarkdownFileReader $reader;
 
     protected function setUp(): void
     {
-        self::bootKernel();
-        $this->reader = new MarkdownFileReader(
-            new MarkdownImageUrls(self::getContainer()->get(UrlGeneratorInterface::class)),
-        );
+        $this->reader = new MarkdownFileReader();
     }
 
-    public function testReadsAndConvertsImagePaths(): void
+    public function testReadsRawBytesWithBomAndLineEndings(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
-        file_put_contents($path, '![alt](./photo.png)');
+        file_put_contents($path, "\xEF\xBB\xBF# Hello\r\n");
 
-        $content = $this->reader->read($path);
+        self::assertSame("\xEF\xBB\xBF# Hello\r\n", $this->reader->readRaw($path));
 
-        self::assertSame('![alt](/file/image?path=./photo.png)', $content);
+        unlink($path);
+    }
+
+    /** An empty file is a legitimate "": only a failed read is null. */
+    public function testAnEmptyFileIsAnEmptyString(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '');
+
+        self::assertSame('', $this->reader->readRaw($path));
 
         unlink($path);
     }
 
     public function testReturnsNullForMissingFile(): void
     {
-        self::assertNull($this->reader->read('/tmp/this_file_does_not_exist_98765.md'));
+        self::assertNull($this->reader->readRaw('/tmp/this_file_does_not_exist_98765.md'));
     }
 
     public function testReturnsNullForUnsupportedExtension(): void
@@ -43,7 +47,7 @@ final class MarkdownFileReaderTest extends KernelTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.exe';
         file_put_contents($path, 'content');
 
-        self::assertNull($this->reader->read($path));
+        self::assertNull($this->reader->readRaw($path));
 
         unlink($path);
     }

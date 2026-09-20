@@ -3,6 +3,8 @@
 namespace App\Controller;
 
 use App\Editor\EditorState;
+use App\File\AtomicFileWriter;
+use App\File\DiskFormat;
 use App\File\MarkdownImageUrls;
 use App\File\NoReplaceRename;
 use App\File\NoReplaceRenameResult;
@@ -10,6 +12,7 @@ use App\File\OpenDirectoryTree;
 use App\File\PathPolicy;
 use App\File\PathRefusal;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -37,6 +40,8 @@ final class FileController extends AbstractController
         private readonly PathPolicy $pathPolicy,
         private readonly NoReplaceRename $noReplaceRename,
         private readonly MarkdownImageUrls $markdownImageUrls,
+        private readonly AtomicFileWriter $atomicWriter,
+        private readonly DiskFormat $diskFormat,
         private readonly EditorState $editorState,
         private readonly OpenDirectoryTree $openDirectoryTree,
     ) {
@@ -105,6 +110,18 @@ final class FileController extends AbstractController
         return $response;
     }
 
+    /**
+     * Writes the markdown whole, or not at all (lot 03-enregistrement.md).
+     * A request that carries the revision it read answers 409 when the file
+     * changed or disappeared meanwhile, without touching anything. The
+     * revision comes back renewed with the path, so the next save compares
+     * against what was written — no revision (Save as, Écraser) skips the
+     * control entirely.
+     *
+     * A content identical to the disk after BOM and line endings are put
+     * back in the file's shape answers success without writing: the file
+     * keeps its date, no other app sees it move (FIL-11).
+     */
     #[Route('/file/save', name: 'app_file_save', methods: ['POST'])]
     public function save(Request $request): JsonResponse
     {
@@ -142,12 +159,45 @@ final class FileController extends AbstractController
 
         $realPath = $permission->path;
 
+        // rename() asks the folder, not the file: without this control the
+        // atomic write would make a read-only file replaceable.
         if (!is_writable(\dirname($realPath)) || (is_file($realPath) && !is_writable($realPath))) {
             return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
         }
 
-        $result = file_put_contents($realPath, $content);
-        if ($result === false) {
+        // What the client says it read — the HTTP ETag/If-Match motive.
+        $revision = $request->request->get('revision');
+        $clientRevision = \is_string($revision) && $revision !== '' ? $revision : null;
+
+        // The reread that verifies the revision is also where the file's
+        // byte-level shape (BOM, line endings) is picked up.
+        $diskBytes = is_file($realPath) ? @file_get_contents($realPath) : false;
+
+        if ($clientRevision !== null) {
+            if ($diskBytes === false) {
+                return $this->stateErrorResponse('save_conflict_gone', Response::HTTP_CONFLICT);
+            }
+            if (hash('xxh128', $diskBytes) !== $clientRevision) {
+                return $this->stateErrorResponse('save_conflict_modified', Response::HTTP_CONFLICT);
+            }
+        }
+
+        if ($diskBytes !== false) {
+            $content = $this->diskFormat->apply($content, $diskBytes);
+
+            if ($content === $diskBytes) {
+                // Same path on a plain save; on a Save as, the new file
+                // becomes the current one, so a reload reopens it.
+                $this->openDirectoryTree->fileAdded($realPath);
+                $this->editorState->setFile($realPath);
+
+                return $this->stateResponse(['path' => $realPath, 'revision' => hash('xxh128', $diskBytes)]);
+            }
+        }
+
+        try {
+            $this->atomicWriter->write($realPath, $content);
+        } catch (IOException) {
             return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
         $this->openDirectoryTree->fileAdded($realPath);
@@ -156,7 +206,7 @@ final class FileController extends AbstractController
         // current one, so a reload reopens it (see EDITOR_REACTIVITY.md).
         $this->editorState->setFile($realPath);
 
-        return $this->stateResponse(['path' => $realPath]);
+        return $this->stateResponse(['path' => $realPath, 'revision' => hash('xxh128', $content)]);
     }
 
     /**

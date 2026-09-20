@@ -228,7 +228,73 @@ final class EditorControllerTest extends WebTestCase
         );
 
         $client->request('GET', '/editor/file');
-        self::assertSame(['path' => $path, 'content' => '# Hello'], $this->responseData($client));
+        self::assertSame(
+            ['path' => $path, 'content' => '# Hello', 'revision' => hash('xxh128', '# Hello')],
+            $this->responseData($client),
+        );
+
+        unlink($path);
+    }
+
+    /**
+     * FIL-09 (lot 03): a non-UTF-8 file is refused, not converted — and the
+     * state doesn't change, so the file shown before keeps opening after a
+     * reload instead of falling into a 500 loop.
+     */
+    public function testSetFileRefusesANonUtf8FileAndKeepsTheState(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $path = $this->createFile('# Hello');
+        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+
+        // Windows-1252 "é" is not UTF-8.
+        $bad = sys_get_temp_dir() . '/editor_state_' . uniqid() . '.md';
+        file_put_contents($bad, "Coucou \xE9\xE8.txt");
+
+        $this->post($client, '/editor/file', 'file', ['path' => $bad]);
+
+        self::assertResponseStatusCodeSame(415);
+        self::assertSame('The file is not UTF-8 encoded; only UTF-8 files can be opened', $this->responseData($client)['error']);
+        self::assertSame($path, $this->responseState($client)['file']);
+
+        unlink($path);
+        unlink($bad);
+    }
+
+    /** The GET does the same check, as a belt: the file may have changed hands since setFile(). */
+    public function testGetFileRefusesANonUtf8FileAndKeepsTheState(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $path = $this->createFile('# Hello');
+        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        file_put_contents($path, "Coucou \xE9\xE8.txt");
+
+        $client->request('GET', '/editor/file');
+
+        self::assertResponseStatusCodeSame(415);
+        self::assertSame('The file is not UTF-8 encoded; only UTF-8 files can be opened', $this->responseData($client)['error']);
+        // The state is unchanged: the editor can retry without a reload loop.
+        $client->request('GET', '/editor/state');
+        self::assertSame($path, $this->responseState($client)['file']);
+
+        unlink($path);
+    }
+
+    /** A UTF-8 BOM is valid UTF-8: these files pass (lot 03). */
+    public function testSetAndGetFileAcceptAFileWithABom(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $path = $this->createFile("\xEF\xBB\xBF# With BOM");
+        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+
+        self::assertResponseIsSuccessful();
+        $client->request('GET', '/editor/file');
+        $data = $this->responseData($client);
+        self::assertSame("\xEF\xBB\xBF# With BOM", $data['content']);
+        self::assertSame(hash('xxh128', "\xEF\xBB\xBF# With BOM"), $data['revision']);
 
         unlink($path);
     }

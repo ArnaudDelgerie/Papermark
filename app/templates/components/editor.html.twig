@@ -18,8 +18,7 @@
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">
     <div class="editor-file-bar">
-        {# The file #}
-        <div class="editor-filebar-actions">
+        {# The file #}        <div class="editor-filebar-actions">
             <button type="button" class="editor-filebar-btn" data-action="click->editor#newFile" data-editor-leave-guard title="{{ 'components.editor.new'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--new" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.new'|trans({}, 'components') }}</span>
@@ -145,5 +144,15 @@
                 <turbo-frame id="settings" class="modal-dialog-body" src="{{ path('app_settings') }}" loading="lazy"></turbo-frame>
             </dialog>
         </div>
+    </div>
+
+    {# A read that failed for anything but a gone file (FRT-04, lot
+       03-enregistrement.md): an explicit state with Retry, never a document
+       that no longer matches the state. #}
+    <div class="editor-load-error" role="status">
+        <p data-editor-target="loadErrorMessage">{{ 'components.editor.load_error'|trans({}, 'components') }}</p>
+        <button type="button" class="editor-load-error-retry" data-action="click->editor#retryLoad">
+            {{ 'components.editor.load_error_retry'|trans({}, 'components') }}
+        </button>
     </div>
 </div>

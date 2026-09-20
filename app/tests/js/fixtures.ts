@@ -25,6 +25,7 @@ export const FILE_ENTRY_I18N = {
     delete: 'Delete',
     renamePrompt: 'New name for {name}',
     deleteConfirmMessage: 'This cannot be undone.',
+    deleteConfirmMessageCurrent: 'This file is open with unsaved changes.',
     deleteConfirmQuestion: 'Delete {name}?',
     deleted: 'File deleted',
     renamed: 'File renamed',

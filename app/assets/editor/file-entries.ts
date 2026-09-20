@@ -8,6 +8,8 @@ export interface FileEntryI18n {
     delete: string;
     renamePrompt: string;
     deleteConfirmMessage: string;
+    /** When the target is the current file and it has unsaved changes (lot 03). */
+    deleteConfirmMessageCurrent: string;
     deleteConfirmQuestion: string;
     deleted: string;
     renamed: string;
@@ -50,8 +52,13 @@ export class FileEntries {
 
     async delete(path: string): Promise<void> {
         const i18n = this.#i18n();
+        // One question for both things (lot 03): the leave guard is not on
+        // these buttons, it would ask twice in a row. The editor answers
+        // synchronously — `unsaved` is read back once the event returned.
+        const query: { path: string; unsaved: boolean } = { path, unsaved: false };
+        emit('editor:unsaved-file-query', query);
         const confirmed = await confirmDialog({
-            message: i18n.deleteConfirmMessage,
+            message: query.unsaved ? i18n.deleteConfirmMessageCurrent : i18n.deleteConfirmMessage,
             question: i18n.deleteConfirmQuestion.replace('{name}', basename(path)),
             continueLabel: i18n.delete,
         });

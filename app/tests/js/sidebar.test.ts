@@ -355,10 +355,36 @@ describe('the left column, with the master', () => {
             await settle();
 
             expect(vi.mocked(confirmDialog).mock.calls[0][0].question).toBe('Delete b.md?');
+            // Not the current file with unsaved changes: the plain message.
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].message).toBe('This cannot be undone.');
             expect(fetchMock.mock.calls[0][0]).toBe('/file/delete');
             expect(toasts).toEqual([{ type: 'success', message: 'File deleted' }]);
             expect(reload).toHaveBeenCalledTimes(1);
             expect(history()).toEqual(['/notes/a.md']);
+        });
+
+        /**
+         * One question for both things (lot 03): the delete asks the editor —
+         * synchronously, through the query — whether it holds unsaved changes
+         * for that path, and says both in its single message.
+         */
+        it('warns about unsaved changes when the deleted file is the current one', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(['/notes/a.md'], 'dir');
+            const answer = (event: Event): void => {
+                const query = (event as CustomEvent<{ path: string; unsaved: boolean }>).detail;
+                query.unsaved = query.path === '/notes/b.md';
+            };
+            window.addEventListener('editor:unsaved-file-query', answer);
+            try {
+                click('[data-action="click->mode-dir#deleteEntry"]');
+                await settle();
+            } finally {
+                window.removeEventListener('editor:unsaved-file-query', answer);
+            }
+
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].message).toBe('This file is open with unsaved changes.');
+            expect(fetchMock).not.toHaveBeenCalled();
         });
 
         it('asks nothing when the deletion is not confirmed', async () => {
@@ -417,7 +443,7 @@ describe('the left column, with the master', () => {
         await settle();
         click('.mode-history button[data-path="/notes-old/b.md"][data-action$="deleteEntry"]');
         await settle();
-        emit('editor:do-save_as-succeeded', { state: { ...INITIAL, file: '/elsewhere/new.md' }, action: { path: '/elsewhere/new.md' } });
+        emit('editor:do-save_as-succeeded', { state: { ...INITIAL, file: '/elsewhere/new.md' }, action: { path: '/elsewhere/new.md', revision: 'r1' } });
 
         expect(history()).toEqual(['/elsewhere/new.md', '/elsewhere/z.md']);
         expect(reload).not.toHaveBeenCalled();
@@ -426,7 +452,7 @@ describe('the left column, with the master', () => {
     it('follows Save as and a current file found gone', async () => {
         await start(['/notes/a.md']);
 
-        emit('editor:do-save_as-succeeded', { state: { ...INITIAL, file: '/notes/new.md' }, action: { path: '/notes/new.md' } });
+        emit('editor:do-save_as-succeeded', { state: { ...INITIAL, file: '/notes/new.md' }, action: { path: '/notes/new.md', revision: 'r1' } });
         expect(history()).toEqual(['/notes/new.md', '/notes/a.md']);
         expect(reload).toHaveBeenCalledTimes(1);
 

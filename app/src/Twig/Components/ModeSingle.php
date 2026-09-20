@@ -40,6 +40,7 @@ final class ModeSingle
             'delete' => $this->trans('delete'),
             'renamePrompt' => $this->trans('rename_prompt'),
             'deleteConfirmMessage' => $this->trans('delete_confirm_message'),
+            'deleteConfirmMessageCurrent' => $this->trans('delete_confirm_message_current'),
             'deleteConfirmQuestion' => $this->trans('delete_confirm_question'),
             'deleted' => $this->trans('deleted'),
             'renamed' => $this->trans('renamed'),

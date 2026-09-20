@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Editor\EditorMode;
 use App\Editor\EditorState;
 use App\File\MarkdownFileReader;
+use App\File\MarkdownImageUrls;
 use App\File\OpenDirectoryTree;
 use App\File\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -33,6 +34,7 @@ final class EditorController extends AbstractController
     public function __construct(
         private readonly EditorState $editorState,
         private readonly MarkdownFileReader $fileReader,
+        private readonly MarkdownImageUrls $markdownImageUrls,
         private readonly PathPolicy $pathPolicy,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
@@ -98,7 +100,10 @@ final class EditorController extends AbstractController
      * Content of the current file. No parameter: the only way to change what
      * is read is setFile(), behind its CSRF token. A file gone from disk is
      * dropped from the state, and its path comes back with the 404 since the
-     * caller has no other way to know which one it was.
+     * caller has no other way to know which one it was. The revision is the
+     * hash of the raw bytes — it describes the file, not what the editor
+     * shows of it — and travels with the content (lot 03-enregistrement.md,
+     * FIL-03): save() compares against it before writing.
      */
     #[Route('/editor/file', name: 'app_editor_get_file', methods: ['GET'])]
     public function getFile(): JsonResponse
@@ -108,8 +113,8 @@ final class EditorController extends AbstractController
             return new JsonResponse(['path' => null, 'content' => null]);
         }
 
-        $content = $this->fileReader->read($path);
-        if ($content === null) {
+        $raw = $this->fileReader->readRaw($path);
+        if ($raw === null) {
             $this->editorState->setFile(null);
 
             return new JsonResponse([
@@ -118,12 +123,29 @@ final class EditorController extends AbstractController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse(['path' => $path, 'content' => $content]);
+        if (!mb_check_encoding($raw, 'UTF-8')) {
+            // Same belt as setFile(): the file may have changed hands since
+            // it was accepted. The state stays as it is, so the editor can
+            // retry without a reload loop.
+            return new JsonResponse([
+                'error' => $this->translator->trans(self::TRANSLATION_PREFIX . 'not_utf8', [], self::TRANSLATION_DOMAIN),
+            ], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+        }
+
+        return new JsonResponse([
+            'path' => $path,
+            'content' => $this->markdownImageUrls->toServiceUrls($raw),
+            'revision' => hash('xxh128', $raw),
+        ]);
     }
 
     /**
-     * Makes a file the current one, without reading it: the editor fetches
-     * the content itself once it hears of the change.
+     * Makes a file the current one, without reading it for the editor: it
+     * fetches the content itself once it hears of the change. The bytes are
+     * still read once here, to refuse a file the editor could never show:
+     * non-UTF-8 content would fail the JSON encoding on every later read
+     * (lot 03-enregistrement.md, FIL-09). The state doesn't change on that
+     * refusal, so the file shown before keeps opening after a reload.
      */
     #[Route('/editor/file', name: 'app_editor_set_file', methods: ['POST'])]
     public function setFile(Request $request): JsonResponse
@@ -142,7 +164,8 @@ final class EditorController extends AbstractController
         }
 
         $realPath = $this->pathPolicy->read($path);
-        if ($realPath === null) {
+        $raw = $realPath !== null ? $this->fileReader->readRaw($realPath) : null;
+        if ($raw === null) {
             // Whoever finds the file gone drops it — but only if it is the
             // current one, a bad path picked by hand must not clear it.
             if ($this->editorState->getFile() === $path) {
@@ -150,6 +173,10 @@ final class EditorController extends AbstractController
             }
 
             return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
+        }
+
+        if (!mb_check_encoding($raw, 'UTF-8')) {
+            return $this->stateErrorResponse('not_utf8', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
         $this->editorState->setFile($realPath);

@@ -17,6 +17,13 @@ components:
             confirm: Continuer et perdre les modifications non enregistrées ?
             cancel: Annuler
             continue: Continuer
+        conflict:
+            question: Que faire de vos modifications ?
+            cancel: Annuler
+            save_as: Enregistrer sous…
+            overwrite: Écraser
+        load_error: Impossible de charger le fichier
+        load_error_retry: Réessayer
         toggle:
             edit: Modifier
             readonly: Lecture seule
@@ -52,6 +59,8 @@ components:
             copy_markdown_failed: Échec de la copie du markdown
             copied_code: Code copié dans le presse-papier
             copy_code_failed: Échec de la copie du code
+            current_file_deleted: '« {name} » a été supprimé : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
+            current_file_gone: '« {name} » n''existe plus : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
         ai:
             ask_ai: Demander à l'IA
             instruction_placeholder: Indiquez à l'IA quoi faire avec la sélection…
@@ -83,6 +92,9 @@ components:
             invalid_name: Nom de fichier invalide
             symbolic_link: Un lien symbolique ne peut pas être modifié
             rename_target_exists: Un fichier avec ce nom existe déjà
+            save_conflict_modified: Le fichier a été modifié en dehors de Papermark
+            save_conflict_gone: Le fichier n'existe plus sur le disque
+            not_utf8: Le fichier n'est pas encodé en UTF-8 ; seuls les fichiers UTF-8 peuvent être ouverts
             delete_error: Impossible de supprimer le fichier
             update_check_failed: Impossible de vérifier les mises à jour
             ext_img_conflict: 'L''export a besoin que « ext_img » soit un dossier dans le dossier source'
@@ -118,6 +130,7 @@ components:
             delete: Supprimer
             rename_prompt: 'Entrez un nouveau nom pour « {name} »'
             delete_confirm_message: Ceci supprime définitivement le fichier du disque. Les images qui y sont référencées ne sont pas affectées.
+            delete_confirm_message_current: Ce fichier est ouvert dans l'éditeur avec des modifications non enregistrées. Après la suppression, son contenu restera ouvert comme un document non enregistré, à enregistrer sous un autre nom.
             delete_confirm_question: 'Supprimer « {name} » ?'
             deleted: Fichier supprimé
             renamed: Fichier renommé

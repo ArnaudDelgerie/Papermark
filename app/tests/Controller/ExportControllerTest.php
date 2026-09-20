@@ -331,7 +331,7 @@ final class ExportControllerTest extends WebTestCase
 
         $client->request('GET', '/editor/file');
         self::assertSame(
-            ['path' => $this->workDir . '/notes/doc.md', 'content' => '# Hello'],
+            ['path' => $this->workDir . '/notes/doc.md', 'content' => '# Hello', 'revision' => hash('xxh128', '# Hello')],
             json_decode((string) $client->getResponse()->getContent(), true),
         );
     }

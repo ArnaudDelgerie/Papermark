@@ -108,6 +108,25 @@ describe('editor-state (the master)', () => {
         expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { path: '/notes/a.md' } });
     });
 
+    /**
+     * A save conflict (lot 03) is the editor's to show, not the master's: no
+     * toast, and the failure carries what its dialog needs.
+     */
+    it('a 409 on a save fails quietly, with the status and the message', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'The file was modified outside of Papermark' }, 409));
+        const failed = vi.fn();
+        on('editor:do-save-failed', failed);
+
+        emit('editor:do-save-requested', { action: { path: '/notes/a.md', content: '# Hi', revision: 'r0' } });
+        await settle();
+
+        expect(failed).toHaveBeenCalledWith({
+            state: INITIAL,
+            action: { path: '/notes/a.md', revision: 'r0', status: 409, message: 'The file was modified outside of Papermark' },
+        });
+        expect(toasts).toEqual([]);
+    });
+
     it('drops a nav request still in flight when the same action is asked again', async () => {
         fetchMock.mockImplementation((_url: string, init: RequestInit) => new Promise((resolve, reject) => {
             init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));

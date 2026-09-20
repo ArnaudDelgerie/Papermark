@@ -1,16 +1,20 @@
 import type { Application } from '@hotwired/stimulus';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { abortAICmd } from '@milkdown/crepe/feature/ai';
+import { EditorStatus, commandsCtx } from '@milkdown/kit/core';
 import EditorController from '../../assets/controllers/editor_controller';
 import EditorStateController from '../../assets/controllers/editor_state_controller';
 import ModeSwitchController from '../../assets/controllers/mode_switch_controller';
 import EditorFactory from '../../assets/editor/editor-factory';
 import { type EditorState, emit, on } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
+import { saveConflictDialog } from '../../assets/utils/conflict-dialog';
 import { INITIAL, attr, masterHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
 
 vi.mock('../../assets/editor/editor-factory', () => ({ default: { create: vi.fn() } }));
 vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
+vi.mock('../../assets/utils/conflict-dialog', () => ({ saveConflictDialog: vi.fn() }));
 // The fake Crepe below applies what replaceAll() returns.
 vi.mock('@milkdown/utils', () => ({ replaceAll: (markdown: string, flush = false) => ({ replaceAll: markdown, flush }) }));
 
@@ -19,12 +23,21 @@ function fakeCrepe(initial = '', serialize: (markdown: string) => string = (mark
     getMarkdown: () => string;
     type: (markdown: string) => void;
     flushes: boolean[];
+    commands: { call: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
     destroy: ReturnType<typeof vi.fn>;
 } {
     let markdown = initial;
     // The flush flag of each replaceAll(): true starts a fresh state.
     const flushes: boolean[] = [];
     const listeners: Array<(ctx: unknown, markdown: string) => void> = [];
+    // What #discardAi() calls and what #isAiInProgress() reads, session in
+    // test mode (lot 03): get(key)(payload)(state) says "no session".
+    const commands = {
+        call: vi.fn(),
+        get: vi.fn(() => () => () => false),
+    };
+    const view = { state: {} };
+    const ctx = { get: (key: unknown) => (key === commandsCtx ? commands : view) };
     const set = (value: string): void => {
         markdown = value;
         listeners.forEach((listener) => listener(null, serialize(markdown)));
@@ -35,12 +48,18 @@ function fakeCrepe(initial = '', serialize: (markdown: string) => string = (mark
         // What typing in the editor does.
         type: set,
         flushes,
+        commands,
         editor: {
-            status: 'fake',
-            action: (command: { replaceAll?: string; flush?: boolean }) => {
-                if (command.replaceAll !== undefined) {
-                    flushes.push(command.flush ?? false);
-                    set(command.replaceAll);
+            status: EditorStatus.Created,
+            ctx,
+            action: (command: unknown) => {
+                // #replaceDocument() passes what replaceAll() returned;
+                // #discardAi() passes a plain function to run on the ctx.
+                if (typeof command === 'function') {
+                    (command as (ctx: unknown) => void)(ctx);
+                } else if ((command as { replaceAll?: string }).replaceAll !== undefined) {
+                    flushes.push((command as { flush?: boolean }).flush ?? false);
+                    set((command as { replaceAll: string }).replaceAll);
                 }
             },
         },
@@ -62,12 +81,26 @@ function editorHtml(): string {
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
          data-editor-file-csrf-token-value="tk-file" data-editor-ai-csrf-token-value="tk-ai"
          data-editor-urls-value="${attr({ file: '/editor/file', copy: '/file/copy', image: '/file/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
-         data-editor-i18n-value="${attr({ untitled: 'Untitled', toast: { saved: 'Saved', savedAs: 'Saved as {name}' } })}">
+         data-editor-i18n-value="${attr({
+             untitled: 'Untitled',
+             conflict: { question: 'What about your changes?', cancel: 'Cancel', saveAs: 'Save as', overwrite: 'Overwrite' },
+             loadError: 'Could not load the file',
+             toast: {
+                 saved: 'Saved',
+                 savedAs: 'Saved as {name}',
+                 currentFileDeleted: '{name} was deleted: save it under another name',
+                 currentFileGone: '{name} is gone: save it under another name',
+             },
+         })}">
         <button type="button" data-action="click->editor#newFile" data-editor-leave-guard>New</button>
         <button type="button" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>Save</button>
         <button type="button" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>Save as</button>
         <span data-editor-target="dirtyIndicator" hidden></span>
         <span data-editor-target="filePath">Untitled</span>
+        <div class="editor-load-error">
+            <p data-editor-target="loadErrorMessage"></p>
+            <button type="button" data-action="click->editor#retryLoad">Retry</button>
+        </div>
     </div>`;
 }
 
@@ -85,6 +118,8 @@ describe('the editor, with the master', () => {
         $(selector).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     };
     const label = (): string | null => $('[data-editor-target="filePath"]').textContent;
+    const saveButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="saveButton"]');
+    const saveAsButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="saveAsButton"]');
     const calls = (method: string, url: string): Array<[string, RequestInit | undefined]> =>
         (fetchMock.mock.calls as Array<[string, RequestInit | undefined]>).filter(([u, init]) => u === url && (init?.method ?? 'GET') === method);
 
@@ -96,6 +131,11 @@ describe('the editor, with the master', () => {
         });
         await settle();
     }
+
+    // The revision of the read (lot 03): 'r0', renewed at each save.
+    let saveCount = 0;
+    // Whether the next save answers 409, as a modified file would.
+    let conflictNextSave = false;
 
     /** The server: the session's current file, and each route's answer. */
     let current: EditorState;
@@ -116,7 +156,7 @@ describe('the editor, with the master', () => {
                         return jsonResponse({ error: 'File not found', path }, 404);
                     }
 
-                    return jsonResponse({ path: current.file, content: files[current.file] });
+                    return jsonResponse({ path: current.file, content: files[current.file], revision: 'r0' });
                 case 'GET /editor/state':
                     return jsonResponse({ state: current });
                 case 'POST /editor/mode':
@@ -129,10 +169,15 @@ describe('the editor, with the master', () => {
                     return reply({});
                 case 'POST /file/save': {
                     const path = body!.get('path') as string;
+                    if (conflictNextSave) {
+                        conflictNextSave = false;
+
+                        return jsonResponse({ state: current, error: 'The file was modified outside of Papermark' }, 409);
+                    }
                     files[path] = body!.get('content') as string;
                     current = { ...current, file: path };
 
-                    return reply({ path });
+                    return reply({ path, revision: `r${++saveCount}` });
                 }
             }
             throw new Error(`Unexpected ${method} ${url}`);
@@ -154,6 +199,8 @@ describe('the editor, with the master', () => {
         }
         files['/notes/a.md'] = '# A';
         current = { ...INITIAL, file: '/notes/a.md' };
+        saveCount = 0;
+        conflictNextSave = false;
         server();
     });
 
@@ -252,7 +299,9 @@ describe('the editor, with the master', () => {
         await start(current);
         click('[data-action="click->editor#newFile"]');
 
-        expect(crepe.flushes).toEqual([true, true]);
+        // A load now empties first (FRT-04): the emptying for the load, the
+        // load itself, then the one New asked for.
+        expect(crepe.flushes).toEqual([true, true, true]);
     });
 
     it('New empties at once and asks the master to drop the current file', async () => {
@@ -266,7 +315,7 @@ describe('the editor, with the master', () => {
         expect(current.file).toBeNull();
     });
 
-    it('Save asks the master with the markdown, and is clean once answered', async () => {
+    it('Save asks the master with the markdown and the revision it read, and is clean once answered', async () => {
         await start(current);
         crepe.type('# A, edited');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
@@ -276,6 +325,8 @@ describe('the editor, with the master', () => {
 
         const [, init] = calls('POST', '/file/save')[0];
         expect((init!.body as FormData).get('content')).toBe('# A, edited');
+        // What GET /editor/file gave with the content (lot 03).
+        expect((init!.body as FormData).get('revision')).toBe('r0');
         expect(files['/notes/a.md']).toBe('# A, edited');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
         expect(toasts).toEqual([{ type: 'success', message: 'Saved' }]);
@@ -297,7 +348,207 @@ describe('the editor, with the master', () => {
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
     });
 
-    it('follows the deletion and the renaming of its file, not of others', async () => {
+    describe('Save, following the dirty state (lot 03)', () => {
+        it('is grayed on a clean document and never asks the master', async () => {
+            await start(current);
+
+            expect(saveButton().disabled).toBe(true);
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(calls('POST', '/file/save')).toHaveLength(0);
+        });
+
+        it('is active on an emptied document: a zero-byte file is a legitimate file', async () => {
+            await start(current);
+            crepe.type('');
+
+            expect(saveButton().disabled).toBe(false);
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(files['/notes/a.md']).toBe('');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        });
+
+        it('stays grayed on a document with no path: Save as is the CTA for that', async () => {
+            current = { ...current, file: null };
+            await start(current);
+            crepe.type('# New');
+
+            expect(saveButton().disabled).toBe(true);
+            expect(saveAsButton().disabled).toBe(false);
+            // Even a click forced on the grayed button goes nowhere.
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(invoke).not.toHaveBeenCalled();
+            expect(calls('POST', '/file/save')).toHaveLength(0);
+        });
+
+        it('keeps the buttons disabled while a save is in flight, and ignores a second click', async () => {
+            await start(current);
+            crepe.type('# A, edited');
+            let answer!: (response: Response) => void;
+            fetchMock.mockImplementation((url: string) => url === '/file/save'
+                ? new Promise((resolve) => { answer = resolve; })
+                : Promise.reject(new Error(`Unexpected ${url}`)));
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(saveButton().disabled).toBe(true);
+            expect(saveAsButton().disabled).toBe(true);
+            click('[data-editor-target="saveButton"]');
+            await settle();
+            expect(calls('POST', '/file/save')).toHaveLength(1);
+
+            answer(jsonResponse({ state: current, action: { path: '/notes/a.md', revision: 'r1' } }));
+            await settle();
+
+            // Clean again, not stuck: only Save stays grayed until it is edited.
+            expect(saveButton().disabled).toBe(true);
+            expect(saveAsButton().disabled).toBe(false);
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+            expect(toasts).toEqual([{ type: 'success', message: 'Saved' }]);
+        });
+
+        it('renews the revision at each save and sends it back on the next one', async () => {
+            await start(current);
+            crepe.type('# A, edited');
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+            expect((calls('POST', '/file/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
+
+            crepe.type('# A, edited more');
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect((calls('POST', '/file/save')[1][1]!.body as FormData).get('revision')).toBe('r1');
+        });
+
+        it('on a 409, asks Save as or Overwrite instead of toasting, and Overwrite writes without a revision', async () => {
+            vi.mocked(saveConflictDialog).mockResolvedValue('overwrite');
+            await start(current);
+            crepe.type('# A, edited');
+            conflictNextSave = true;
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            // The 409 itself is never toasted — only the overwrite's success.
+            expect(saveConflictDialog).toHaveBeenCalledWith(expect.objectContaining({
+                message: 'The file was modified outside of Papermark',
+                question: 'What about your changes?',
+                cancelLabel: 'Cancel',
+                saveAsLabel: 'Save as',
+                overwriteLabel: 'Overwrite',
+            }));
+            // Écraser replays the save without a revision, on fresh markdown.
+            expect(calls('POST', '/file/save')).toHaveLength(2);
+            const [, init] = calls('POST', '/file/save')[1];
+            expect((init!.body as FormData).get('revision')).toBe(null);
+            expect((init!.body as FormData).get('content')).toBe('# A, edited');
+            expect(files['/notes/a.md']).toBe('# A, edited');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+            expect(toasts).toEqual([{ type: 'success', message: 'Saved' }]);
+        });
+
+        it('on a 409, Save as goes through the picker', async () => {
+            vi.mocked(saveConflictDialog).mockResolvedValue('save_as');
+            await start(current);
+            crepe.type('# A, edited');
+            conflictNextSave = true;
+            invoke.mockResolvedValue('/notes/copy.md');
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(saveConflictDialog).toHaveBeenCalledTimes(1);
+            expect(invoke).toHaveBeenCalledWith('save_path', expect.objectContaining({ fileName: 'a.md' }));
+            const [, init] = calls('POST', '/file/save')[1];
+            expect((init!.body as FormData).get('path')).toBe('/notes/copy.md');
+            expect((init!.body as FormData).get('revision')).toBe(null);
+        });
+    });
+
+    describe('intention or anomaly (lot 03)', () => {
+        it('keeps the text and drops the path when its file is deleted with unsaved changes', async () => {
+            await start(current);
+            crepe.type('# A, edited');
+
+            emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/a.md' } });
+
+            expect(crepe.getMarkdown()).toBe('# A, edited');
+            expect(label()).toBe('Untitled');
+            // Still dirty, and Save as is the way out.
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+            expect(saveAsButton().disabled).toBe(false);
+            expect(toasts).toEqual([{ type: 'error', message: 'a.md was deleted: save it under another name' }]);
+        });
+
+        it('same when a re-read finds it gone', async () => {
+            await start(current);
+
+            emit('editor:state-resynced', { state: { ...current, file: null }, anomaly: { file: '/notes/a.md' } });
+
+            expect(crepe.getMarkdown()).toBe('# A');
+            expect(label()).toBe('Untitled');
+            expect(toasts).toEqual([{ type: 'error', message: 'a.md is gone: save it under another name' }]);
+        });
+
+        it('same when asking again for the current file finds it gone', async () => {
+            await start(current);
+
+            emit('editor:nav-change_file-failed', { state: { ...current, file: null }, action: { path: '/notes/a.md' } });
+
+            expect(crepe.getMarkdown()).toBe('# A');
+            expect(label()).toBe('Untitled');
+        });
+
+        it('a different file asked and gone is an intention: the editor empties', async () => {
+            await start(current);
+
+            emit('editor:nav-change_file-failed', { state: { ...current, file: null }, action: { path: '/notes/other.md' } });
+
+            expect(crepe.getMarkdown()).toBe('');
+            expect(label()).toBe('Untitled');
+        });
+    });
+
+    describe('a load that fails (FRT-04)', () => {
+        it('shows an explicit error state with Retry, not the old document', async () => {
+            fetchMock.mockImplementation(async () => jsonResponse({ error: 'Open failed' }, 500));
+            await start(current);
+
+            expect(crepe.getMarkdown()).toBe('');
+            expect($('[data-editor-target="loadErrorMessage"]').textContent).toBe('Open failed');
+            expect($('[data-controller="editor"]').classList.contains('is-load-failed')).toBe(true);
+            expect(saveButton().disabled).toBe(true);
+            expect(saveAsButton().disabled).toBe(true);
+            expect(toasts).toEqual([]);
+
+            // Retry: the same read, the same intention.
+            server();
+            click('[data-action="click->editor#retryLoad"]');
+            await settle();
+
+            expect(crepe.getMarkdown()).toBe('# A');
+            expect(label()).toBe('/notes/a.md');
+            expect($('[data-controller="editor"]').classList.contains('is-load-failed')).toBe(false);
+            expect(saveAsButton().disabled).toBe(false);
+        });
+
+        it('falls back to the generic message when the server says nothing', async () => {
+            fetchMock.mockImplementation(async () => jsonResponse({}, 500));
+            await start(current);
+
+            expect($('[data-editor-target="loadErrorMessage"]').textContent).toBe('Could not load the file');
+        });
+    });
+
+    it('follows the renaming of its file, not of others, and survives the deletion of its own', async () => {
         await start(current);
 
         emit('editor:do-rename-succeeded', { state: current, action: { oldPath: '/notes/other.md', newPath: '/notes/x.md' } });
@@ -307,9 +558,12 @@ describe('the editor, with the master', () => {
         expect(label()).toBe('/notes/b.md');
         expect(crepe.getMarkdown()).toBe('# A');
 
+        // An anomaly (lot 03): the text stays, only the path falls.
         emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/b.md' } });
-        expect(crepe.getMarkdown()).toBe('');
+        expect(crepe.getMarkdown()).toBe('# A');
         expect(label()).toBe('Untitled');
+        expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        expect(toasts).toEqual([{ type: 'error', message: 'b.md was deleted: save it under another name' }]);
     });
 
     it('a current file found gone empties the editor and resyncs everyone', async () => {
@@ -436,6 +690,36 @@ describe('the editor, with the master', () => {
             const [, init] = calls('POST', '/file/save')[0];
             expect((init!.body as FormData).get('content')).toBe('# A, edited');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        });
+
+        it('discards the AI on every document replacement (IA-04)', async () => {
+            await start(withAi(true));
+
+            click('[data-action="click->editor#newFile"]');
+            await settle();
+
+            expect(crepes[0].commands.call).toHaveBeenCalledWith(abortAICmd.key, { keep: false });
+        });
+
+        it('discards the AI when the current file is deleted, even mid-generation', async () => {
+            await start(withAi(true));
+
+            emit('editor:do-delete-succeeded', { state: withAi(true), action: { path: '/notes/a.md' } });
+
+            expect(crepes[0].commands.call).toHaveBeenCalledWith(abortAICmd.key, { keep: false });
+        });
+
+        it('the leave guard also sees a Crepe session in progress, not just streaming and diff', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(withAi(true));
+            // The session read in test mode: the command would abort (IA-04).
+            crepes[0].commands.get.mockReturnValue(() => () => true);
+
+            click('[data-mode="dir"]');
+            await settle();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+            expect(calls('POST', '/editor/mode')).toHaveLength(0);
         });
     });
 
