@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\File;
 
-use App\Enum\File\NoReplaceRenameResult;
+use App\Exception\File\RenameTargetExistsException;
+use App\Exception\File\WriteFailedException;
 use App\File\NoReplaceRename;
 use PHPUnit\Framework\TestCase;
 
@@ -37,9 +38,8 @@ final class NoReplaceRenameTest extends TestCase
     {
         $source = $this->createFile('a.md', '# A');
 
-        $outcome = $this->renamer->rename($source, $this->root . '/b.md');
+        $this->renamer->rename($source, $this->root . '/b.md');
 
-        self::assertSame(NoReplaceRenameResult::Renamed, $outcome);
         self::assertFileDoesNotExist($source);
         self::assertSame('# A', file_get_contents($this->root . '/b.md'));
     }
@@ -55,9 +55,12 @@ final class NoReplaceRenameTest extends TestCase
         $source = $this->createFile('a.md', '# Source');
         $target = $this->createFile('b.md', '# Taken');
 
-        $outcome = $this->renamer->rename($source, $target);
+        try {
+            $this->renamer->rename($source, $target);
+            self::fail('The rename should have been refused.');
+        } catch (RenameTargetExistsException) {
+        }
 
-        self::assertSame(NoReplaceRenameResult::TargetExists, $outcome);
         self::assertSame('# Source', file_get_contents($source));
         self::assertSame('# Taken', file_get_contents($target));
     }
@@ -69,18 +72,21 @@ final class NoReplaceRenameTest extends TestCase
         $target = $this->root . '/b.md';
         symlink($this->root . '/nowhere.md', $target);
 
-        $outcome = $this->renamer->rename($source, $target);
+        try {
+            $this->renamer->rename($source, $target);
+            self::fail('The rename should have been refused.');
+        } catch (RenameTargetExistsException) {
+        }
 
-        self::assertSame(NoReplaceRenameResult::TargetExists, $outcome);
         self::assertFileExists($source);
         self::assertTrue(is_link($target));
     }
 
     public function testReportsFailureForAMissingSource(): void
     {
-        $outcome = $this->renamer->rename($this->root . '/no_such_file.md', $this->root . '/b.md');
+        $this->expectException(WriteFailedException::class);
 
-        self::assertSame(NoReplaceRenameResult::Failed, $outcome);
+        $this->renamer->rename($this->root . '/no_such_file.md', $this->root . '/b.md');
     }
 
     private function createFile(string $name, string $content): string

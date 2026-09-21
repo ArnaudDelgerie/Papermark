@@ -3,7 +3,6 @@
 namespace App\Controller;
 
 use App\Editor\EditorState;
-use App\Enum\File\NoReplaceRenameResult;
 use App\Enum\File\PathRefusal;
 use App\File\AtomicFileWriter;
 use App\File\DiskFormat;
@@ -295,14 +294,7 @@ final class FileController extends AbstractController
 
         $newPath = \dirname($realPath) . '/' . $name;
 
-        $outcome = $this->noReplaceRename->rename($realPath, $newPath);
-        if ($outcome === NoReplaceRenameResult::TargetExists) {
-            return $this->stateErrorResponse('rename_target_exists', Response::HTTP_CONFLICT);
-        }
-
-        if ($outcome === NoReplaceRenameResult::Failed) {
-            return $this->stateErrorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
+        $this->noReplaceRename->rename($realPath, $newPath);
         $this->openDirectoryTree->fileRenamed($realPath, $newPath);
 
         if ($this->editorState->getFile() === $realPath) {

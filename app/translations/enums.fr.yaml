@@ -15,10 +15,6 @@ enums:
     markdown_reference_type:
         image: Image
         link: Lien
-    no_replace_rename_result:
-        renamed: Renommé
-        target_exists: La cible existe déjà
-        failed: Échec du renommage
     path_refusal:
         not_found: Chemin introuvable
         symlink: Le chemin est un lien symbolique

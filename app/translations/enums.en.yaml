@@ -15,10 +15,6 @@ enums:
     markdown_reference_type:
         image: Image
         link: Link
-    no_replace_rename_result:
-        renamed: Renamed
-        target_exists: The target already exists
-        failed: Rename failed
     path_refusal:
         not_found: Path not found
         symlink: The path is a symbolic link

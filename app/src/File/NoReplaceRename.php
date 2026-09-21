@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\File;
 
-use App\Enum\File\NoReplaceRenameResult;
+use App\Exception\File\RenameTargetExistsException;
+use App\Exception\File\WriteFailedException;
 
 /**
  * Renames without ever replacing a target that exists (lot 02-chemins.md,
@@ -16,24 +17,30 @@ use App\Enum\File\NoReplaceRenameResult;
  */
 final class NoReplaceRename
 {
-    public function rename(string $source, string $target): NoReplaceRenameResult
+    /**
+     * @throws RenameTargetExistsException
+     * @throws WriteFailedException
+     */
+    public function rename(string $source, string $target): void
     {
         if (@link($source, $target)) {
             if (@unlink($source)) {
-                return NoReplaceRenameResult::Renamed;
+                return;
             }
 
             // Half-done is worse than not done: undo, the source stays the truth.
             @unlink($target);
 
-            return NoReplaceRenameResult::Failed;
+            throw new WriteFailedException($source);
         }
 
         if ($this->targetTaken($target)) {
-            return NoReplaceRenameResult::TargetExists;
+            throw new RenameTargetExistsException($target);
         }
 
-        return @rename($source, $target) ? NoReplaceRenameResult::Renamed : NoReplaceRenameResult::Failed;
+        if (!@rename($source, $target)) {
+            throw new WriteFailedException($source);
+        }
     }
 
     /** A dangling link is taken too: file_exists() alone wouldn't see it. */
