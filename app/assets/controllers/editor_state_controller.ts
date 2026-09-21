@@ -31,34 +31,25 @@ interface Urls {
     import: string;
 }
 
-interface Tokens {
-    mode: string;
-    file: string;
-    dir: string;
-    settings: string;
-    import: string;
-}
-
 interface Route {
     url: keyof Urls;
     method: 'POST' | 'DELETE';
-    token: keyof Tokens;
 }
 
 const ROUTES: Record<ActionName, Route> = {
-    'nav-switch_mode': { url: 'mode', method: 'POST', token: 'mode' },
-    'nav-change_dir': { url: 'dir', method: 'POST', token: 'dir' },
-    'nav-change_file': { url: 'file', method: 'POST', token: 'file' },
-    'nav-new_file': { url: 'file', method: 'DELETE', token: 'file' },
-    'nav-refresh_dir': { url: 'refreshDir', method: 'POST', token: 'dir' },
-    'do-save': { url: 'save', method: 'POST', token: 'file' },
-    'do-save_as': { url: 'save', method: 'POST', token: 'file' },
-    'do-delete': { url: 'delete', method: 'POST', token: 'file' },
-    'do-rename': { url: 'rename', method: 'POST', token: 'file' },
-    'do-save_settings': { url: 'settings', method: 'POST', token: 'settings' },
-    'do-set_key': { url: 'setKey', method: 'POST', token: 'settings' },
-    'do-delete_key': { url: 'deleteKey', method: 'DELETE', token: 'settings' },
-    'do-import': { url: 'import', method: 'POST', token: 'import' },
+    'nav-switch_mode': { url: 'mode', method: 'POST' },
+    'nav-change_dir': { url: 'dir', method: 'POST' },
+    'nav-change_file': { url: 'file', method: 'POST' },
+    'nav-new_file': { url: 'file', method: 'DELETE' },
+    'nav-refresh_dir': { url: 'refreshDir', method: 'POST' },
+    'do-save': { url: 'save', method: 'POST' },
+    'do-save_as': { url: 'save', method: 'POST' },
+    'do-delete': { url: 'delete', method: 'POST' },
+    'do-rename': { url: 'rename', method: 'POST' },
+    'do-save_settings': { url: 'settings', method: 'POST' },
+    'do-set_key': { url: 'setKey', method: 'POST' },
+    'do-delete_key': { url: 'deleteKey', method: 'DELETE' },
+    'do-import': { url: 'import', method: 'POST' },
 };
 
 /** Every state route answers this, error included (S6). */
@@ -78,11 +69,11 @@ interface StateResponse {
  * (`this.editorStateOutlet.state`); after that, the events carry it.
  */
 export default class extends Controller {
-    static values = { state: Object, urls: Object, tokens: Object, i18n: Object };
+    static values = { state: Object, urls: Object, token: String, i18n: Object };
 
     declare readonly stateValue: EditorState;
     declare readonly urlsValue: Urls;
-    declare readonly tokensValue: Tokens;
+    declare readonly tokenValue: string;
     declare readonly i18nValue: { failed: string };
 
     #state!: EditorState;
@@ -129,7 +120,7 @@ export default class extends Controller {
         try {
             response = await fetch(this.#url(route, action), {
                 method: route.method,
-                headers: { 'X-CSRF-TOKEN': this.tokensValue[route.token] },
+                headers: { 'X-CSRF-TOKEN': this.tokenValue },
                 body: route.method === 'POST' ? toFormData(action) : undefined,
                 signal: abort.signal,
             });

@@ -212,7 +212,7 @@ describe('the left column, with the master', () => {
 
             const [url, init] = fetchMock.mock.calls[0];
             expect(url).toBe('/editor/dir/refresh');
-            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-dir' });
+            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
             expect(refreshButton().disabled).toBe(true);
             expect(refreshButton().classList.contains('is-refreshing')).toBe(true);
 

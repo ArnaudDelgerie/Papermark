@@ -119,7 +119,7 @@ describe('the archive modal, with the master', () => {
             await settle();
 
             const [[, init]] = importRequests();
-            expect((init as RequestInit).headers).toEqual({ 'X-CSRF-TOKEN': 'tk-import' });
+            expect((init as RequestInit).headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
             expect(((init as RequestInit).body as FormData).get('archive')).toBe('/tmp/notes.zip');
             expect(((init as RequestInit).body as FormData).get('parentDir')).toBe('/dest');
             expect(toasts).toEqual([{ type: 'success', message: 'Imported into /dest/notes' }]);

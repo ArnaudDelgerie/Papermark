@@ -18,8 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Csrf\CsrfToken;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Symfony\Component\Validator\Constraints\File as FileConstraint;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -33,7 +32,6 @@ final class FileController extends AbstractController
     private const TRANSLATION_PREFIX = 'components.editor.error.';
 
     public function __construct(
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
         private readonly PathPolicy $pathPolicy,
         private readonly NoReplaceRename $noReplaceRename,
@@ -51,13 +49,9 @@ final class FileController extends AbstractController
      * to the content written by save(), see EDITOR_IMAGES.md.
      */
     #[Route('/file/copy', name: 'app_file_copy', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function copy(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $content = $request->request->get('content');
         if (!\is_string($content)) {
             return $this->errorResponse('no_content', Response::HTTP_BAD_REQUEST);
@@ -121,13 +115,9 @@ final class FileController extends AbstractController
      * keeps its date, no other app sees it move (FIL-11).
      */
     #[Route('/file/save', name: 'app_file_save', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function save(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $path = $request->request->get('path');
         $content = $request->request->get('content');
 
@@ -203,13 +193,9 @@ final class FileController extends AbstractController
      * user and be used elsewhere, they're left untouched (see EDITOR_FIX.md).
      */
     #[Route('/file/delete', name: 'app_file_delete', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function delete(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $path = $request->request->get('path');
         if (!\is_string($path) || $path === '') {
             return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
@@ -236,13 +222,9 @@ final class FileController extends AbstractController
      * overwritten (lot 02-chemins.md, FIL-06).
      */
     #[Route('/file/rename', name: 'app_file_rename', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function rename(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('file', $csrfToken))) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $path = $request->request->get('path');
         $name = $request->request->get('name');
 

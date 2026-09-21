@@ -5,3 +5,5 @@ exceptions:
         path_is_symlink: Un lien symbolique ne peut pas être modifié
         path_not_a_file: Le chemin n'est pas un fichier ordinaire
         path_not_found: Chemin introuvable
+    security:
+        csrf_invalid: Jeton de sécurité invalide, veuillez recharger la page

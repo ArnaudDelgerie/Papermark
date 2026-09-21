@@ -356,7 +356,7 @@ final class SettingsControllerTest extends WebTestCase
 
     private function token(): string
     {
-        return static::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('settings')->getValue();
+        return static::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('papermark_app')->getValue();
     }
 
     /**

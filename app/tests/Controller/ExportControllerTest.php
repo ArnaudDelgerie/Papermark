@@ -31,7 +31,7 @@ final class ExportControllerTest extends WebTestCase
 
         // Single mode by default: the current file is the source preselected.
         $client->request('GET', '/editor');
-        $fileToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)->getToken('file')->getValue();
+        $fileToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)->getToken('papermark_app')->getValue();
 
         $path = $this->workDir . '/doc.md';
         file_put_contents($path, '# Hello');
@@ -53,12 +53,10 @@ final class ExportControllerTest extends WebTestCase
         $client->disableReboot();
 
         $crawler = $client->request('GET', '/editor');
-        $tokens = json_decode((string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-tokens-value'), true);
-        $modeToken = $tokens['mode'];
-        $dirToken = $tokens['dir'];
+        $token = (string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-token-value');
 
-        $client->request('POST', '/editor/mode', ['mode' => 'dir'], [], ['HTTP_X-CSRF-TOKEN' => $modeToken]);
-        $client->request('POST', '/editor/dir', ['path' => $this->workDir], [], ['HTTP_X-CSRF-TOKEN' => $dirToken]);
+        $client->request('POST', '/editor/mode', ['mode' => 'dir'], [], ['HTTP_X-CSRF-TOKEN' => $token]);
+        $client->request('POST', '/editor/dir', ['path' => $this->workDir], [], ['HTTP_X-CSRF-TOKEN' => $token]);
 
         $client->request('GET', '/archive');
 
@@ -120,7 +118,7 @@ final class ExportControllerTest extends WebTestCase
 
         $master = $crawler->filter('div[data-controller="editor-state"]');
         self::assertSame('/import/run', json_decode((string) $master->attr('data-editor-state-urls-value'), true)['import']);
-        self::assertArrayHasKey('import', json_decode((string) $master->attr('data-editor-state-tokens-value'), true));
+        self::assertNotEmpty($master->attr('data-editor-state-token-value'));
     }
 
     public function testRunRejectsInvalidCsrf(): void
@@ -403,7 +401,7 @@ final class ExportControllerTest extends WebTestCase
         $client->request('GET', '/archive');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
-            ->getToken('export')->getValue();
+            ->getToken('papermark_app')->getValue();
 
         return [$client, $csrfToken];
     }
@@ -417,7 +415,7 @@ final class ExportControllerTest extends WebTestCase
         $client->request('GET', '/archive');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
-            ->getToken('import')->getValue();
+            ->getToken('papermark_app')->getValue();
 
         return [$client, $csrfToken];
     }

@@ -10,16 +10,13 @@ use App\Ai\AiInstructionMessage;
 use App\Ai\AiInstructRequest;
 use App\Ai\AiTopicResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Csrf\CsrfToken;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
-use Symfony\Contracts\Translation\TranslatorInterface;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 
 /**
  * An invalid body gets Symfony's default 422: the editor never sends one, so the
@@ -27,9 +24,6 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  */
 final class AiController extends AbstractController
 {
-    private const TRANSLATION_DOMAIN = 'components';
-    private const TRANSLATION_PREFIX = 'components.editor.error.';
-
     /** Matches the default Mercure JWT lifetime (Authorization::createCookie, 1 hour). */
     private const COOKIE_LIFETIME = 3600;
 
@@ -39,8 +33,6 @@ final class AiController extends AbstractController
     private const SESSION_COOKIE_EXPIRES_AT = '_ai_mercure_cookie_expires_at';
 
     public function __construct(
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
-        private readonly TranslatorInterface $translator,
         private readonly MessageBusInterface $bus,
         private readonly AiTopicResolver $topicResolver,
         private readonly AiAbortRegistry $abortRegistry,
@@ -55,12 +47,9 @@ final class AiController extends AbstractController
      * stream when the cookie is fresh.
      */
     #[Route('/ai/subscribe', name: 'app_ai_subscribe', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function subscribe(Request $request, Authorization $mercureAuthorization): Response
     {
-        if (!$this->isCsrfTokenValidFor($request)) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $session = $request->getSession();
         $expiresAt = $session->get(self::SESSION_COOKIE_EXPIRES_AT);
 
@@ -73,12 +62,9 @@ final class AiController extends AbstractController
     }
 
     #[Route('/ai/instruct', name: 'app_ai_instruct', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function instruct(Request $request, #[MapRequestPayload] AiInstructRequest $payload): Response
     {
-        if (!$this->isCsrfTokenValidFor($request)) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $this->bus->dispatch(new AiInstructionMessage(
             topic: $this->topicResolver->resolve($request),
             requestId: $payload->id,
@@ -91,29 +77,11 @@ final class AiController extends AbstractController
     }
 
     #[Route('/ai/abort', name: 'app_ai_abort', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function abort(Request $request, #[MapRequestPayload] AiAbortRequest $payload): Response
     {
-        if (!$this->isCsrfTokenValidFor($request)) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $this->abortRegistry->abort($payload->id);
 
         return new Response(null, Response::HTTP_NO_CONTENT);
-    }
-
-    private function isCsrfTokenValidFor(Request $request): bool
-    {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-
-        return \is_string($csrfToken) && $this->csrfTokenManager->isTokenValid(new CsrfToken('ai', $csrfToken));
-    }
-
-    private function errorResponse(string $key, int $status): JsonResponse
-    {
-        return new JsonResponse(
-            ['error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN)],
-            $status,
-        );
     }
 }

@@ -15,9 +15,8 @@ use Symfony\Component\Uid\Uuid;
 final class AiControllerTest extends WebTestCase
 {
     /**
-     * The editor page renders the Editor component which
-     * generates CSRF tokens, setting the session. The token is then read
-     * from the container.
+     * The token is stateless: a fixed value, checked by the request's
+     * origin. It is read from the container.
      *
      * @return array{0: KernelBrowser, 1: string}
      */
@@ -28,7 +27,7 @@ final class AiControllerTest extends WebTestCase
         $client->disableReboot();
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
-            ->getToken('ai')->getValue();
+            ->getToken('papermark_app')->getValue();
 
         return [$client, $csrfToken];
     }

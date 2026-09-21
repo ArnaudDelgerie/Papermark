@@ -96,8 +96,7 @@ interface InFlightSave {
  */
 export default class extends Controller<HTMLElement> {
     static values = {
-        fileCsrfToken: String,
-        aiCsrfToken: String,
+        csrfToken: String,
         urls: Object,
         aiConfig: { type: Object, default: {} },
         readonly: { type: Boolean, default: false },
@@ -110,8 +109,7 @@ export default class extends Controller<HTMLElement> {
 
     static outlets = ['editor-state'];
 
-    declare readonly fileCsrfTokenValue: string;
-    declare readonly aiCsrfTokenValue: string;
+    declare readonly csrfTokenValue: string;
     declare readonly urlsValue: Urls;
     declare readonly aiConfigValue: AiConfig;
     declare readonly readonlyValue: boolean;
@@ -384,7 +382,7 @@ export default class extends Controller<HTMLElement> {
         }
 
         this.#aiClient = new AiClient({
-            csrfToken: this.aiCsrfTokenValue,
+            csrfToken: this.csrfTokenValue,
             urls: { subscribe: this.urlsValue.aiSubscribe, instruct: this.urlsValue.aiInstruct, abort: this.urlsValue.aiAbort },
             mercureUrl,
             topic,
@@ -838,7 +836,7 @@ export default class extends Controller<HTMLElement> {
 
         const response = await fetch(this.urlsValue.copy, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': this.fileCsrfTokenValue },
+            headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
             body: formData,
         });
 

@@ -13,8 +13,8 @@ use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 
 final class EditorControllerTest extends WebTestCase
 {
-    /** @var array{mode: string, file: string, dir: string} CSRF tokens, read from the rendered page */
-    private array $tokens;
+    /** CSRF token, read from the rendered page */
+    private string $token;
 
     public function testEditorRendersTheShellWithBothColumns(): void
     {
@@ -53,7 +53,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         // The editor fetches the current file itself, through getFile().
         $crawler = $client->request('GET', '/editor');
@@ -70,7 +70,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         $crawler = $client->request('GET', '/editor');
 
@@ -85,7 +85,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame('/settings', $urls['settings']);
         self::assertSame('/settings/provider/__name__/key', $urls['setKey']);
         self::assertSame('/settings/provider/__name__/key', $urls['deleteKey']);
-        self::assertArrayHasKey('settings', json_decode((string) $master->attr('data-editor-state-tokens-value'), true));
+        self::assertNotEmpty($master->attr('data-editor-state-token-value'));
         // The editor and both columns are inside the master's element.
         self::assertSame(1, $master->filter('div[data-controller="editor"]')->count());
         self::assertSame(1, $master->filter('div[data-controller="mode-dir"]')->count());
@@ -98,7 +98,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         $client->request('GET', '/editor/state');
 
@@ -156,7 +156,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         // The default stays Single; recording dir mode once should still win.
-        $this->post($client, '/editor/mode', 'mode', ['mode' => 'dir']);
+        $this->post($client, '/editor/mode', ['mode' => 'dir']);
 
         $crawler = $client->request('GET', '/editor');
 
@@ -168,16 +168,16 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Dropped');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
-        $this->post($client, '/editor/mode', 'mode', ['mode' => 'dir']);
+        $this->post($client, '/editor/mode', ['mode' => 'dir']);
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
         self::assertSame(['mode' => 'dir'], $this->responseData($client)['action']);
 
         // Switching back doesn't bring the file back: one file, not one per mode.
-        $this->post($client, '/editor/mode', 'mode', ['mode' => 'single']);
+        $this->post($client, '/editor/mode', ['mode' => 'single']);
         self::assertNull($this->responseState($client)['file']);
 
         unlink($path);
@@ -196,7 +196,7 @@ final class EditorControllerTest extends WebTestCase
     {
         $client = $this->createClientWithTokens();
 
-        $this->post($client, '/editor/mode', 'mode', ['mode' => 'nope']);
+        $this->post($client, '/editor/mode', ['mode' => 'nope']);
 
         self::assertResponseStatusCodeSame(400);
         // A refusal still carries the state (S6).
@@ -218,7 +218,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         self::assertResponseIsSuccessful();
         // No content in the answer: the editor fetches it on the update.
@@ -246,13 +246,13 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         // Windows-1252 "é" is not UTF-8.
         $bad = sys_get_temp_dir() . '/editor_state_' . uniqid() . '.md';
         file_put_contents($bad, "Coucou \xE9\xE8.txt");
 
-        $this->post($client, '/editor/file', 'file', ['path' => $bad]);
+        $this->post($client, '/editor/file', ['path' => $bad]);
 
         self::assertResponseStatusCodeSame(415);
         self::assertSame('The file is not UTF-8 encoded; only UTF-8 files can be opened', $this->responseData($client)['error']);
@@ -268,7 +268,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
         file_put_contents($path, "Coucou \xE9\xE8.txt");
 
         $client->request('GET', '/editor/file');
@@ -288,7 +288,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile("\xEF\xBB\xBF# With BOM");
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         self::assertResponseIsSuccessful();
         $client->request('GET', '/editor/file');
@@ -304,7 +304,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('![alt](./photo.png)');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         $client->request('GET', '/editor/file');
 
@@ -329,7 +329,7 @@ final class EditorControllerTest extends WebTestCase
         $link = sys_get_temp_dir() . '/editor_state_link_' . uniqid() . '.md';
         symlink($target, $link);
 
-        $this->post($client, '/editor/file', 'file', ['path' => $link]);
+        $this->post($client, '/editor/file', ['path' => $link]);
 
         self::assertResponseIsSuccessful();
         self::assertSame(realpath($target), $this->responseState($client)['file']);
@@ -346,7 +346,7 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Gone');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
         unlink($path);
 
         $client->request('GET', '/editor/file');
@@ -362,7 +362,7 @@ final class EditorControllerTest extends WebTestCase
     {
         $client = $this->createClientWithTokens();
 
-        $this->post($client, '/editor/file', 'file', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
+        $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
 
         self::assertResponseStatusCodeSame(404);
         self::assertSame('File not found', $this->responseData($client)['error']);
@@ -372,7 +372,7 @@ final class EditorControllerTest extends WebTestCase
     {
         $client = $this->createClientWithTokens();
 
-        $this->post($client, '/editor/file', 'file', ['path' => '/tmp/this_file_does_not_exist.exe']);
+        $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist.exe']);
 
         self::assertResponseStatusCodeSame(415);
         self::assertSame('Only Markdown and text files are supported', $this->responseData($client)['error']);
@@ -393,16 +393,16 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Kept');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         // An unrelated bad path leaves the current file alone…
-        $this->post($client, '/editor/file', 'file', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
+        $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
         $client->request('GET', '/editor/file');
         self::assertSame($path, $this->responseData($client)['path']);
 
         // …the current file found gone is dropped.
         unlink($path);
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
         self::assertResponseStatusCodeSame(404);
         // The refusal carries the state as corrected.
         self::assertNull($this->responseState($client)['file']);
@@ -415,10 +415,10 @@ final class EditorControllerTest extends WebTestCase
         $client = $this->createClientWithTokens();
 
         $path = $this->createFile('# Previous');
-        $this->post($client, '/editor/file', 'file', ['path' => $path]);
+        $this->post($client, '/editor/file', ['path' => $path]);
 
         // New: a reload must not bring the previous file back.
-        $client->request('DELETE', '/editor/file', [], [], ['HTTP_X_CSRF_TOKEN' => $this->tokens['file']]);
+        $client->request('DELETE', '/editor/file', [], [], ['HTTP_X_CSRF_TOKEN' => $this->token]);
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'single', 'file' => null, 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
@@ -448,8 +448,8 @@ final class EditorControllerTest extends WebTestCase
         mkdir($root);
         file_put_contents($root . '/kept.md', '# Kept');
 
-        $this->post($client, '/editor/file', 'file', ['path' => $root . '/kept.md']);
-        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $this->post($client, '/editor/file', ['path' => $root . '/kept.md']);
+        $this->post($client, '/editor/dir', ['path' => $root]);
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
@@ -480,7 +480,7 @@ final class EditorControllerTest extends WebTestCase
     {
         $client = $this->createClientWithTokens();
 
-        $this->post($client, '/editor/dir', 'dir', ['path' => '/nope/nope']);
+        $this->post($client, '/editor/dir', ['path' => '/nope/nope']);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -497,9 +497,9 @@ final class EditorControllerTest extends WebTestCase
         $root = sys_get_temp_dir() . '/dir_mode_gone_' . uniqid();
         mkdir($root);
         file_put_contents($root . '/note.md', '# Note');
-        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $this->post($client, '/editor/dir', ['path' => $root]);
         $outside = $this->createFile('# Outside');
-        $this->post($client, '/editor/file', 'file', ['path' => $outside]);
+        $this->post($client, '/editor/file', ['path' => $outside]);
 
         $this->removeDirectory($root);
         $crawler = $client->request('GET', '/editor/dir');
@@ -549,7 +549,7 @@ final class EditorControllerTest extends WebTestCase
         file_put_contents($root . '/.hidden/secret.md', '# Secret');
         file_put_contents($root . '/assets_only/logo.png', 'not markdown');
 
-        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $this->post($client, '/editor/dir', ['path' => $root]);
 
         $crawler = $client->request('GET', '/editor/dir');
         $tree = $crawler->filter('.mode-tree');
@@ -577,7 +577,7 @@ final class EditorControllerTest extends WebTestCase
         mkdir($root);
         file_put_contents($root . '/first.md', '# First');
 
-        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $this->post($client, '/editor/dir', ['path' => $root]);
         $client->request('GET', '/editor/dir');
 
         // A file written outside the app: the cached walk doesn't know it.
@@ -586,7 +586,7 @@ final class EditorControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/editor/dir');
         self::assertSame(0, $crawler->filter('a[data-path="' . $root . '/second.md"]')->count());
 
-        $this->post($client, '/editor/dir/refresh', 'dir', []);
+        $this->post($client, '/editor/dir/refresh', []);
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
         self::assertSame([], $this->responseData($client)['action']);
@@ -609,13 +609,13 @@ final class EditorControllerTest extends WebTestCase
         file_put_contents($root . '/old.md', '# Old');
         file_put_contents($root . '/only_one/last.md', '# Last');
 
-        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $this->post($client, '/editor/dir', ['path' => $root]);
         $client->request('GET', '/editor/dir');
 
-        $this->post($client, '/file/save', 'file', ['path' => $root . '/empty_yet/new.md', 'content' => '# New']);
-        $this->post($client, '/file/save', 'file', ['path' => $root . '/notes.txt', 'content' => 'not listed']);
-        $this->post($client, '/file/delete', 'file', ['path' => $root . '/only_one/last.md']);
-        $this->post($client, '/file/rename', 'file', ['path' => $root . '/old.md', 'name' => 'renamed.md']);
+        $this->post($client, '/file/save', ['path' => $root . '/empty_yet/new.md', 'content' => '# New']);
+        $this->post($client, '/file/save', ['path' => $root . '/notes.txt', 'content' => 'not listed']);
+        $this->post($client, '/file/delete', ['path' => $root . '/only_one/last.md']);
+        $this->post($client, '/file/rename', ['path' => $root . '/old.md', 'name' => 'renamed.md']);
 
         $crawler = $client->request('GET', '/editor/dir');
         $paths = $crawler->filter('.mode-tree a[data-path]')->each(static fn ($node) => $node->attr('data-path'));
@@ -655,7 +655,7 @@ final class EditorControllerTest extends WebTestCase
         file_put_contents($root . '/c.md', 'c');
 
         $this->readTokens($client);
-        $this->post($client, '/editor/dir', 'dir', ['path' => $root]);
+        $this->post($client, '/editor/dir', ['path' => $root]);
 
         $crawler = $client->request('GET', '/editor/dir');
         self::assertResponseIsSuccessful();
@@ -684,19 +684,15 @@ final class EditorControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/editor');
 
         // The master (editor-state) holds them all: it makes every write.
-        $this->tokens = json_decode(
-            (string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-tokens-value'),
-            true,
-        );
+        $this->token = (string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-token-value');
     }
 
     /**
-     * @param 'mode'|'file'|'dir'  $token
      * @param array<string, string> $fields
      */
-    private function post(KernelBrowser $client, string $uri, string $token, array $fields): void
+    private function post(KernelBrowser $client, string $uri, array $fields): void
     {
-        $client->request('POST', $uri, $fields, [], ['HTTP_X_CSRF_TOKEN' => $this->tokens[$token]]);
+        $client->request('POST', $uri, $fields, [], ['HTTP_X_CSRF_TOKEN' => $this->token]);
     }
 
     /**

@@ -38,7 +38,7 @@ describe('editor-state (the master)', () => {
         const [url, init] = fetchMock.mock.calls[0];
         expect(url).toBe('/editor/mode');
         expect(init.method).toBe('POST');
-        expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-mode' });
+        expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
         expect((init.body as FormData).get('mode')).toBe('dir');
         // readonly is not sent by the routes: it is kept. ai_enabled is, but not by this one.
         expect(succeeded).toHaveBeenCalledWith({
@@ -201,7 +201,7 @@ describe('editor-state (the master)', () => {
             const [url, init] = fetchMock.mock.calls[0];
             expect(url).toBe('/import/run');
             expect(init.method).toBe('POST');
-            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-import' });
+            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
             expect((init.body as FormData).get('archive')).toBe('/tmp/notes.zip');
             expect((init.body as FormData).get('parentDir')).toBe('/notes');
             expect(succeeded).toHaveBeenCalledWith({ state: { ...INITIAL, file: '/notes/notes/doc.md' }, action });
@@ -251,7 +251,7 @@ describe('editor-state (the master)', () => {
             const [url, init] = fetchMock.mock.calls[0];
             expect(url).toBe('/settings');
             expect(init.method).toBe('POST');
-            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-settings' });
+            expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
             expect(init.body).toBe(form);
             // The state of the answer is taken: the AI went off.
             expect(succeeded).toHaveBeenCalledWith({ state: { ...INITIAL, ai_enabled: false }, action: {} });

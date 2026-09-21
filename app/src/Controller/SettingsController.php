@@ -22,11 +22,9 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Csrf\CsrfToken;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
@@ -39,7 +37,6 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class SettingsController extends AbstractController
 {
     private const TRANSLATION_DOMAIN = 'components';
-    private const CSRF_TOKEN_ID = 'settings';
 
     public function __construct(
         private readonly SecretStoreInterface $secretStore,
@@ -49,7 +46,6 @@ final class SettingsController extends AbstractController
         private readonly SettingStore $settingStore,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly EditorState $editorState,
     ) {
     }
@@ -120,12 +116,9 @@ final class SettingsController extends AbstractController
      * can turn the AI on.
      */
     #[Route('/settings/provider/{name}/key', name: 'app_settings_set_key', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function setKey(ProviderName $name, Request $request): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request)) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $key = $request->request->get('key');
         if (!\is_string($key) || trim($key) === '') {
             return $this->stateErrorResponse('no_key', Response::HTTP_BAD_REQUEST);
@@ -147,12 +140,9 @@ final class SettingsController extends AbstractController
      * provider if it was the selected one.
      */
     #[Route('/settings/provider/{name}/key', name: 'app_settings_delete_key', methods: ['DELETE'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function deleteKey(ProviderName $name, Request $request): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request)) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         try {
             $this->secretStore->delete($name->value);
         } catch (BridgeException) {
@@ -175,12 +165,9 @@ final class SettingsController extends AbstractController
      * only remembers it, and it is not part of the editor state.
      */
     #[Route('/settings/theme', name: 'app_settings_theme', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function theme(Request $request): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request)) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $value = $request->request->get('theme');
         $theme = \is_string($value) ? ThemeMode::tryFrom($value) : null;
         if ($theme === null) {
@@ -199,13 +186,9 @@ final class SettingsController extends AbstractController
      * reload on the home page, where the server renders everything translated.
      */
     #[Route('/settings/locale', name: 'app_settings_locale', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: '_token')]
     public function locale(Request $request): RedirectResponse
     {
-        $token = $request->request->get('_token');
-        if (!\is_string($token) || !$this->csrfTokenManager->isTokenValid(new CsrfToken(self::CSRF_TOKEN_ID, $token))) {
-            throw new AccessDeniedHttpException();
-        }
-
         $value = $request->request->get('locale');
         $locale = \is_string($value) ? AppLocale::tryFrom($value) : null;
         if ($locale === null) {
@@ -230,7 +213,7 @@ final class SettingsController extends AbstractController
             'defaultMode' => $this->settingStore->getDefaultMode(),
         ], [
             // Stateless token, checked by the request's origin (config/packages/csrf.yaml).
-            'csrf_token_id' => self::CSRF_TOKEN_ID,
+            'csrf_token_id' => 'papermark_app',
         ]);
     }
 
@@ -275,13 +258,6 @@ final class SettingsController extends AbstractController
             'defaultMode' => $this->trans('components.settings.mode_title'),
             default => null,
         };
-    }
-
-    private function isCsrfTokenValidFromHeader(Request $request): bool
-    {
-        $token = $request->headers->get('X-CSRF-TOKEN');
-
-        return \is_string($token) && $this->csrfTokenManager->isTokenValid(new CsrfToken(self::CSRF_TOKEN_ID, $token));
     }
 
     /**

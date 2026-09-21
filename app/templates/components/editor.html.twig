@@ -3,8 +3,7 @@
 <div data-controller="editor"
      class="editor-shell is-a4"
      data-editor-editor-state-outlet="#editor-state"
-     data-editor-file-csrf-token-value="{{ file_csrf_token }}"
-     data-editor-ai-csrf-token-value="{{ ai_csrf_token }}"
+     data-editor-csrf-token-value="{{ csrf_token('papermark_app') }}"
      data-editor-urls-value="{{ {
          file: path('app_editor_get_file'),
          copy: path('app_file_copy'),
@@ -93,7 +92,7 @@
                     data-theme-switch-current-value="{{ appearance.theme }}"
                     data-theme-switch-labels-value="{{ appearance.themeLabels|json_encode }}"
                     data-theme-switch-url-value="{{ path('app_settings_theme') }}"
-                    data-theme-switch-token-value="{{ settings_csrf_token }}"
+                    data-theme-switch-token-value="{{ csrf_token('papermark_app') }}"
                     data-theme-switch-i18n-value="{{ {
                         label: 'components.editor.theme_button'|trans({}, 'components'),
                         failed: 'components.editor.error.request_failed'|trans({}, 'components'),
@@ -121,7 +120,7 @@
                 {# The switch itself: a native post, then a full reload. The submit button
                    is what the leave guard intercepts, so unsaved work is asked about. #}
                 <form method="post" action="{{ path('app_settings_locale') }}" data-locale-stepper-target="form" hidden>
-                    <input type="hidden" name="_token" value="{{ settings_csrf_token }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('papermark_app') }}">
                     <input type="hidden" name="locale" value="{{ appearance.locale }}" data-locale-stepper-target="input">
                     <button type="submit" data-locale-stepper-target="submit" data-editor-leave-guard tabindex="-1"></button>
                 </form>

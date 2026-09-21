@@ -12,8 +12,4 @@ framework:
             - submit
             - authenticate
             - logout
-            - file
-            - ai
-            - settings
-            - export
-            - import
+            - papermark_app

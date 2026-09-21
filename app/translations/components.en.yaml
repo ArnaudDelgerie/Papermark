@@ -70,7 +70,6 @@ components:
             submit_button: Send prompt
             listbox: AI suggestions
         error:
-            invalid_csrf: Invalid security token, please reload the page
             no_path: No file path provided
             unsupported_file_type: Only Markdown and text files are supported
             not_found: File not found

@@ -18,8 +18,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Csrf\CsrfToken;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class ExportController extends AbstractController
@@ -33,7 +32,6 @@ final class ExportController extends AbstractController
         private readonly ArchiveTargetResolver $targetResolver,
         private readonly ArchiveWriter $writer,
         private readonly ArchiveImporter $importer,
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -52,7 +50,6 @@ final class ExportController extends AbstractController
             'initial_kind' => $this->editorState->getMode() === EditorMode::Dir ? 'directory' : 'file',
             'initial_path' => $this->editorState->getFile(),
             'initial_directory' => $this->editorState->getDir(),
-            'export_csrf_token' => $this->csrfTokenManager->getToken('export')->getValue(),
             'export_i18n' => $this->exportI18n(),
             'import_i18n' => $this->importI18n(),
         ]);
@@ -109,13 +106,9 @@ final class ExportController extends AbstractController
     }
 
     #[Route('/export/run', name: 'app_export_run', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function run(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('export', $csrfToken))) {
-            return $this->errorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $source = $request->request->get('source');
         if (!\is_string($source) || '' === $source) {
             return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
@@ -166,13 +159,9 @@ final class ExportController extends AbstractController
     }
 
     #[Route('/import/run', name: 'app_import_run', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function importRun(Request $request): JsonResponse
     {
-        $csrfToken = $request->headers->get('X-CSRF-TOKEN');
-        if (!\is_string($csrfToken) || !$this->csrfTokenManager->isTokenValid(new CsrfToken('import', $csrfToken))) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $archive = $request->request->get('archive');
         if (!\is_string($archive) || '' === $archive) {
             return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);

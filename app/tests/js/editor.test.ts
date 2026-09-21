@@ -79,7 +79,7 @@ function editorHtml(): string {
             data-action="mode-switch#change" data-editor-leave-guard>Dir</button>
     </nav>
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
-         data-editor-file-csrf-token-value="tk-file" data-editor-ai-csrf-token-value="tk-ai"
+         data-editor-csrf-token-value="tk-app"
          data-editor-urls-value="${attr({ file: '/editor/file', copy: '/file/copy', image: '/file/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
          data-editor-i18n-value="${attr({
              untitled: 'Untitled',

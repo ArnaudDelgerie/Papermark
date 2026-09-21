@@ -15,8 +15,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Csrf\CsrfToken;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
@@ -36,7 +35,6 @@ final class EditorController extends AbstractController
         private readonly MarkdownFileReader $fileReader,
         private readonly MarkdownImageUrls $markdownImageUrls,
         private readonly PathPolicy $pathPolicy,
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -79,12 +77,9 @@ final class EditorController extends AbstractController
      * Records the mode, which drops the current file.
      */
     #[Route('/editor/mode', name: 'app_editor_set_mode', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function setMode(Request $request): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request, 'mode')) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $value = $request->request->get('mode');
         $mode = \is_string($value) ? EditorMode::tryFrom($value) : null;
         if ($mode === null) {
@@ -148,12 +143,9 @@ final class EditorController extends AbstractController
      * refusal, so the file shown before keeps opening after a reload.
      */
     #[Route('/editor/file', name: 'app_editor_set_file', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function setFile(Request $request): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request, 'file')) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $path = $request->request->get('path');
         if (!\is_string($path) || $path === '') {
             return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
@@ -188,12 +180,9 @@ final class EditorController extends AbstractController
      * New: no current file, so a reload doesn't bring the previous one back.
      */
     #[Route('/editor/file', name: 'app_editor_clear_file', methods: ['DELETE'])]
-    public function clearFile(Request $request): JsonResponse
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
+    public function clearFile(): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request, 'file')) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $this->editorState->setFile(null);
 
         return $this->stateResponse([]);
@@ -227,12 +216,9 @@ final class EditorController extends AbstractController
      * location (see EDITOR_FOLDER_MODE.md).
      */
     #[Route('/editor/dir', name: 'app_editor_set_dir', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function setDir(Request $request, OpenDirectoryTree $openDirectoryTree): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request, 'dir')) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $path = $request->request->get('path');
         $realPath = \is_string($path) ? $this->pathPolicy->list($path) : null;
         if ($realPath === null) {
@@ -251,22 +237,12 @@ final class EditorController extends AbstractController
      * state doesn't change; it comes back like from every write.
      */
     #[Route('/editor/dir/refresh', name: 'app_editor_refresh_dir', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function refreshDir(Request $request, OpenDirectoryTree $openDirectoryTree): JsonResponse
     {
-        if (!$this->isCsrfTokenValidFromHeader($request, 'dir')) {
-            return $this->stateErrorResponse('invalid_csrf', Response::HTTP_FORBIDDEN);
-        }
-
         $openDirectoryTree->forget();
 
         return $this->stateResponse([]);
-    }
-
-    private function isCsrfTokenValidFromHeader(Request $request, string $id): bool
-    {
-        $token = $request->headers->get('X-CSRF-TOKEN');
-
-        return \is_string($token) && $this->csrfTokenManager->isTokenValid(new CsrfToken($id, $token));
     }
 
     /**

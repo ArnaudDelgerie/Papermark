@@ -8,7 +8,6 @@ use App\Enum\Setting\ThemeMode;
 use App\Setting\SettingStore;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
 use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
@@ -24,7 +23,6 @@ final class Editor
 
     public function __construct(
         private readonly TranslatorInterface $translator,
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly SettingStore $settings,
         private readonly RequestStack $requestStack,
         private readonly AiTopicResolver $topicResolver,
@@ -108,18 +106,6 @@ final class Editor
         ];
     }
 
-    #[ExposeInTemplate(name: 'file_csrf_token')]
-    public function getFileCsrfToken(): string
-    {
-        return $this->csrfTokenManager->getToken('file')->getValue();
-    }
-
-    #[ExposeInTemplate(name: 'ai_csrf_token')]
-    public function getAiCsrfToken(): string
-    {
-        return $this->csrfTokenManager->getToken('ai')->getValue();
-    }
-
     /**
      * The hub and topic are always given: whether the AI is on comes from the
      * client state (`ai_enabled`), which can change without a reload. The
@@ -163,12 +149,6 @@ final class Editor
                 array_map(fn (AppLocale $locale): string => $this->translator->trans('components.locale.' . $locale->value, [], self::TRANSLATION_DOMAIN), AppLocale::cases()),
             ),
         ];
-    }
-
-    #[ExposeInTemplate(name: 'settings_csrf_token')]
-    public function getSettingsCsrfToken(): string
-    {
-        return $this->csrfTokenManager->getToken('settings')->getValue();
     }
 
     #[ExposeInTemplate(name: 'css_height')]

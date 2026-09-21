@@ -20,7 +20,7 @@ final class FileControllerTest extends WebTestCase
         $client->request('GET', '/editor');
 
         $csrfToken = $client->getContainer()->get(CsrfTokenManagerInterface::class)
-            ->getToken('file')->getValue();
+            ->getToken('papermark_app')->getValue();
 
         return [$client, $csrfToken];
     }
@@ -541,6 +541,9 @@ final class FileControllerTest extends WebTestCase
         ]);
 
         self::assertResponseStatusCodeSame(403);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('Invalid security token, please reload the page', $data['error']);
+        self::assertArrayHasKey('state', $data);
     }
 
     /**

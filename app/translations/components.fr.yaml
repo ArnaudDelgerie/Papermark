@@ -70,7 +70,6 @@ components:
             submit_button: Envoyer l'invite
             listbox: Suggestions de l'IA
         error:
-            invalid_csrf: Jeton de sécurité invalide, veuillez recharger la page
             no_path: Aucun chemin de fichier fourni
             unsupported_file_type: Seuls les fichiers Markdown et texte sont pris en charge
             not_found: Fichier introuvable
