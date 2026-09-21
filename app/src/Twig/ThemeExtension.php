@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Twig;
 
+use App\Enum\Setting\ThemeMode;
 use App\Setting\SettingStore;
-use App\Theme\ThemeMode;
 use Twig\Attribute\AsTwigFunction;
 
 final class ThemeExtension

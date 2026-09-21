@@ -1,0 +1,35 @@
+enums:
+    provider_name:
+        openai: OpenAI
+        anthropic: Anthropic
+        mistral: Mistral
+    export_issue_reason:
+        not_found: Fichier référencé introuvable
+        limit_exceeded: Limite de taille de l'export dépassée
+    archive_import_refusal_reason:
+        not_a_zip: Ce n'est pas une archive ZIP
+        zip_slip: Le chemin d'une entrée sort de l'archive
+        symlink: L'archive contient un lien symbolique
+        too_many_entries: Trop d'entrées dans l'archive
+        too_large: L'archive est trop volumineuse
+    markdown_reference_type:
+        image: Image
+        link: Lien
+    no_replace_rename_result:
+        renamed: Renommé
+        target_exists: La cible existe déjà
+        failed: Échec du renommage
+    path_refusal:
+        not_found: Chemin introuvable
+        symlink: Le chemin est un lien symbolique
+        not_a_file: Le chemin n'est pas un fichier ordinaire
+    app_locale:
+        en: English
+        fr: Français
+    theme_mode:
+        light: Clair
+        dark: Sombre
+        auto: Automatique
+    editor_mode:
+        single: Fichier unique
+        dir: Dossier

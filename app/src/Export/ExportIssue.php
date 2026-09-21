@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Export;
 
+use App\Enum\Archive\ExportIssueReason;
+
 /**
  * A reference left untouched at its original path because it couldn't be
  * embarked: unresolvable, or beyond the export's chaining/count limits (see

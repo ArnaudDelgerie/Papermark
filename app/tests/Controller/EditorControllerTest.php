@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Editor\EditorMode;
+use App\Enum\Setting\EditorMode;
 use App\File\DirectoryTree;
 use App\Repository\SettingRepository;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;

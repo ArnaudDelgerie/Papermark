@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\File;
 
+use App\Enum\File\MarkdownReferenceType;
+
 /**
  * One image or document reference found in a markdown document by
  * MarkdownReferenceScanner, for the export archive feature (see

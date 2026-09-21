@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
-use App\Editor\EditorMode;
-use App\Locale\AppLocale;
+use App\Enum\Setting\AppLocale;
+use App\Enum\Setting\EditorMode;
+use App\Enum\Setting\ThemeMode;
 use App\Repository\SettingRepository;
-use App\Theme\ThemeMode;
 use Doctrine\ORM\Mapping as ORM;
 
 /**

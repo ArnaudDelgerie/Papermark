@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\File;
 
+use App\Enum\File\NoReplaceRenameResult;
+
 /**
  * Renames without ever replacing a target that exists (lot 02-chemins.md,
  * "Renommage atomique"). Under Linux, link() refuses a target that's

@@ -3,10 +3,10 @@
 namespace App\Tests\Twig\Components;
 
 use App\Ai\AiTopicResolver;
-use App\Ai\ProviderName;
-use App\Locale\AppLocale;
-use App\Theme\ThemeMode;
 use App\Entity\Provider;
+use App\Enum\Ai\ProviderName;
+use App\Enum\Setting\AppLocale;
+use App\Enum\Setting\ThemeMode;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;

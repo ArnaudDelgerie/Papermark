@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Ai;
 
 use App\Ai\AnyModelCatalog;
-use App\Ai\ProviderName;
+use App\Enum\Ai\ProviderName;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Platform\Bridge\Anthropic\Claude;

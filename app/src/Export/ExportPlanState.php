@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Export;
 
+use App\Enum\Archive\ExportIssueReason;
+
 /**
  * Mutable working state for one ArchiveExportPlanner::plan() call: the
  * archive path assigned to each real path seen so far (for dedup and

@@ -3,14 +3,14 @@
 namespace App\Controller;
 
 use App\Editor\EditorState;
+use App\Enum\File\NoReplaceRenameResult;
+use App\Enum\File\PathRefusal;
 use App\File\AtomicFileWriter;
 use App\File\DiskFormat;
 use App\File\MarkdownImageUrls;
 use App\File\NoReplaceRename;
-use App\File\NoReplaceRenameResult;
 use App\File\OpenDirectoryTree;
 use App\File\PathPolicy;
-use App\File\PathRefusal;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;

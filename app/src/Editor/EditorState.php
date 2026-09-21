@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Editor;
 
 use App\Ai\AiAvailability;
+use App\Enum\Setting\EditorMode;
 use App\Setting\SettingStore;
 use Symfony\Component\HttpFoundation\RequestStack;
 

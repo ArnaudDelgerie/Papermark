@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\File;
 
+use App\Enum\File\PathRefusal;
 use Symfony\Component\Validator\Constraint;
 
 /**

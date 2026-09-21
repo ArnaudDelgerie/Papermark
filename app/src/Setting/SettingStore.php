@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Setting;
 
-use App\Ai\ProviderName;
-use App\Editor\EditorMode;
 use App\Entity\Setting;
-use App\Locale\AppLocale;
-use App\Theme\ThemeMode;
+use App\Enum\Ai\ProviderName;
+use App\Enum\Setting\AppLocale;
+use App\Enum\Setting\EditorMode;
+use App\Enum\Setting\ThemeMode;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /**

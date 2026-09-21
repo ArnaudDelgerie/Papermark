@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Import;
 
+use App\Enum\Archive\ArchiveImportRefusalReason;
+
 /**
  * Thrown when any single entry of the archive makes the whole import unsafe
  * or too large (see EDITOR_IMPORT.md, "Garde-fous") — the archive is refused

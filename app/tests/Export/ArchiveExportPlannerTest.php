@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Export;
 
+use App\Enum\Archive\ExportIssueReason;
 use App\Export\ArchiveExportPlanner;
 use App\Export\ExportEntry;
-use App\Export\ExportIssueReason;
 use App\File\MarkdownReferenceScanner;
 use App\File\PathResolver;
 use PHPUnit\Framework\TestCase;

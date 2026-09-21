@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Ai;
 
 use App\Ai\ApiKeyResolver;
-use App\Ai\ProviderName;
+use App\Enum\Ai\ProviderName;
 use App\Tests\Double\InMemorySecretStore;
 use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\SecretsNotEnabledException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;

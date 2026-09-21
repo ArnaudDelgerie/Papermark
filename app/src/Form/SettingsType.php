@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Form;
 
-use App\Ai\ProviderName;
-use App\Editor\EditorMode;
 use App\Entity\Provider;
+use App\Enum\Ai\ProviderName;
+use App\Enum\Setting\EditorMode;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;

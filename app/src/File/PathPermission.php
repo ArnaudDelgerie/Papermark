@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\File;
 
+use App\Enum\File\PathRefusal;
+
 /**
  * What PathPolicy::write() decided: the canonical path when allowed, the
  * refusal when not. Reading and listing have a single refusal — the route

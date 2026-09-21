@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\File;
 
+use App\Enum\File\NoReplaceRenameResult;
 use App\File\NoReplaceRename;
-use App\File\NoReplaceRenameResult;
 use PHPUnit\Framework\TestCase;
 
 final class NoReplaceRenameTest extends TestCase

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Setting;
 
+use App\Enum\Setting\ThemeMode;
 use App\Repository\SettingRepository;
 use App\Setting\SettingStore;
-use App\Theme\ThemeMode;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\File;
 
+use App\Enum\File\PathRefusal;
 use App\File\PathPolicy;
-use App\File\PathRefusal;
 use App\File\PathResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Import;
 
-use App\Editor\EditorMode;
-use App\Import\ArchiveImportRefusalReason;
-use App\Import\ArchiveImportRefusedException;
+use App\Enum\Archive\ArchiveImportRefusalReason;
+use App\Enum\Setting\EditorMode;
 use App\Import\ArchiveImporter;
+use App\Import\ArchiveImportRefusedException;
 use App\Import\ImportTargetResolver;
 use PHPUnit\Framework\TestCase;
 

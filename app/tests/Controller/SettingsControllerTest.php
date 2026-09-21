@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Ai\ProviderName;
-use App\Editor\EditorMode;
 use App\Entity\Provider;
-use App\Locale\AppLocale;
+use App\Enum\Ai\ProviderName;
+use App\Enum\Setting\AppLocale;
+use App\Enum\Setting\EditorMode;
+use App\Enum\Setting\ThemeMode;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
-use App\Theme\ThemeMode;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Doctrine\ORM\EntityManagerInterface;

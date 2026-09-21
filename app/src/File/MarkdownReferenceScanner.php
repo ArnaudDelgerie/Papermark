@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\File;
 
+use App\Enum\File\MarkdownReferenceType;
+
 /**
  * Finds the image and local-document references inside a markdown document,
  * for the export archive feature (see EDITOR_EXPORT.md).

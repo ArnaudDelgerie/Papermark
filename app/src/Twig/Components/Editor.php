@@ -3,9 +3,9 @@
 namespace App\Twig\Components;
 
 use App\Ai\AiTopicResolver;
-use App\Locale\AppLocale;
+use App\Enum\Setting\AppLocale;
+use App\Enum\Setting\ThemeMode;
 use App\Setting\SettingStore;
-use App\Theme\ThemeMode;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;

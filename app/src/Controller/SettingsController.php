@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Ai\ProviderName;
 use App\Ai\ApiKeyResolver;
 use App\Editor\EditorState;
+use App\Enum\Ai\ProviderName;
+use App\Enum\Setting\AppLocale;
+use App\Enum\Setting\ThemeMode;
 use App\Form\SettingsType;
-use App\Locale\AppLocale;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
 use App\Setting\SettingStore;
-use App\Theme\ThemeMode;
 use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\BridgeException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;

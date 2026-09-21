@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Import;
 
-use App\Editor\EditorMode;
+use App\Enum\Archive\ArchiveImportRefusalReason;
+use App\Enum\Setting\EditorMode;
 use App\File\MarkdownReferenceScanner;
 
 /**

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\File;
 
+use App\Enum\File\MarkdownReferenceType;
 use App\File\MarkdownReference;
 use App\File\MarkdownReferenceScanner;
-use App\File\MarkdownReferenceType;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

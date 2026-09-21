@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Import;
 
-use App\Editor\EditorMode;
+use App\Enum\Setting\EditorMode;
 
 /**
  * What ArchiveImporter::import() produced: the folder it created, what to

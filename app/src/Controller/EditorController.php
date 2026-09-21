@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Editor\EditorMode;
 use App\Editor\EditorState;
+use App\Enum\Setting\EditorMode;
 use App\File\MarkdownFileReader;
 use App\File\MarkdownImageUrls;
 use App\File\OpenDirectoryTree;
