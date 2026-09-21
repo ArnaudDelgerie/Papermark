@@ -15,10 +15,6 @@ enums:
     markdown_reference_type:
         image: Image
         link: Lien
-    path_refusal:
-        not_found: Chemin introuvable
-        symlink: Le chemin est un lien symbolique
-        not_a_file: Le chemin n'est pas un fichier ordinaire
     app_locale:
         en: English
         fr: Français

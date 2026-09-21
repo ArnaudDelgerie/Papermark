@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace App\File;
 
-use App\Enum\File\PathRefusal;
+use App\Exception\File\PathIsSymlinkException;
+use App\Exception\File\PathNotAFileException;
+use App\Exception\File\PathNotFoundException;
 use Symfony\Component\Validator\Constraint;
 
 /**
  * The one place that decides whether the app may touch a path, and how (see
  * .project/lots/02-chemins.md). PathResolver stays the mechanical half —
  * joining a relative path to an anchor, realpath, validating a constraint —
- * while this service owns the policy on top of it: the write intention sees
+ * while this service owns the policy on top of it: the write intentions see
  * the path itself with lstat(), never through realpath() alone, so a
  * symbolic link is refused before it is followed.
  *
  * Reading follows links: opening a linked .md is a normal use. Writing
  * never does: save, delete and rename must act on what the user sees, not
- * on whatever the link points to.
+ * on whatever the link points to. Those three refuse with an exception.
  */
 final class PathPolicy
 {
@@ -45,28 +47,49 @@ final class PathPolicy
     }
 
     /**
-     * Intention write: a file that may not exist yet (a save, later the
-     * target of an archive import). The parent must resolve to a directory;
-     * an existing path must be a regular file and never a symbolic link —
-     * whatever the link points to is not what was asked for.
+     * Intention save: a file that may not exist yet. The parent must resolve
+     * to a directory; an existing path must be a regular file and never a
+     * symbolic link — whatever the link points to is not what was asked for.
+     *
+     * @return string the canonical path
+     *
+     * @throws PathNotFoundException  the parent can't be resolved
+     * @throws PathIsSymlinkException
+     * @throws PathNotAFileException
      */
-    public function write(string $path): PathPermission
+    public function save(string $path): string
     {
-        $parent = realpath(\dirname($path));
-        if ($parent === false || !is_dir($parent)) {
-            return PathPermission::refused(PathRefusal::NotFound);
-        }
+        return $this->writable($path);
+    }
 
-        $canonical = $parent . '/' . basename($path);
-        if (is_link($canonical)) {
-            return PathPermission::refused(PathRefusal::Symlink);
-        }
+    /**
+     * Intention delete: an existing regular file, never a symbolic link.
+     *
+     * @return string the canonical path
+     *
+     * @throws PathNotFoundException
+     * @throws PathIsSymlinkException
+     * @throws PathNotAFileException
+     */
+    public function delete(string $path): string
+    {
+        return $this->existingWritable($path);
+    }
 
-        if (file_exists($canonical) && !is_file($canonical)) {
-            return PathPermission::refused(PathRefusal::NotAFile);
-        }
-
-        return PathPermission::allowed($canonical);
+    /**
+     * Intention rename: the file being renamed — the same rules as delete.
+     * The target is not checked here: NoReplaceRename refuses a taken one
+     * atomically.
+     *
+     * @return string the canonical path
+     *
+     * @throws PathNotFoundException
+     * @throws PathIsSymlinkException
+     * @throws PathNotAFileException
+     */
+    public function rename(string $path): string
+    {
+        return $this->existingWritable($path);
     }
 
     /**
@@ -83,5 +106,34 @@ final class PathPolicy
         }
 
         return $realPath;
+    }
+
+    private function writable(string $path): string
+    {
+        $parent = realpath(\dirname($path));
+        if ($parent === false || !is_dir($parent)) {
+            throw new PathNotFoundException($path);
+        }
+
+        $canonical = $parent . '/' . basename($path);
+        if (is_link($canonical)) {
+            throw new PathIsSymlinkException($canonical);
+        }
+
+        if (file_exists($canonical) && !is_file($canonical)) {
+            throw new PathNotAFileException($canonical);
+        }
+
+        return $canonical;
+    }
+
+    private function existingWritable(string $path): string
+    {
+        $canonical = $this->writable($path);
+        if (!is_file($canonical)) {
+            throw new PathNotFoundException($canonical);
+        }
+
+        return $canonical;
     }
 }

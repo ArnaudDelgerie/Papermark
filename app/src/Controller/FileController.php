@@ -3,7 +3,6 @@
 namespace App\Controller;
 
 use App\Editor\EditorState;
-use App\Enum\File\PathRefusal;
 use App\File\AtomicFileWriter;
 use App\File\DiskFormat;
 use App\File\MarkdownImageUrls;
@@ -147,16 +146,7 @@ final class FileController extends AbstractController
             return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
-        $permission = $this->pathPolicy->write($path);
-        if ($permission->path === null) {
-            // A symlink is refused for what it is; an unresolvable parent or
-            // a non-file lands as unwritable, as before.
-            $key = $permission->refusal === PathRefusal::Symlink ? 'symbolic_link' : 'not_writable';
-
-            return $this->stateErrorResponse($key, Response::HTTP_FORBIDDEN);
-        }
-
-        $realPath = $permission->path;
+        $realPath = $this->pathPolicy->save($path);
 
         // rename() asks the folder, not the file: without this control the
         // atomic write would make a read-only file replaceable.
@@ -225,18 +215,7 @@ final class FileController extends AbstractController
             return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
         }
 
-        $permission = $this->pathPolicy->write($path);
-        if ($permission->path === null) {
-            // A symlink is refused for what it is, the rest as not found.
-            return $permission->refusal === PathRefusal::Symlink
-                ? $this->stateErrorResponse('symbolic_link', Response::HTTP_FORBIDDEN)
-                : $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
-        }
-
-        $realPath = $permission->path;
-        if (!is_file($realPath)) {
-            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
-        }
+        $realPath = $this->pathPolicy->delete($path);
 
         if (!@unlink($realPath)) {
             return $this->stateErrorResponse('delete_error', Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -279,18 +258,7 @@ final class FileController extends AbstractController
             return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
         }
 
-        $permission = $this->pathPolicy->write($path);
-        if ($permission->path === null) {
-            // A symlink is refused for what it is, the rest as not found.
-            return $permission->refusal === PathRefusal::Symlink
-                ? $this->stateErrorResponse('symbolic_link', Response::HTTP_FORBIDDEN)
-                : $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
-        }
-
-        $realPath = $permission->path;
-        if (!is_file($realPath)) {
-            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
-        }
+        $realPath = $this->pathPolicy->rename($path);
 
         $newPath = \dirname($realPath) . '/' . $name;
 

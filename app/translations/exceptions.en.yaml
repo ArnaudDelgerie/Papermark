@@ -2,3 +2,6 @@ exceptions:
     file:
         rename_target_exists: A file with that name already exists
         write_failed: Could not write the file
+        path_is_symlink: A symbolic link cannot be modified
+        path_not_a_file: The path is not a regular file
+        path_not_found: Path not found

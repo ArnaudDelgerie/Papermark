@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\File;
 
-use App\Enum\File\PathRefusal;
+use App\Exception\File\PathIsSymlinkException;
+use App\Exception\File\PathNotAFileException;
+use App\Exception\File\PathNotFoundException;
 use App\File\PathPolicy;
 use App\File\PathResolver;
 use PHPUnit\Framework\TestCase;
@@ -84,51 +86,93 @@ final class PathPolicyTest extends TestCase
         self::assertNull($this->policy->read('doc.md', $anchor, $this->imageConstraint()));
     }
 
-    public function testWriteAllowsAFileThatDoesNotExistYet(): void
+    public function testSaveAllowsAFileThatDoesNotExistYet(): void
     {
-        $permission = $this->policy->write($this->root . '/new.md');
-
-        self::assertNotNull($permission->path);
-        self::assertSame($this->root . '/new.md', $permission->path);
-        self::assertNull($permission->refusal);
+        self::assertSame($this->root . '/new.md', $this->policy->save($this->root . '/new.md'));
     }
 
-    public function testWriteAllowsAnExistingRegularFile(): void
+    public function testSaveAllowsAnExistingRegularFile(): void
     {
         $path = $this->createFile('doc.md', '# Hello');
 
-        self::assertNotNull($this->policy->write($path)->path);
+        self::assertSame($path, $this->policy->save($path));
     }
 
-    public function testWriteRefusesASymlinkWithoutFollowingIt(): void
+    public function testSaveRefusesASymlinkWithoutFollowingIt(): void
     {
         $target = $this->createFile('target.md', '# Target');
         $link = $this->root . '/link.md';
         symlink($target, $link);
         $this->tempPaths[] = $link;
 
-        $permission = $this->policy->write($link);
+        $this->expectException(PathIsSymlinkException::class);
 
-        self::assertNull($permission->path);
-        self::assertSame(PathRefusal::Symlink, $permission->refusal);
+        $this->policy->save($link);
     }
 
-    public function testWriteRefusesADirectoryAsThePath(): void
+    public function testSaveRefusesADirectoryAsThePath(): void
     {
         mkdir($this->root . '/a_dir');
 
-        $permission = $this->policy->write($this->root . '/a_dir');
+        $this->expectException(PathNotAFileException::class);
 
-        self::assertNull($permission->path);
-        self::assertSame(PathRefusal::NotAFile, $permission->refusal);
+        $this->policy->save($this->root . '/a_dir');
     }
 
-    public function testWriteRefusesAPathWhoseParentCantBeResolved(): void
+    public function testSaveRefusesAPathWhoseParentCantBeResolved(): void
     {
-        $permission = $this->policy->write('/no/such/dir_' . uniqid() . '/doc.md');
+        $this->expectException(PathNotFoundException::class);
 
-        self::assertNull($permission->path);
-        self::assertSame(PathRefusal::NotFound, $permission->refusal);
+        $this->policy->save('/no/such/dir_' . uniqid() . '/doc.md');
+    }
+
+    public function testDeleteAllowsAnExistingRegularFile(): void
+    {
+        $path = $this->createFile('doc.md', '# Hello');
+
+        self::assertSame($path, $this->policy->delete($path));
+    }
+
+    public function testDeleteRefusesAFileThatDoesNotExist(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->delete($this->root . '/missing.md');
+    }
+
+    public function testDeleteRefusesASymlinkWithoutFollowingIt(): void
+    {
+        $target = $this->createFile('target.md', '# Target');
+        $link = $this->root . '/link.md';
+        symlink($target, $link);
+        $this->tempPaths[] = $link;
+
+        $this->expectException(PathIsSymlinkException::class);
+
+        $this->policy->delete($link);
+    }
+
+    public function testRenameAllowsAnExistingRegularFile(): void
+    {
+        $path = $this->createFile('doc.md', '# Hello');
+
+        self::assertSame($path, $this->policy->rename($path));
+    }
+
+    public function testRenameRefusesAFileThatDoesNotExist(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->rename($this->root . '/missing.md');
+    }
+
+    public function testRenameRefusesADirectoryAsThePath(): void
+    {
+        mkdir($this->root . '/a_dir');
+
+        $this->expectException(PathNotAFileException::class);
+
+        $this->policy->rename($this->root . '/a_dir');
     }
 
     public function testListResolvesAnExistingDirectoryOnly(): void
