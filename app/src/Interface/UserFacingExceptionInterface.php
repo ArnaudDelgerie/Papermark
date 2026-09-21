@@ -11,6 +11,6 @@ namespace App\Interface;
  */
 interface UserFacingExceptionInterface extends \Throwable
 {
-    /** Key under `components.editor.error.` in the components domain. */
-    public function getErrorKey(): string;
+    /** Full key in the exceptions translation domain. */
+    public function getTranslationKey(): string;
 }

@@ -91,7 +91,6 @@ components:
             no_key: Aucune clé API fournie
             invalid_name: Nom de fichier invalide
             symbolic_link: Un lien symbolique ne peut pas être modifié
-            rename_target_exists: Un fichier avec ce nom existe déjà
             save_conflict_modified: Le fichier a été modifié en dehors de Papermark
             save_conflict_gone: Le fichier n'existe plus sur le disque
             not_utf8: Le fichier n'est pas encodé en UTF-8 ; seuls les fichiers UTF-8 peuvent être ouverts

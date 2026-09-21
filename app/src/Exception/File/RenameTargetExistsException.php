@@ -16,8 +16,8 @@ final class RenameTargetExistsException extends \RuntimeException implements Use
         parent::__construct(\sprintf('Rename target "%s" already exists.', $target));
     }
 
-    public function getErrorKey(): string
+    public function getTranslationKey(): string
     {
-        return 'rename_target_exists';
+        return 'exceptions.file.rename_target_exists';
     }
 }

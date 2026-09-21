@@ -38,7 +38,7 @@ final class UserFacingExceptionListener
         }
 
         $event->setResponse(new JsonResponse([
-            'error' => $this->translator->trans('components.editor.error.' . $exception->getErrorKey(), [], 'components'),
+            'error' => $this->translator->trans($exception->getTranslationKey(), domain: 'exceptions'),
             'state' => $this->editorState->toArray(),
         ], $throwable->getStatusCode(), $throwable->getHeaders()));
     }

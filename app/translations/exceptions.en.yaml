@@ -1,0 +1,4 @@
+exceptions:
+    file:
+        rename_target_exists: A file with that name already exists
+        write_failed: Could not write the file

@@ -16,8 +16,8 @@ final class WriteFailedException extends \RuntimeException implements UserFacing
         parent::__construct(\sprintf('Could not write "%s".', $path));
     }
 
-    public function getErrorKey(): string
+    public function getTranslationKey(): string
     {
-        return 'write_error';
+        return 'exceptions.file.write_failed';
     }
 }
