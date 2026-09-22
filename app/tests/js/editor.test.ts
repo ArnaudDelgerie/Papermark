@@ -1,11 +1,9 @@
 import type { Application } from '@hotwired/stimulus';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { abortAICmd } from '@milkdown/crepe/feature/ai';
-import { EditorStatus, commandsCtx } from '@milkdown/kit/core';
 import EditorController from '../../assets/controllers/editor_controller';
 import EditorStateController from '../../assets/controllers/editor_state_controller';
 import ModeSwitchController from '../../assets/controllers/mode_switch_controller';
-import EditorFactory from '../../assets/editor/editor-factory';
+import CrepeHost from '../../assets/editor/crepe-host';
 import { type EditorState, emit, on } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { saveConflictDialog } from '../../assets/utils/conflict-dialog';
@@ -13,62 +11,106 @@ import { INITIAL, attr, masterHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
 import EDITOR_I18N from '../contract/i18n/editor.json';
 
-vi.mock('../../assets/editor/editor-factory', () => ({ default: { create: vi.fn() } }));
+vi.mock('../../assets/editor/crepe-host', () => ({ default: vi.fn() }));
 vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
 vi.mock('../../assets/utils/conflict-dialog', () => ({ saveConflictDialog: vi.fn() }));
-// The fake Crepe below applies what replaceAll() returns.
-vi.mock('@milkdown/utils', () => ({ replaceAll: (markdown: string, flush = false) => ({ replaceAll: markdown, flush }) }));
 
-/** Just enough of Crepe for the controller: markdown in, markdown out, updates. */
-function fakeCrepe(initial = '', serialize: (markdown: string) => string = (markdown) => markdown): {
-    getMarkdown: () => string;
-    type: (markdown: string) => void;
-    flushes: boolean[];
-    commands: { call: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
+// How the next recreate() serializes the markdown it carries over; reset in
+// beforeEach, reassignable per test.
+let serialize: (markdown: string) => string = (markdown) => markdown;
+
+interface CrepeBuild {
+    aiEnabled: boolean;
+    markdown: string;
+}
+
+/**
+ * Just enough of CrepeHost for the controller, stateful like the real one:
+ * one build at create(), more through recreate() — governed by `serialize`,
+ * reassignable per test, for the recreated document's markdown. replace()
+ * and type() (what typing in the editor does) both swap the current
+ * markdown and deliver it to whatever onChange() registered. The serial
+ * ordering of concurrent recreate() calls is CrepeHost's own, tested in
+ * crepe-host.test.ts; this fake only records the calls, in order.
+ */
+function fakeHost(): {
+    create: ReturnType<typeof vi.fn>;
+    recreate: ReturnType<typeof vi.fn>;
+    whenIdle: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
+    markdown: () => string;
+    type: (markdown: string) => void;
+    replace: ReturnType<typeof vi.fn>;
+    onChange: (listener: (markdown: string) => void) => void;
+    setEditable: ReturnType<typeof vi.fn>;
+    focus: ReturnType<typeof vi.fn>;
+    isAiBusy: ReturnType<typeof vi.fn>;
+    discardAi: ReturnType<typeof vi.fn>;
+    insertImage: ReturnType<typeof vi.fn>;
+    printCopy: ReturnType<typeof vi.fn>;
+    readonly created: boolean;
+    readonly aiEnabled: boolean;
+    readonly builds: CrepeBuild[];
 } {
-    let markdown = initial;
-    // The flush flag of each replaceAll(): true starts a fresh state.
-    const flushes: boolean[] = [];
-    const listeners: Array<(ctx: unknown, markdown: string) => void> = [];
-    // What #discardAi() calls and what #isAiInProgress() reads, session in
-    // test mode (lot 03): get(key)(payload)(state) says "no session".
-    const commands = {
-        call: vi.fn(),
-        get: vi.fn(() => () => () => false),
-    };
-    const view = { state: {} };
-    const ctx = { get: (key: unknown) => (key === commandsCtx ? commands : view) };
-    const set = (value: string): void => {
-        markdown = value;
-        listeners.forEach((listener) => listener(null, serialize(markdown)));
-    };
+    let markdown = '';
+    let aiEnabled = false;
+    let createdFlag = false;
+    let changeListener: ((markdown: string) => void) | null = null;
+    const builds: CrepeBuild[] = [];
 
     return {
-        getMarkdown: () => serialize(markdown),
-        // What typing in the editor does.
-        type: set,
-        flushes,
-        commands,
-        editor: {
-            status: EditorStatus.Created,
-            ctx,
-            action: (command: unknown) => {
-                // #replaceDocument() passes what replaceAll() returned;
-                // #discardAi() passes a plain function to run on the ctx.
-                if (typeof command === 'function') {
-                    (command as (ctx: unknown) => void)(ctx);
-                } else if ((command as { replaceAll?: string }).replaceAll !== undefined) {
-                    flushes.push((command as { flush?: boolean }).flush ?? false);
-                    set((command as { replaceAll: string }).replaceAll);
-                }
-            },
-        },
-        on: (register: (listener: { markdownUpdated: (fn: (ctx: unknown, md: string) => void) => void }) => void) => {
-            register({ markdownUpdated: (fn) => listeners.push(fn) });
-        },
+        create: vi.fn((options: { markdown?: string; aiEnabled: boolean; aiProvider?: unknown }) => {
+            markdown = options.markdown ?? '';
+            aiEnabled = options.aiEnabled;
+            createdFlag = true;
+            builds.push({ aiEnabled, markdown });
+
+            return Promise.resolve();
+        }),
+        recreate: vi.fn((nextAiEnabled: boolean, provider: () => unknown) => {
+            if (!createdFlag || nextAiEnabled === aiEnabled) {
+                return Promise.resolve(null);
+            }
+            const carried = markdown;
+            provider();
+            aiEnabled = nextAiEnabled;
+            markdown = serialize(carried);
+            builds.push({ aiEnabled: nextAiEnabled, markdown: carried });
+            changeListener?.(markdown);
+
+            return Promise.resolve(carried);
+        }),
+        whenIdle: vi.fn(() => Promise.resolve()),
         destroy: vi.fn(),
-    } as ReturnType<typeof fakeCrepe>;
+        markdown: () => markdown,
+        // What typing in the editor does.
+        type: (value: string) => {
+            markdown = value;
+            changeListener?.(markdown);
+        },
+        replace: vi.fn((value: string) => {
+            markdown = value;
+            changeListener?.(markdown);
+        }),
+        onChange: (listener: (markdown: string) => void) => {
+            changeListener = listener;
+        },
+        setEditable: vi.fn(),
+        focus: vi.fn(),
+        isAiBusy: vi.fn(() => false),
+        discardAi: vi.fn(),
+        insertImage: vi.fn(),
+        printCopy: vi.fn(() => null),
+        get created(): boolean {
+            return createdFlag;
+        },
+        get aiEnabled(): boolean {
+            return aiEnabled;
+        },
+        get builds(): CrepeBuild[] {
+            return builds;
+        },
+    };
 }
 
 function editorHtml(): string {
@@ -96,7 +138,7 @@ function editorHtml(): string {
 
 describe('the editor, with the master', () => {
     let application: Application;
-    let crepe: ReturnType<typeof fakeCrepe>;
+    let host: ReturnType<typeof fakeHost>;
     let fetchMock: ReturnType<typeof vi.fn>;
     let invoke: ReturnType<typeof vi.fn>;
     const files: Record<string, string> = {};
@@ -174,8 +216,14 @@ describe('the editor, with the master', () => {
     }
 
     beforeEach(() => {
-        crepe = fakeCrepe();
-        vi.mocked(EditorFactory.create).mockResolvedValue(crepe as never);
+        serialize = (markdown) => markdown;
+        // A regular function, not an arrow one: `new CrepeHost(...)` needs a
+        // constructable implementation.
+        vi.mocked(CrepeHost).mockImplementation(function () {
+            host = fakeHost();
+
+            return host as never;
+        });
         fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
         invoke = vi.fn();
@@ -204,7 +252,7 @@ describe('the editor, with the master', () => {
     it('reads the current file of the state at load, once Crepe is ready', async () => {
         await start(current);
 
-        expect(crepe.getMarkdown()).toBe('# A');
+        expect(host.markdown()).toBe('# A');
         expect(label()).toBe('/notes/a.md');
     });
 
@@ -220,21 +268,21 @@ describe('the editor, with the master', () => {
         await start(current);
 
         click('[data-mode="dir"]');
-        expect(crepe.getMarkdown()).toBe('# A');
+        expect(host.markdown()).toBe('# A');
         await settle();
 
-        expect(crepe.getMarkdown()).toBe('');
+        expect(host.markdown()).toBe('');
         expect(label()).toBe('Untitled');
     });
 
     it('reads the file again when it is picked again, even the current one', async () => {
         await start(current);
-        crepe.type('# A, edited');
+        host.type('# A, edited');
 
         emit('editor:nav-change_file-succeeded', { state: current, action: { path: '/notes/a.md' } });
         await settle();
 
-        expect(crepe.getMarkdown()).toBe('# A');
+        expect(host.markdown()).toBe('# A');
         expect(calls('GET', '/document')).toHaveLength(2);
     });
 
@@ -250,7 +298,7 @@ describe('the editor, with the master', () => {
             });
             await settle();
 
-            expect(crepe.getMarkdown()).toBe('# Imported');
+            expect(host.markdown()).toBe('# Imported');
             expect(label()).toBe('/notes/imported.md');
         });
 
@@ -264,13 +312,13 @@ describe('the editor, with the master', () => {
             });
             await settle();
 
-            expect(crepe.getMarkdown()).toBe('');
+            expect(host.markdown()).toBe('');
             expect(label()).toBe('Untitled');
         });
 
         it('that opened nothing leaves the document as it is', async () => {
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
 
             emit('editor:do-import-succeeded', {
                 state: current,
@@ -278,19 +326,20 @@ describe('the editor, with the master', () => {
             });
             await settle();
 
-            expect(crepe.getMarkdown()).toBe('# A, edited');
+            expect(host.markdown()).toBe('# A, edited');
             expect(label()).toBe('/notes/a.md');
             expect(calls('GET', '/document')).toHaveLength(1);
         });
     });
 
-    it('loads and empties with a fresh document, so undo cannot bring another file back', async () => {
+    it('loads and empties with a fresh document each time, so undo cannot bring another file back', async () => {
         await start(current);
         click('[data-action="click->editor#newFile"]');
 
-        // A load now empties first (FRT-04): the emptying for the load, the
-        // load itself, then the one New asked for.
-        expect(crepe.flushes).toEqual([true, true, true]);
+        // The emptying for the load (FRT-04), the load itself, then the one
+        // New asked for — each replaces the document; CrepeHost always
+        // flushes on replace() (crepe-host.test.ts).
+        expect(host.replace).toHaveBeenCalledTimes(3);
     });
 
     it('New empties at once and asks the master to drop the current file', async () => {
@@ -298,7 +347,7 @@ describe('the editor, with the master', () => {
 
         click('[data-action="click->editor#newFile"]');
 
-        expect(crepe.getMarkdown()).toBe('');
+        expect(host.markdown()).toBe('');
         await settle();
         expect(calls('DELETE', '/editor/file')).toHaveLength(1);
         expect(current.file).toBeNull();
@@ -306,7 +355,7 @@ describe('the editor, with the master', () => {
 
     it('Save asks the master with the markdown and the revision it read, and is clean once answered', async () => {
         await start(current);
-        crepe.type('# A, edited');
+        host.type('# A, edited');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
 
         click('[data-editor-target="saveButton"]');
@@ -324,7 +373,7 @@ describe('the editor, with the master', () => {
     it('Save as takes the path the server answers with', async () => {
         current = { ...current, mode: 'dir', dir: '/notes', file: null };
         await start(current);
-        crepe.type('# New');
+        host.type('# New');
         invoke.mockResolvedValue('/notes/new.md');
 
         click('[data-editor-target="saveAsButton"]');
@@ -350,7 +399,7 @@ describe('the editor, with the master', () => {
 
         it('is active on an emptied document: a zero-byte file is a legitimate file', async () => {
             await start(current);
-            crepe.type('');
+            host.type('');
 
             expect(saveButton().disabled).toBe(false);
             click('[data-editor-target="saveButton"]');
@@ -363,7 +412,7 @@ describe('the editor, with the master', () => {
         it('stays grayed on a document with no path: Save as is the CTA for that', async () => {
             current = { ...current, file: null };
             await start(current);
-            crepe.type('# New');
+            host.type('# New');
 
             expect(saveButton().disabled).toBe(true);
             expect(saveAsButton().disabled).toBe(false);
@@ -377,7 +426,7 @@ describe('the editor, with the master', () => {
 
         it('keeps the buttons disabled while a save is in flight, and ignores a second click', async () => {
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
             let answer!: (response: Response) => void;
             fetchMock.mockImplementation((url: string) => url === '/document/save'
                 ? new Promise((resolve) => { answer = resolve; })
@@ -404,13 +453,13 @@ describe('the editor, with the master', () => {
 
         it('renews the revision at each save and sends it back on the next one', async () => {
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
 
             click('[data-editor-target="saveButton"]');
             await settle();
             expect((calls('POST', '/document/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
 
-            crepe.type('# A, edited more');
+            host.type('# A, edited more');
             click('[data-editor-target="saveButton"]');
             await settle();
 
@@ -420,7 +469,7 @@ describe('the editor, with the master', () => {
         it('on a 409, asks Save as or Overwrite instead of toasting, and Overwrite writes without a revision', async () => {
             vi.mocked(saveConflictDialog).mockResolvedValue('overwrite');
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
             conflictNextSave = true;
 
             click('[data-editor-target="saveButton"]');
@@ -447,7 +496,7 @@ describe('the editor, with the master', () => {
         it('on a 409, Save as goes through the picker', async () => {
             vi.mocked(saveConflictDialog).mockResolvedValue('save_as');
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
             conflictNextSave = true;
             invoke.mockResolvedValue('/notes/copy.md');
 
@@ -465,11 +514,11 @@ describe('the editor, with the master', () => {
     describe('intention or anomaly (lot 03)', () => {
         it('keeps the text and drops the path when its file is deleted with unsaved changes', async () => {
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
 
             emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/a.md' } });
 
-            expect(crepe.getMarkdown()).toBe('# A, edited');
+            expect(host.markdown()).toBe('# A, edited');
             expect(label()).toBe('Untitled');
             // Still dirty, and Save as is the way out.
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
@@ -484,7 +533,7 @@ describe('the editor, with the master', () => {
             // Not a line typed: the document matches what was read from disk.
             emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/a.md' } });
 
-            expect(crepe.getMarkdown()).toBe('# A');
+            expect(host.markdown()).toBe('# A');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
 
             // And leaving asks, instead of dropping the text without a word.
@@ -508,7 +557,7 @@ describe('the editor, with the master', () => {
 
             emit('editor:state-resynced', { state: { ...current, file: null }, anomaly: { file: '/notes/a.md' } });
 
-            expect(crepe.getMarkdown()).toBe('# A');
+            expect(host.markdown()).toBe('# A');
             expect(label()).toBe('Untitled');
             expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.currentFileGone.replace('{name}', 'a.md') }]);
         });
@@ -518,7 +567,7 @@ describe('the editor, with the master', () => {
 
             emit('editor:nav-change_file-failed', { state: { ...current, file: null }, action: { path: '/notes/a.md' } });
 
-            expect(crepe.getMarkdown()).toBe('# A');
+            expect(host.markdown()).toBe('# A');
             expect(label()).toBe('Untitled');
         });
 
@@ -527,7 +576,7 @@ describe('the editor, with the master', () => {
 
             emit('editor:nav-change_file-failed', { state: { ...current, file: null }, action: { path: '/notes/other.md' } });
 
-            expect(crepe.getMarkdown()).toBe('');
+            expect(host.markdown()).toBe('');
             expect(label()).toBe('Untitled');
         });
     });
@@ -537,7 +586,7 @@ describe('the editor, with the master', () => {
             fetchMock.mockImplementation(async () => jsonResponse({ genericErrors: ['Open failed'] }, 500));
             await start(current);
 
-            expect(crepe.getMarkdown()).toBe('');
+            expect(host.markdown()).toBe('');
             expect($('[data-editor-target="loadErrorMessage"]').textContent).toBe('Open failed');
             expect($('[data-controller="editor"]').classList.contains('is-load-failed')).toBe(true);
             expect(saveButton().disabled).toBe(true);
@@ -549,7 +598,7 @@ describe('the editor, with the master', () => {
             click('[data-action="click->editor#retryLoad"]');
             await settle();
 
-            expect(crepe.getMarkdown()).toBe('# A');
+            expect(host.markdown()).toBe('# A');
             expect(label()).toBe('/notes/a.md');
             expect($('[data-controller="editor"]').classList.contains('is-load-failed')).toBe(false);
             expect(saveAsButton().disabled).toBe(false);
@@ -571,12 +620,12 @@ describe('the editor, with the master', () => {
 
         emit('editor:do-rename-succeeded', { state: current, action: { oldPath: '/notes/a.md', newPath: '/notes/b.md' } });
         expect(label()).toBe('/notes/b.md');
-        expect(crepe.getMarkdown()).toBe('# A');
+        expect(host.markdown()).toBe('# A');
 
         // An anomaly (lot 03): the text stays, only the path falls — and it
         // counts as unsaved, its copy on disk having just gone.
         emit('editor:do-delete-succeeded', { state: { ...current, file: null }, action: { path: '/notes/b.md' } });
-        expect(crepe.getMarkdown()).toBe('# A');
+        expect(host.markdown()).toBe('# A');
         expect(label()).toBe('Untitled');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
         expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.currentFileDeleted.replace('{name}', 'b.md') }]);
@@ -590,7 +639,7 @@ describe('the editor, with the master', () => {
         await start(current);
         await settle();
 
-        expect(crepe.getMarkdown()).toBe('');
+        expect(host.markdown()).toBe('');
         expect(toasts).toEqual([{ type: 'error', message: 'Path not found' }]);
         expect(calls('GET', '/editor/state')).toHaveLength(1);
         expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, file: null }, anomaly: { file: '/notes/a.md' } });
@@ -605,41 +654,21 @@ describe('the editor, with the master', () => {
         await start(current);
         await settle();
 
-        expect(crepe.getMarkdown()).toBe('');
+        expect(host.markdown()).toBe('');
         expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.fileNotFound }]);
     });
 
     describe('the AI, following the state', () => {
-        interface Creation {
-            aiEnabled: boolean;
-            defaultValue: string;
-        }
-        let crepes: Array<ReturnType<typeof fakeCrepe>>;
-        // How the next Crepe serializes what it is given.
-        let serialize: (markdown: string) => string;
-
-        const creations = (): Creation[] => vi.mocked(EditorFactory.create).mock.calls.map(([options]) => options as unknown as Creation);
         const withAi = (aiEnabled: boolean): EditorState => ({ ...current, ai_enabled: aiEnabled });
-
-        beforeEach(() => {
-            crepes = [];
-            serialize = (markdown) => markdown;
-            vi.mocked(EditorFactory.create).mockImplementation((async (options: Creation) => {
-                const created = fakeCrepe(options.defaultValue, serialize);
-                crepes.push(created);
-
-                return created;
-            }) as never);
-        });
+        const creations = (): CrepeBuild[] => host.builds;
 
         it('creates Crepe with the AI as the state has it at load', async () => {
             await start(withAi(false));
-            expect(creations().map((creation) => creation.aiEnabled)).toEqual([false]);
+            expect(creations().map((build) => build.aiEnabled)).toEqual([false]);
 
             await unmount(application);
-            vi.mocked(EditorFactory.create).mockClear();
             await start(withAi(true));
-            expect(creations().map((creation) => creation.aiEnabled)).toEqual([true]);
+            expect(creations().map((build) => build.aiEnabled)).toEqual([true]);
         });
 
         it.each([
@@ -648,19 +677,18 @@ describe('the editor, with the master', () => {
             ['do-delete_key-succeeded', { name: 'mistral' }],
         ] as const)('%s turning the AI on recreates Crepe around the same markdown, with no confirmation', async (name, action) => {
             await start(withAi(false));
-            crepes[0].type('# A, edited');
+            host.type('# A, edited');
 
             emit(`editor:${name}`, { state: withAi(true), action } as never);
             await settle();
 
             expect(creations()).toEqual([
-                expect.objectContaining({ aiEnabled: false }),
-                expect.objectContaining({ aiEnabled: true, defaultValue: '# A, edited' }),
+                { aiEnabled: false, markdown: '' },
+                { aiEnabled: true, markdown: '# A, edited' },
             ]);
-            expect(crepes[0].destroy).toHaveBeenCalledTimes(1);
             expect(confirmDialog).not.toHaveBeenCalled();
             // What was on screen is still there: the file, and the unsaved state.
-            expect(crepes[1].getMarkdown()).toBe('# A, edited');
+            expect(host.markdown()).toBe('# A, edited');
             expect(label()).toBe('/notes/a.md');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
         });
@@ -671,7 +699,7 @@ describe('the editor, with the master', () => {
             emit('editor:do-delete_key-succeeded', { state: withAi(false), action: { name: 'anthropic' } });
             await settle();
 
-            expect(creations().map((creation) => creation.aiEnabled)).toEqual([true, false]);
+            expect(creations().map((build) => build.aiEnabled)).toEqual([true, false]);
         });
 
         it('does nothing when the state agrees with what Crepe was created with', async () => {
@@ -681,7 +709,6 @@ describe('the editor, with the master', () => {
             await settle();
 
             expect(creations()).toHaveLength(1);
-            expect(crepes[0].destroy).not.toHaveBeenCalled();
         });
 
         it('a clean document stays clean even if Crepe serializes it differently the second time', async () => {
@@ -692,7 +719,7 @@ describe('the editor, with the master', () => {
             emit('editor:do-set_key-succeeded', { state: withAi(true), action: { name: 'mistral' } });
             await settle();
 
-            expect(crepes[1].getMarkdown()).toBe('# A\n');
+            expect(host.markdown()).toBe('# A\n');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
         });
 
@@ -703,15 +730,16 @@ describe('the editor, with the master', () => {
             emit('editor:do-delete_key-succeeded', { state: withAi(false), action: { name: 'mistral' } });
             await settle();
 
-            expect(creations().map((creation) => creation.aiEnabled)).toEqual([false, true, false]);
-            expect(crepes[1].destroy).toHaveBeenCalledTimes(1);
+            // The serial ordering itself is CrepeHost's own (crepe-host.test.ts):
+            // here, only that the controller asks for both, in order.
+            expect(host.recreate.mock.calls.map((call) => call[0] as boolean)).toEqual([true, false]);
         });
 
         it('Save still works on the new Crepe, with its markdown', async () => {
             await start(withAi(false));
             emit('editor:do-save_settings-succeeded', { state: withAi(true), action: {} });
             await settle();
-            crepes[1].type('# A, edited');
+            host.type('# A, edited');
 
             click('[data-editor-target="saveButton"]');
             await settle();
@@ -721,28 +749,19 @@ describe('the editor, with the master', () => {
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
         });
 
-        it('discards the AI on every document replacement (IA-04)', async () => {
-            await start(withAi(true));
-
-            click('[data-action="click->editor#newFile"]');
-            await settle();
-
-            expect(crepes[0].commands.call).toHaveBeenCalledWith(abortAICmd.key, { keep: false });
-        });
-
         it('discards the AI when the current file is deleted, even mid-generation', async () => {
             await start(withAi(true));
 
             emit('editor:do-delete-succeeded', { state: withAi(true), action: { path: '/notes/a.md' } });
 
-            expect(crepes[0].commands.call).toHaveBeenCalledWith(abortAICmd.key, { keep: false });
+            expect(host.discardAi).toHaveBeenCalled();
         });
 
         it('the leave guard also sees a Crepe session in progress, not just streaming and diff', async () => {
             vi.mocked(confirmDialog).mockResolvedValue(false);
             await start(withAi(true));
             // The session read in test mode: the command would abort (IA-04).
-            crepes[0].commands.get.mockReturnValue(() => () => true);
+            host.isAiBusy.mockReturnValue(true);
 
             click('[data-mode="dir"]');
             await settle();
@@ -756,7 +775,7 @@ describe('the editor, with the master', () => {
         it('lets nothing through while unsaved work is not given up', async () => {
             vi.mocked(confirmDialog).mockResolvedValue(false);
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
 
             click('[data-mode="dir"]');
             await settle();
@@ -769,13 +788,13 @@ describe('the editor, with the master', () => {
         it('replays the click once confirmed, and the request goes out', async () => {
             vi.mocked(confirmDialog).mockResolvedValue(true);
             await start(current);
-            crepe.type('# A, edited');
+            host.type('# A, edited');
 
             click('[data-mode="dir"]');
             await settle();
 
             expect(calls('POST', '/editor/mode')).toHaveLength(1);
-            expect(crepe.getMarkdown()).toBe('');
+            expect(host.markdown()).toBe('');
         });
 
         it('asks nothing with nothing to lose', async () => {

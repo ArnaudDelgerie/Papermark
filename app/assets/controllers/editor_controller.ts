@@ -1,16 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
-import type { Crepe } from '@milkdown/crepe';
-import { abortAICmd } from '@milkdown/crepe/feature/ai';
-import { EditorStatus, commandsCtx, editorViewCtx } from '@milkdown/kit/core';
-import type { Ctx } from '@milkdown/kit/ctx';
-import { imageBlockSchema } from '@milkdown/kit/component/image-block';
-import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
-import { addBlockTypeCommand, clearTextInCurrentBlockCommand } from '@milkdown/kit/preset/commonmark';
-import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
-import { DOMSerializer } from '@milkdown/kit/prose/model';
-import { replaceAll } from '@milkdown/utils';
 import AiClient from '../editor/ai-client';
-import EditorFactory from '../editor/editor-factory';
+import CrepeHost, { type CrepeI18n } from '../editor/crepe-host';
 import { type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
 import { confirmDialog } from '../utils/confirm-dialog';
@@ -39,41 +29,18 @@ interface Urls {
 }
 
 /**
- * The whole of Editor::getI18n(): the controller's own texts, plus what it
- * passes straight through to EditorFactory (placeholder, link, slashMenu,
- * codeBlock, ai.*) and AiClient (ai.requestFailed). No key is optional: the
- * server always sends the lot, so a front-end fallback would only ever mask
- * a translation missing at the source.
+ * The whole of Editor::getI18n(): the controller's own texts, plus what
+ * `CrepeI18n` passes straight through to CrepeHost (placeholder, link,
+ * slashMenu, codeBlock, ai.*) and `ai.requestFailed`, for AiClient. No key is
+ * optional: the server always sends the lot, so a front-end fallback would
+ * only ever mask a translation missing at the source.
  */
-export interface I18n {
-    placeholder: string;
-    link: { confirm: string; inputPlaceholder: string };
+export interface I18n extends CrepeI18n {
     toggle: { edit: string; readonly: string };
     untitled: string;
     unsaved: { confirm: string; cancel: string; continue: string };
     conflict: { question: string; cancel: string; saveAs: string; overwrite: string };
     loadError: string;
-    slashMenu: {
-        text: string;
-        paragraph: string;
-        h1: string;
-        h2: string;
-        h3: string;
-        h4: string;
-        h5: string;
-        h6: string;
-        quote: string;
-        divider: string;
-        list: string;
-        bulletList: string;
-        orderedList: string;
-        taskList: string;
-        advanced: string;
-        image: string;
-        code: string;
-        table: string;
-    };
-    codeBlock: { noLanguage: string; copy: string };
     toast: {
         saved: string;
         savedAs: string;
@@ -85,16 +52,7 @@ export interface I18n {
         currentFileGone: string;
         fileNotFound: string;
     };
-    ai: {
-        askAi: string;
-        instructionPlaceholder: string;
-        suggestionsHeader: string;
-        sendAsPromptHeader: string;
-        sendAsPrompt: string;
-        submitButton: string;
-        listbox: string;
-        requestFailed: string;
-    };
+    ai: CrepeI18n['ai'] & { requestFailed: string };
 }
 
 /**
@@ -142,7 +100,7 @@ export default class extends Controller<HTMLElement> {
         aiConfig: { type: Object, default: {} },
         readonly: { type: Boolean, default: false },
         // Defaults for the editor's own texts (placeholder, slash menu, AI panel)
-        // live in EditorFactory; only controller-owned UI text falls back here.
+        // live in CrepeHost; only controller-owned UI text falls back here.
         i18n: Object,
     };
 
@@ -174,18 +132,14 @@ export default class extends Controller<HTMLElement> {
     declare readonly hasLoadErrorMessageTarget: boolean;
     declare readonly loadErrorMessageTarget: HTMLElement;
 
-    #crepe: Crepe | null = null;
+    #host!: CrepeHost;
     // The outlet can connect before connect() has even started (Stimulus
     // starts the outlet observer first): it waits on this.
-    #crepeReady!: Promise<Crepe>;
-    #resolveCrepe!: (crepe: Crepe) => void;
+    #crepeReady!: Promise<void>;
+    #resolveCrepe!: () => void;
     // Crepe is created once the state is known: it says whether the AI is on.
     #stateReady!: Promise<EditorState>;
     #resolveState!: (state: EditorState) => void;
-    // What Crepe was created with.
-    #aiEnabled = false;
-    // Set while Crepe is being recreated for a change of `ai_enabled`.
-    #recreation: Promise<void> | null = null;
     #currentPath: string | null = null;
     // Save as opens its dialog in the current folder, in dir mode only.
     #directory: string | null = null;
@@ -225,15 +179,25 @@ export default class extends Controller<HTMLElement> {
         this.#isReadonly = this.readonlyValue;
 
         const { ai_enabled: aiEnabled } = await this.#stateReady;
-        this.#aiEnabled = aiEnabled;
-        this.#connectAiClient();
+        this.#connectAiClient(aiEnabled);
 
-        const crepe = await this.#createCrepe();
-        this.#crepe = crepe;
+        this.#host = new CrepeHost(this.element, this.i18nValue, {
+            onInsertImage: () => void this.#insertImageFromPicker(),
+            onCopyCode: (text) => void this.#copyCode(text),
+            // Crepe prefixes the message ("AI provider error: ..."); show the original one.
+            onAiError: (error) => showToast('error', (error.cause as Error | undefined)?.message ?? error.message),
+        });
+        this.#host.onChange((markdown) => {
+            this.#updateSaveButton(markdown);
+            this.#updatePrintButton(markdown);
+            this.#updateCopyMarkdownButton(markdown);
+            this.#updateDirtyIndicator(markdown);
+        });
+        await this.#host.create({ aiEnabled, aiProvider: this.#aiClient?.createProvider() });
 
         // A new document is clean: capture the empty editor's markdown as the
         // reference so the indicator doesn't fire on the initial content.
-        this.#savedRef = crepe.getMarkdown();
+        this.#savedRef = this.#host.markdown();
 
         window.addEventListener('beforeprint', this.#onBeforePrint);
         window.addEventListener('afterprint', this.#onAfterPrint);
@@ -252,7 +216,7 @@ export default class extends Controller<HTMLElement> {
         this.#updateDirtyIndicator(this.#savedRef);
         this.#updateFilePath();
 
-        this.#resolveCrepe(crepe);
+        this.#resolveCrepe();
     }
 
     disconnect(): void {
@@ -264,11 +228,7 @@ export default class extends Controller<HTMLElement> {
         this.#fileRequest?.abort();
         this.#removePrintCopy();
         this.#aiClient?.close();
-        // FRT-11, lot Front éditeur: destroy() is not awaited; the editor can
-        // be torn down while it is still cleaning up.
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        this.#crepe?.destroy();
-        this.#crepe = null;
+        this.#host.destroy();
         this.initialize();
     }
 
@@ -358,7 +318,7 @@ export default class extends Controller<HTMLElement> {
                     return;
                 }
                 this.#currentPath = action.newPath;
-                this.#updateSaveButton(this.#crepe?.getMarkdown());
+                this.#updateSaveButton(this.#host.markdown());
                 this.#updateFilePath();
             }),
 
@@ -385,41 +345,10 @@ export default class extends Controller<HTMLElement> {
         ];
     }
 
-    async #createCrepe(defaultValue = ''): Promise<Crepe> {
-        const crepe = await EditorFactory.create({
-            root: this.element,
-            defaultValue,
-            i18n: this.i18nValue,
-            // FRT-11, lot Front éditeur: both callbacks are async and run
-            // unwatched; their rejections are unobserved.
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onInsertImage: (ctx: Ctx) => this.#insertImageFromPicker(ctx),
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onCopyCode: (text: string) => this.#copyCode(text),
-            aiEnabled: this.#aiEnabled,
-            aiProvider: this.#aiClient?.createProvider(),
-            // Crepe prefixes the message ("AI provider error: ..."); show the original one.
-            onAiError: (error: Error) => showToast('error', (error.cause as Error | undefined)?.message ?? error.message),
-        });
-
-        this.#wrapScroll();
-
-        crepe.on((listener) => {
-            listener.markdownUpdated((_ctx, markdown) => {
-                this.#updateSaveButton(markdown);
-                this.#updatePrintButton(markdown);
-                this.#updateCopyMarkdownButton(markdown);
-                this.#updateDirtyIndicator(markdown);
-            });
-        });
-
-        return crepe;
-    }
-
     /** The AI client, once the hub and topic are known: only with AI on. */
-    #connectAiClient(): void {
+    #connectAiClient(aiEnabled: boolean): void {
         const { mercureUrl, topic } = this.aiConfigValue;
-        if (!this.#aiEnabled || mercureUrl === undefined || topic === undefined) {
+        if (!aiEnabled || mercureUrl === undefined || topic === undefined) {
             return;
         }
 
@@ -433,64 +362,34 @@ export default class extends Controller<HTMLElement> {
 
     /**
      * If the state's `ai_enabled` is no longer what Crepe was created with,
-     * recreates it. One at a time: a change met meanwhile waits for the
-     * running one, then compares again.
+     * recreates it around the same markdown. Nothing is lost, so no leave
+     * guard. The file, the read-only mode and the "unsaved" state stay; the
+     * undo history starts over, as when a file is opened.
      */
-    #followAi(state: EditorState): Promise<void> {
-        const run = async (): Promise<void> => {
-            await this.#recreation;
-            if (state.ai_enabled === this.#aiEnabled || this.#crepe === null) {
-                return;
-            }
-            await this.#recreateCrepe(state.ai_enabled);
-        };
-        const pending = run();
-        this.#recreation = pending.finally(() => {
-            if (this.#recreation === pending) {
-                this.#recreation = null;
-            }
+    async #followAi(state: EditorState): Promise<void> {
+        const markdown = await this.#host.recreate(state.ai_enabled, () => {
+            // The order of today, kept: the old client closes only once Crepe
+            // (and the generation it might be running) is gone.
+            this.#aiClient?.close();
+            this.#connectAiClient(state.ai_enabled);
+
+            return this.#aiClient?.createProvider();
         });
+        if (markdown === null) {
+            return;
+        }
 
-        return pending;
-    }
-
-    /**
-     * Extracts the markdown, recreates Crepe with or without the AI feature,
-     * puts the markdown back. Nothing is lost, so no leave guard. The file,
-     * the read-only mode and the "unsaved" state stay; the undo history
-     * starts over, as when a file is opened.
-     */
-    async #recreateCrepe(aiEnabled: boolean): Promise<void> {
-        const previous = this.#crepe!;
-        const markdown = previous.getMarkdown();
-        const wasDirty = this.#isDirty(markdown);
-
-        // A generation in progress dies with the editor it runs in.
-        this.#discardAi();
-
-        this.#crepe = null;
-        await previous.destroy();
-        // Crepe leaves its empty container behind; the next one makes its own.
-        this.element.querySelectorAll(':scope > .milkdown').forEach((container) => container.remove());
-        this.#aiClient?.close();
-        this.#aiClient = null;
-
-        this.#aiEnabled = aiEnabled;
-        this.#connectAiClient();
-
-        const crepe = await this.#createCrepe(markdown);
-        this.#crepe = crepe;
         // A clean document stays clean even if Crepe serializes it a little
         // differently the second time.
-        if (!wasDirty) {
-            this.#savedRef = crepe.getMarkdown();
+        if (!this.#isDirty(markdown)) {
+            this.#savedRef = this.#host.markdown();
         }
         if (this.#isReadonly) {
             this.#applyReadonlyState();
         }
-        this.#updateSaveButton(crepe.getMarkdown());
-        this.#updatePrintButton(crepe.getMarkdown());
-        this.#updateCopyMarkdownButton(crepe.getMarkdown());
+        this.#updateSaveButton(this.#host.markdown());
+        this.#updatePrintButton(this.#host.markdown());
+        this.#updateCopyMarkdownButton(this.#host.markdown());
         this.#updateDirtyIndicator();
     }
 
@@ -501,7 +400,7 @@ export default class extends Controller<HTMLElement> {
 
     #applyReadonlyState(): void {
         this.#applyEditable();
-        this.#updateSaveButton(this.#crepe?.getMarkdown());
+        this.#updateSaveButton(this.#host.markdown());
 
         if (this.hasToggleLabelTarget) {
             this.toggleLabelTarget.textContent = this.#isReadonly
@@ -517,8 +416,7 @@ export default class extends Controller<HTMLElement> {
      */
     #applyEditable(): void {
         const editable = !this.#isReadonly && !this.#loadingFile && !this.#loadFailed;
-        const prosemirror = this.element.querySelector('.ProseMirror');
-        prosemirror?.setAttribute('contenteditable', editable ? 'true' : 'false');
+        this.#host.setEditable(editable);
         this.element.classList.toggle('is-readonly', this.#isReadonly);
     }
 
@@ -574,7 +472,7 @@ export default class extends Controller<HTMLElement> {
             }
 
             // Crepe may be mid-recreation: the file lands in the new one.
-            await this.#recreation;
+            await this.#host.whenIdle();
             if (fileRequest.signal.aborted) {
                 return;
             }
@@ -598,14 +496,13 @@ export default class extends Controller<HTMLElement> {
     }
 
     #applyLoadedFile(path: string, content: string, revision: string | null): void {
-        const crepe = this.#crepe!;
         this.#loadingFile = false;
         this.#loadFailed = false;
         this.element.classList.remove('is-load-failed');
         this.#currentPath = path;
         this.#revision = revision;
-        this.#replaceDocument(crepe, content);
-        this.#savedRef = crepe.getMarkdown();
+        this.#host.replace(content);
+        this.#savedRef = this.#host.markdown();
         this.#applyEditable();
         this.#updateSaveButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
@@ -636,13 +533,12 @@ export default class extends Controller<HTMLElement> {
         this.#loadFailed = false;
         this.element.classList.remove('is-load-failed');
         this.#revision = null;
-        const crepe = this.#crepe;
-        if (crepe === null) {
+        if (!this.#host.created) {
             return;
         }
-        this.#replaceDocument(crepe, '');
+        this.#host.replace('');
         this.#currentPath = null;
-        this.#savedRef = crepe.getMarkdown();
+        this.#savedRef = this.#host.markdown();
         this.#applyEditable();
         this.#updateSaveButton(this.#savedRef);
         this.#updatePrintButton(this.#savedRef);
@@ -651,49 +547,15 @@ export default class extends Controller<HTMLElement> {
         this.#updateFilePath();
     }
 
-    /**
-     * Another document, not an edit of this one: a fresh ProseMirror state
-     * (flush), so undo cannot bring the previous file back. Without flush,
-     * in the hub's WebKitGTK (no overflow-anchor), ProseMirror keeps a
-     * reference node in place across the replacement and scrolls every
-     * parent a few pixels down.
-     *
-     * The flush recreates every plugin view, Milkdown's mounting one too:
-     * .milkdown is rebuilt, the scroll wrapper goes with it, and a new one
-     * starts at the top.
-     */
-    #replaceDocument(crepe: Crepe, markdown: string): void {
-        // IA-04, lot 03: first and unconditional — no path may replace the
-        // document and leave a generation running on the old one.
-        this.#discardAi();
-        crepe.editor.action(replaceAll(markdown, true));
-        this.#wrapScroll();
-    }
-
-    /**
-     * Wraps .ProseMirror so the scrollable area extends past it, over the
-     * surrounding padding/desk background too, not just the editable sheet.
-     */
-    #wrapScroll(): void {
-        const prosemirror = this.element.querySelector('.ProseMirror');
-        if (!prosemirror || prosemirror.parentElement?.classList.contains('editor-content')) {
-            return;
-        }
-        const content = document.createElement('div');
-        content.className = 'editor-content';
-        prosemirror.replaceWith(content);
-        content.appendChild(prosemirror);
-    }
-
     saveFile(): void {
         // Without a path there is nothing to save to: Save as is the CTA for
         // that, and the button is grayed (lot 03, reversed on Arnaud's
         // feedback: two CTAs doing the same thing only confuse).
-        if (this.#isReadonly || this.#inFlightSave !== null || this.#crepe === null || this.#currentPath === null) {
+        if (this.#isReadonly || this.#inFlightSave !== null || !this.#host.created || this.#currentPath === null) {
             return;
         }
 
-        const markdown = this.#crepe.getMarkdown();
+        const markdown = this.#host.markdown();
         // Save follows the dirty state, not the presence of text (FIL-07):
         // a clean document has nothing to write that isn't on disk already.
         if (!this.#isDirty(markdown)) {
@@ -713,11 +575,11 @@ export default class extends Controller<HTMLElement> {
         // constraining where the file actually gets saved (see EDITOR_FOLDER_MODE.md).
         const path = await savePath(defaultName, this.#directory);
         // The picker can outlast a change of mind: everything is re-read after.
-        if (path === null || this.#crepe === null || this.#isReadonly || this.#inFlightSave !== null) {
+        if (path === null || !this.#host.created || this.#isReadonly || this.#inFlightSave !== null) {
             return;
         }
 
-        this.#beginSave('do-save_as', path, this.#crepe.getMarkdown(), null);
+        this.#beginSave('do-save_as', path, this.#host.markdown(), null);
     }
 
     /**
@@ -752,7 +614,7 @@ export default class extends Controller<HTMLElement> {
             this.#savedRef = save.markdown;
         }
         this.#revision = revision;
-        this.#updateSaveButton(this.#crepe?.getMarkdown());
+        this.#updateSaveButton(this.#host.markdown());
         this.#updateDirtyIndicator();
         showToast('success', message);
     }
@@ -766,7 +628,7 @@ export default class extends Controller<HTMLElement> {
     #saveFailed(status: number | undefined, message: string | null): void {
         const save = this.#inFlightSave;
         this.#inFlightSave = null;
-        this.#updateSaveButton(this.#crepe?.getMarkdown());
+        this.#updateSaveButton(this.#host.markdown());
 
         if (status !== 409 || save === null) {
             return;
@@ -782,7 +644,7 @@ export default class extends Controller<HTMLElement> {
             if (choice === 'save_as') {
                 void this.saveFileAs();
             } else if (choice === 'overwrite') {
-                this.#beginSave('do-save', save.path, this.#crepe?.getMarkdown() ?? save.markdown, null);
+                this.#beginSave('do-save', save.path, this.#host.markdown(), null);
             }
         });
     }
@@ -827,11 +689,11 @@ export default class extends Controller<HTMLElement> {
      * there is nothing to lose.
      */
     #currentFileGone(message: string): void {
-        this.#discardAi();
+        this.#host.discardAi();
         this.#currentPath = null;
         this.#revision = null;
         this.#savedRef = '';
-        this.#updateSaveButton(this.#crepe?.getMarkdown());
+        this.#updateSaveButton(this.#host.markdown());
         this.#updateDirtyIndicator();
         this.#updateFilePath();
         showToast('error', message);
@@ -849,7 +711,7 @@ export default class extends Controller<HTMLElement> {
     }
 
     async copyMarkdown(): Promise<void> {
-        const markdown = this.#crepe?.getMarkdown() ?? '';
+        const markdown = this.#host.markdown();
         try {
             const content = await this.#convertImageUrlsForCopy(markdown);
             await navigator.clipboard.writeText(content);
@@ -885,23 +747,13 @@ export default class extends Controller<HTMLElement> {
         return result.data!.content;
     }
 
-    /**
-     * Prints a serialized copy of the document instead of the editor DOM:
-     * schema toDOM output (plain h1/p/ul/pre/table/img), none of Crepe's
-     * node views or controls. See styles/print.css.
-     */
     #mountPrintCopy(): void {
-        const editor = this.#crepe?.editor;
-        if (!editor || editor.status !== EditorStatus.Created) {
+        const copy = this.#host.printCopy();
+        if (copy === null) {
             return;
         }
 
         this.#removePrintCopy();
-
-        const { state } = editor.ctx.get(editorViewCtx);
-        const copy = document.createElement('div');
-        copy.className = 'print-copy document';
-        copy.append(DOMSerializer.fromSchema(state.schema).serializeFragment(state.doc.content));
         document.body.append(copy);
         this.#printCopy = copy;
     }
@@ -915,19 +767,13 @@ export default class extends Controller<HTMLElement> {
      * Picked paths are always absolute and never rewritten to relative,
      * whether the document is new or already open — see EDITOR_IMAGES.md.
      */
-    async #insertImageFromPicker(ctx: Ctx): Promise<void> {
+    async #insertImageFromPicker(): Promise<void> {
         const path = await pickPath('file');
         if (path === null) {
             return;
         }
 
-        const commands = ctx.get(commandsCtx);
-        const imageBlock = imageBlockSchema.type(ctx);
-        commands.call(clearTextInCurrentBlockCommand.key);
-        commands.call(addBlockTypeCommand.key, {
-            nodeType: imageBlock,
-            attrs: { src: `${this.urlsValue.image}?path=${encodeURIComponent(path)}` },
-        });
+        this.#host.insertImage(`${this.urlsValue.image}?path=${encodeURIComponent(path)}`);
     }
 
     /**
@@ -969,7 +815,7 @@ export default class extends Controller<HTMLElement> {
     }
 
     #isDirty(markdown?: string): boolean {
-        const current = markdown ?? this.#crepe?.getMarkdown() ?? '';
+        const current = markdown ?? this.#host.markdown();
 
         return current !== this.#savedRef;
     }
@@ -983,32 +829,8 @@ export default class extends Controller<HTMLElement> {
         this.filePathTarget.title = label;
     }
 
-    #restoreFocus(): void {
-        this.element.querySelector<HTMLElement>('.ProseMirror')?.focus();
-    }
-
-    #isAiInProgress(): boolean {
-        const editor = this.#crepe?.editor;
-        if (!editor || editor.status !== EditorStatus.Created) {
-            return false;
-        }
-        const view = editor.ctx.get(editorViewCtx);
-        const streaming = streamingPluginKey.getState(view.state);
-        const diff = diffPluginKey.getState(view.state);
-        if ((streaming?.active ?? false) || (diff?.active ?? false)) {
-            return true;
-        }
-
-        // The Crepe session (instruct/abort), read in test mode: without a
-        // dispatch, the command only says whether it would run (IA-04, lot 03).
-        const commands = editor.ctx.get(commandsCtx);
-        const sessionActive = commands.get(abortAICmd.key)({ keep: false })(view.state);
-
-        return sessionActive;
-    }
-
     #shouldConfirmLeave(): boolean {
-        return this.#isDirty() || this.#isAiInProgress();
+        return this.#isDirty() || this.#host.isAiBusy();
     }
 
     /**
@@ -1032,38 +854,18 @@ export default class extends Controller<HTMLElement> {
             continueLabel: this.i18nValue.unsaved.continue,
         }).then((confirmed) => {
             if (!confirmed) {
-                this.#restoreFocus();
+                this.#host.focus();
 
                 return;
             }
 
-            this.#discardAi();
+            this.#host.discardAi();
             // click() dispatches synchronously, so the flag only covers the replay.
             this.#leaveConfirmed = true;
             try {
                 guarded.click();
             } finally {
                 this.#leaveConfirmed = false;
-            }
-        });
-    }
-
-    // Aborting ends the provider's generator, whose finally tells the worker to stop.
-    #discardAi(): void {
-        if (!this.#aiEnabled) {
-            return;
-        }
-
-        const editor = this.#crepe?.editor;
-        if (!editor || editor.status !== EditorStatus.Created) {
-            return;
-        }
-
-        editor.action((ctx) => {
-            const commands = ctx.get(commandsCtx);
-            commands.call(abortAICmd.key, { keep: false });
-            if (diffPluginKey.getState(ctx.get(editorViewCtx).state)?.active) {
-                commands.call(clearDiffReviewCmd.key);
             }
         });
     }

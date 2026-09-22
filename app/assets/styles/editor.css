@@ -381,9 +381,9 @@
    Kept on purpose: the frame outlines the A4 sheet, and the flex column
    keeps block margins from collapsing (the text spacing relies on it). */
 
-/* .editor-content is the wrapper editor_controller.js creates around
-   .ProseMirror; it owns the scroll instead so the scrollable area covers
-   the padding/desk background around the sheet too, not just .ProseMirror. */
+/* .editor-content is the wrapper crepe-host.ts creates around .ProseMirror;
+   it owns the scroll instead so the scrollable area covers the padding/desk
+   background around the sheet too, not just .ProseMirror. */
 .editor-shell .editor-content {
     flex: 1;
     min-height: 0;
@@ -405,7 +405,7 @@
 }
 
 /* Code blocks: plain ProseMirror <pre> (Crepe's CodeMirror feature is off,
-   see editor-factory.js), wrapped by code-block-view.ts.
+   see crepe-host.ts), wrapped by code-block-view.ts.
    No border: this <pre> has its own overflow-x: auto and sits inside
    .editor-content, which scrolls too (see there) — a bordered box nested
    inside another scrollable flashed on scroll in the hub's WebKitGTK

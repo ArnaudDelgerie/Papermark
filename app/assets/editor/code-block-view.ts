@@ -19,7 +19,7 @@ export interface CodeBlockViewOptions {
 
 /**
  * Code block node view for the plain <pre> code blocks (Crepe's CodeMirror
- * feature is off, see editor-factory.js). Same <pre><code> as the schema's
+ * feature is off, see crepe-host.ts). Same <pre><code> as the schema's
  * toDOM, with the code left to ProseMirror, plus a language <select> and a
  * copy button laid over the block's top border so they don't change the
  * block's height.
@@ -108,7 +108,7 @@ export function codeBlockNodeView({ noLanguageLabel, copyLabel, onCopy }: CodeBl
     };
 }
 
-/** Wraps {@link codeBlockNodeView} as the $view Milkdown plugin editor-factory.js registers. */
+/** Wraps {@link codeBlockNodeView} as the $view Milkdown plugin crepe-host.ts registers. */
 export function createCodeBlockView(options: CodeBlockViewOptions) {
     return $view(codeBlockSchema.node, () => codeBlockNodeView(options));
 }
