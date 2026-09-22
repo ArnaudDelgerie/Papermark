@@ -80,7 +80,6 @@ function editorHtml(): string {
             data-action="mode-switch#change" data-editor-leave-guard>Dir</button>
     </nav>
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
-         data-editor-csrf-token-value="tk-app"
          data-editor-urls-value="${attr({ file: '/document', copy: '/document/copy', image: '/document/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
          data-editor-i18n-value="${attr(EDITOR_I18N)}">
         <button type="button" data-action="click->editor#newFile" data-editor-leave-guard>New</button>

@@ -37,10 +37,9 @@ final class AiControllerTest extends WebTestCase
      */
     private function post(KernelBrowser $client, string $uri, string $csrfToken, array $body = []): void
     {
-        $client->request('POST', $uri, [], [], [
+        $client->request('POST', $uri, $body, [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
-            'CONTENT_TYPE' => 'application/json',
-        ], json_encode($body));
+        ]);
     }
 
     public function testInstructRejectsInvalidCsrf(): void

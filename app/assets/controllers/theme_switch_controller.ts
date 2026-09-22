@@ -1,4 +1,5 @@
 import { Controller } from '@hotwired/stimulus';
+import { request } from '../utils/http';
 import { showToast } from '../utils/toast';
 
 export interface I18n {
@@ -22,7 +23,6 @@ export default class extends Controller<HTMLElement> {
         themes: Array,
         labels: Object,
         url: String,
-        token: String,
         delay: { type: Number, default: 600 },
         i18n: Object,
     };
@@ -33,7 +33,6 @@ export default class extends Controller<HTMLElement> {
     declare readonly themesValue: string[];
     declare readonly labelsValue: Record<string, string>;
     declare readonly urlValue: string;
-    declare readonly tokenValue: string;
     declare readonly delayValue: number;
     declare readonly i18nValue: I18n;
 
@@ -72,14 +71,11 @@ export default class extends Controller<HTMLElement> {
     async #save(): Promise<void> {
         this.#timer = undefined;
         const theme = this.currentValue;
-        const body = new FormData();
-        body.append('theme', theme);
 
         try {
-            const response = await fetch(this.urlValue, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.tokenValue }, body });
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.genericErrors?.[0] || `Theme save failed: ${response.status}`);
+            const result = await request(this.urlValue, { method: 'POST', body: { theme } });
+            if (!result.ok) {
+                throw new Error(result.message ?? `Theme save failed: ${result.status}`);
             }
             this.#saved = theme;
         } catch (error) {

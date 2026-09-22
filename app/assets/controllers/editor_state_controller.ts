@@ -13,6 +13,7 @@ import {
     requested,
     succeeded,
 } from '../editor/events';
+import { type HttpResult, request } from '../utils/http';
 import { showToast } from '../utils/toast';
 
 interface Urls {
@@ -73,11 +74,10 @@ export interface StateResponse {
  * (`this.editorStateOutlet.state`); after that, the events carry it.
  */
 export default class extends Controller {
-    static values = { state: Object, urls: Object, token: String, i18n: Object };
+    static values = { state: Object, urls: Object, i18n: Object };
 
     declare readonly stateValue: EditorState;
     declare readonly urlsValue: Urls;
-    declare readonly tokenValue: string;
     declare readonly i18nValue: { failed: string };
 
     #state!: EditorState;
@@ -119,16 +119,13 @@ export default class extends Controller {
             this.#inFlight.set(name, abort);
         }
 
-        let response: Response;
-        let data: StateResponse | null;
+        let result: HttpResult<StateResponse>;
         try {
-            response = await fetch(this.#url(route, action), {
+            result = await request<StateResponse>(this.#url(route, action), {
                 method: route.method,
-                headers: { 'X-CSRF-TOKEN': this.tokenValue },
                 body: route.method === 'POST' ? toFormData(action) : undefined,
                 signal: abort.signal,
             });
-            data = await response.json().catch(() => null);
         } catch (error) {
             if (abort.signal.aborted) {
                 return;
@@ -147,15 +144,15 @@ export default class extends Controller {
             return;
         }
 
-        if (data?.state) {
-            this.#merge(data.state);
+        if (result.data?.state) {
+            this.#merge(result.data.state);
         }
 
         // `name` is the union of all actions here, so TypeScript can't pair
         // it with its payload: the pairing is typed where children emit and
         // listen, the master only relays what the route answered.
-        if (response.ok && data?.state && data.action) {
-            emit(succeeded(name), { state: this.#state, action: data.action } as never);
+        if (result.ok && result.data?.state && result.data.action) {
+            emit(succeeded(name), { state: this.#state, action: result.data.action } as never);
 
             return;
         }
@@ -163,9 +160,9 @@ export default class extends Controller {
         // The invalid settings form shows its own errors inline, never a
         // toast. So does a save conflict: the editor asks Enregistrer sous
         // or Écraser (lot 03) — the dialog replaces the toast.
-        const saveConflict = response.status === 409 && (name === 'do-save' || name === 'do-save_as');
+        const saveConflict = result.status === 409 && (name === 'do-save' || name === 'do-save_as');
         const quiet = saveConflict || name === 'do-save_settings';
-        this.#fail(name, action, data?.genericErrors ?? [], data?.mappedErrors ?? [], quiet, response.status);
+        this.#fail(name, action, result.data?.genericErrors ?? [], result.data?.mappedErrors ?? [], quiet, result.status);
     }
 
     #fail(
@@ -216,12 +213,11 @@ export default class extends Controller {
      */
     async #resync(anomaly: Anomaly): Promise<void> {
         try {
-            const response = await fetch(this.urlsValue.state);
-            const data: StateResponse = await response.json();
-            if (!response.ok || !data.state) {
-                throw new Error(`HTTP ${response.status}`);
+            const result = await request<StateResponse>(this.urlsValue.state);
+            if (!result.ok || !result.data?.state) {
+                throw new Error(`HTTP ${result.status}`);
             }
-            this.#merge(data.state);
+            this.#merge(result.data.state);
         } catch (error) {
             console.error('Could not re-read the editor state:', error);
             this.#merge(Object.fromEntries(Object.keys(anomaly).map((key) => [key, null])));

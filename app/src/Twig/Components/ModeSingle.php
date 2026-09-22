@@ -12,7 +12,7 @@ use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;
  * Left column, single-file mode: mode selector, Open (file) and the history
  * of opened files. History lives in sessionStorage, entirely managed by the
  * mode-single Stimulus controller. Delete/rename (EDITOR_FIX.md #5) are
- * posted by the master (editor-state), which holds the tokens.
+ * posted by the master (editor-state), through assets/utils/http.ts.
  */
 #[AsTwigComponent('mode-single')]
 final class ModeSingle

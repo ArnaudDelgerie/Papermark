@@ -26,7 +26,7 @@ describe('the theme button', () => {
                 data-theme-switch-current-value="${current}"
                 data-theme-switch-themes-value="${attr(themes)}"
                 data-theme-switch-labels-value="${attr({ auto: 'Auto', light: 'Light', dark: 'Dark' })}"
-                data-theme-switch-url-value="/settings/theme" data-theme-switch-token-value="tk-settings"
+                data-theme-switch-url-value="/settings/theme"
                 data-theme-switch-delay-value="300"
                 data-theme-switch-i18n-value="${attr(THEME_SWITCH_I18N)}">
                 <span data-theme-switch-target="label">Theme: ${current}</span>
@@ -85,7 +85,7 @@ describe('the theme button', () => {
         const [url, init] = fetchMock.mock.calls[0];
         expect(url).toBe('/settings/theme');
         expect(init.method).toBe('POST');
-        expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-settings' });
+        expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
         expect((init.body as FormData).get('theme')).toBe('dark');
         expect(toasts).toEqual([]);
     });

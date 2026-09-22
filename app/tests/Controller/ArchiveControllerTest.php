@@ -56,7 +56,7 @@ final class ArchiveControllerTest extends WebTestCase
         $client->disableReboot();
 
         $crawler = $client->request('GET', '/editor');
-        $token = (string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-token-value');
+        $token = (string) $crawler->filter('meta[name="csrf-token"]')->attr('content');
 
         $client->request('POST', '/editor/mode', ['mode' => 'dir'], [], ['HTTP_X-CSRF-TOKEN' => $token]);
         $client->request('POST', '/editor/dir', ['path' => $this->workDir], [], ['HTTP_X-CSRF-TOKEN' => $token]);
@@ -126,7 +126,7 @@ final class ArchiveControllerTest extends WebTestCase
         self::assertCount(0, $frame->filter('a'));
     }
 
-    public function testMasterCarriesTheImportRouteAndToken(): void
+    public function testMasterCarriesTheImportRouteAndThePageCarriesTheToken(): void
     {
         $client = static::createClient();
 
@@ -134,7 +134,7 @@ final class ArchiveControllerTest extends WebTestCase
 
         $master = $crawler->filter('div[data-controller="editor-state"]');
         self::assertSame('/archive/import', json_decode((string) $master->attr('data-editor-state-urls-value'), true)['import']);
-        self::assertNotEmpty($master->attr('data-editor-state-token-value'));
+        self::assertNotEmpty($crawler->filter('meta[name="csrf-token"]')->attr('content'));
     }
 
     public function testExportRejectsInvalidCsrf(): void

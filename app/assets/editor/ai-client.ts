@@ -1,7 +1,7 @@
 import type { AIPromptContext, AIProvider } from '@milkdown/crepe/feature/ai';
+import { request } from '../utils/http';
 
 export interface AiClientOptions {
-    csrfToken: string;
     urls: { subscribe: string; instruct: string; abort: string };
     mercureUrl: string;
     topic: string;
@@ -23,12 +23,11 @@ interface PendingRequest {
  * Talks to the AI worker on behalf of the editor: subscribes to the Mercure
  * topic, posts instructions, and turns the resulting SSE stream into the
  * async generator Crepe's AI feature expects. Isolated from the Stimulus
- * controller so it only needs URLs/CSRF/Mercure config, not the editor
+ * controller so it only needs URLs/Mercure config, not the editor
  * instance itself — aborting the in-editor generation (Crepe commands) stays
  * the controller's job, see #discardAi in editor_controller.ts.
  */
 export default class AiClient {
-    #csrfToken: string;
     #urls: AiClientOptions['urls'];
     #mercureUrl: string;
     #topic: string;
@@ -36,8 +35,7 @@ export default class AiClient {
     #source: EventSource | null = null;
     #requests = new Map<string, PendingRequest>();
 
-    constructor({ csrfToken, urls, mercureUrl, topic, requestFailedMessage }: AiClientOptions) {
-        this.#csrfToken = csrfToken;
+    constructor({ urls, mercureUrl, topic, requestFailedMessage }: AiClientOptions) {
         this.#urls = urls;
         this.#mercureUrl = mercureUrl;
         this.#topic = topic;
@@ -70,23 +68,20 @@ export default class AiClient {
             await this.#ensureSubscription();
 
             id = window.crypto.randomUUID();
-            const request = this.#createRequest(id);
+            const pending = this.#createRequest(id);
 
-            const response = await this.#post(this.#urls.instruct, {
-                id,
-                instruction: context.instruction,
-                document: context.document,
-                selection: context.selection,
+            const result = await request(this.#urls.instruct, {
+                method: 'POST',
+                body: { id, instruction: context.instruction, document: context.document, selection: context.selection },
             });
 
-            if (!response.ok) {
+            if (!result.ok) {
                 finished = true;
-                const data = await this.#readErrorBody(response);
-                throw new Error(data.genericErrors?.[0] || this.#requestFailedMessage);
+                throw new Error(result.message ?? this.#requestFailedMessage);
             }
 
             while (true) {
-                const payload = await request.next(signal);
+                const payload = await pending.next(signal);
                 if (payload === null) {
                     return;
                 }
@@ -110,7 +105,7 @@ export default class AiClient {
             // Aborted by the user or interrupted: stop the worker, which serves one request at a time.
             // keepalive: the abort must survive leaving the page right after a confirm.
             if (!finished && id !== null) {
-                this.#post(this.#urls.abort, { id }, { keepalive: true }).catch((err: unknown) => console.error('Failed to abort AI request:', err));
+                request(this.#urls.abort, { method: 'POST', body: { id }, keepalive: true }).catch((err: unknown) => console.error('Failed to abort AI request:', err));
             }
         }
     }
@@ -120,10 +115,9 @@ export default class AiClient {
      * if needed), then opens the EventSource and resolves once the hub accepts it.
      */
     async #ensureSubscription(): Promise<void> {
-        const response = await this.#post(this.#urls.subscribe, {});
-        if (!response.ok) {
-            const data = await this.#readErrorBody(response);
-            throw new Error(data.genericErrors?.[0] || this.#requestFailedMessage);
+        const result = await request(this.#urls.subscribe, { method: 'POST', body: {} });
+        if (!result.ok) {
+            throw new Error(result.message ?? this.#requestFailedMessage);
         }
 
         await this.#openSource();
@@ -210,19 +204,4 @@ export default class AiClient {
         return request;
     }
 
-    #post(url: string, body: unknown, options: RequestInit = {}): Promise<Response> {
-        return fetch(url, {
-            ...options,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': this.#csrfToken,
-            },
-            body: JSON.stringify(body),
-        });
-    }
-
-    async #readErrorBody(response: Response): Promise<{ genericErrors?: string[] }> {
-        return (await response.json().catch(() => ({}))) as { genericErrors?: string[] };
-    }
 }

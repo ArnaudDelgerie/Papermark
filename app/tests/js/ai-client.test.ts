@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIPromptContext } from '@milkdown/crepe/feature/ai';
 import AiClient, { type AiClientOptions } from '../../assets/editor/ai-client';
-import { jsonResponse, settle } from './stimulus';
+import { CSRF_TOKEN, clearCsrfToken, jsonResponse, setCsrfToken, settle } from './stimulus';
 
 /**
  * A fake EventSource driven by hand: `open()`, `message()` and
@@ -57,7 +57,6 @@ class FakeEventSource {
 }
 
 const OPTIONS: AiClientOptions = {
-    csrfToken: 'tk-app',
     urls: { subscribe: '/ai/subscribe', instruct: '/ai/instruct', abort: '/ai/abort' },
     mercureUrl: 'https://hub.example/.well-known/mercure',
     topic: 'session-1',
@@ -96,7 +95,7 @@ describe('AiClient', () => {
         await settle();
 
         const [, init] = callsTo(OPTIONS.urls.instruct).at(-1)!;
-        const { id } = JSON.parse(init.body as string) as { id: string };
+        const id = (init.body as FormData).get('id') as string;
 
         return { iterator, first, controller, source, id };
     }
@@ -106,9 +105,11 @@ describe('AiClient', () => {
         vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource);
         fetchMock = vi.fn(async () => jsonResponse({}));
         vi.stubGlobal('fetch', fetchMock);
+        setCsrfToken();
     });
 
     afterEach(() => {
+        clearCsrfToken();
         vi.unstubAllGlobals();
     });
 
@@ -194,7 +195,7 @@ describe('AiClient', () => {
         const abortCalls = callsTo(OPTIONS.urls.abort);
         expect(abortCalls).toHaveLength(1);
         const [, init] = abortCalls[0];
-        expect(JSON.parse(init.body as string)).toEqual({ id });
+        expect((init.body as FormData).get('id')).toBe(id);
         expect(init.keepalive).toBe(true);
         expect(source.closed).toBe(true);
     });
@@ -208,22 +209,20 @@ describe('AiClient', () => {
         await expect(first).resolves.toEqual({ value: undefined, done: true });
         const abortCalls = callsTo(OPTIONS.urls.abort);
         expect(abortCalls).toHaveLength(1);
-        expect(JSON.parse(abortCalls[0][1].body as string)).toEqual({ id });
+        expect((abortCalls[0][1].body as FormData).get('id')).toBe(id);
         expect(source.closed).toBe(true);
     });
 
-    it('sends id, instruction, document and selection with X-CSRF-TOKEN on /ai/instruct', async () => {
+    it('sends id, instruction, document and selection as FormData with X-CSRF-TOKEN on /ai/instruct', async () => {
         const { first, id, source } = await startGeneration();
         const [, init] = callsTo(OPTIONS.urls.instruct).at(-1)!;
+        const body = init.body as FormData;
 
-        expect(JSON.parse(init.body as string)).toEqual({
-            id,
-            instruction: CONTEXT.instruction,
-            document: CONTEXT.document,
-            selection: CONTEXT.selection,
-        });
-        expect((init.headers as Record<string, string>)['X-CSRF-TOKEN']).toBe(OPTIONS.csrfToken);
-        expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+        expect(body.get('id')).toBe(id);
+        expect(body.get('instruction')).toBe(CONTEXT.instruction);
+        expect(body.get('document')).toBe(CONTEXT.document);
+        expect(body.get('selection')).toBe(CONTEXT.selection);
+        expect((init.headers as Record<string, string>)['X-CSRF-TOKEN']).toBe(CSRF_TOKEN);
 
         source.message({ id, type: 'done' });
         await settle();

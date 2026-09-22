@@ -88,7 +88,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertArrayNotHasKey('settings', $urls);
         self::assertSame('/settings/provider/__name__/key', $urls['setKey']);
         self::assertSame('/settings/provider/__name__/key', $urls['deleteKey']);
-        self::assertNotEmpty($master->attr('data-editor-state-token-value'));
+        self::assertNotEmpty($crawler->filter('meta[name="csrf-token"]')->attr('content'));
         // The editor and both columns are inside the master's element.
         self::assertSame(1, $master->filter('div[data-controller="editor"]')->count());
         self::assertSame(1, $master->filter('div[data-controller="mode-dir"]')->count());
@@ -682,8 +682,8 @@ final class EditorControllerTest extends WebTestCase
     {
         $crawler = $client->request('GET', '/editor');
 
-        // The master (editor-state) holds them all: it makes every write.
-        $this->token = (string) $crawler->filter('div[data-controller="editor-state"]')->attr('data-editor-state-token-value');
+        // base.html.twig renders it once for every call (assets/utils/http.ts).
+        $this->token = (string) $crawler->filter('meta[name="csrf-token"]')->attr('content');
     }
 
     /**

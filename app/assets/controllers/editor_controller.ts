@@ -15,6 +15,7 @@ import { type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
 import { confirmDialog } from '../utils/confirm-dialog';
 import { saveConflictDialog } from '../utils/conflict-dialog';
+import { request } from '../utils/http';
 import { pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 import type EditorStateController from './editor_state_controller';
@@ -137,7 +138,6 @@ interface InFlightSave {
  */
 export default class extends Controller<HTMLElement> {
     static values = {
-        csrfToken: String,
         urls: Object,
         aiConfig: { type: Object, default: {} },
         readonly: { type: Boolean, default: false },
@@ -152,7 +152,6 @@ export default class extends Controller<HTMLElement> {
 
     declare readonly editorStateOutlet: EditorStateController;
 
-    declare readonly csrfTokenValue: string;
     declare readonly urlsValue: Urls;
     declare readonly aiConfigValue: AiConfig;
     declare readonly readonlyValue: boolean;
@@ -425,7 +424,6 @@ export default class extends Controller<HTMLElement> {
         }
 
         this.#aiClient = new AiClient({
-            csrfToken: this.csrfTokenValue,
             urls: { subscribe: this.urlsValue.aiSubscribe, instruct: this.urlsValue.aiInstruct, abort: this.urlsValue.aiAbort },
             mercureUrl,
             topic,
@@ -549,43 +547,42 @@ export default class extends Controller<HTMLElement> {
      */
     async #loadCurrentFile(): Promise<void> {
         this.#fileRequest?.abort();
-        const request = new AbortController();
-        this.#fileRequest = request;
+        const fileRequest = new AbortController();
+        this.#fileRequest = fileRequest;
         // The path this read is for: the master's state already points at
         // it (the events that lead here fire after the master merges), and
         // a 404 no longer echoes it back.
         const loadingPath = this.editorStateOutlet.state.file;
 
         try {
-            const response = await fetch(this.urlsValue.file, { signal: request.signal });
-            const data: FileResponse = await response.json().catch(() => ({}));
+            const result = await request<FileResponse>(this.urlsValue.file, { signal: fileRequest.signal });
 
-            if (response.status === 404) {
+            if (result.status === 404) {
                 this.#reset();
                 if (loadingPath !== null) {
                     emit('editor:state-anomaly-reported', { anomaly: { file: loadingPath } });
                 }
-                showToast('error', data.genericErrors?.[0] || this.i18nValue.toast.fileNotFound);
+                showToast('error', result.data?.genericErrors?.[0] || this.i18nValue.toast.fileNotFound);
 
                 return;
             }
 
-            if (!response.ok) {
-                this.#failLoad(data.genericErrors?.[0] ?? null);
+            if (!result.ok) {
+                this.#failLoad(result.data?.genericErrors?.[0] ?? null);
 
                 return;
             }
 
             // Crepe may be mid-recreation: the file lands in the new one.
             await this.#recreation;
-            if (request.signal.aborted) {
+            if (fileRequest.signal.aborted) {
                 return;
             }
 
-            if (data.path === null || data.path === undefined) {
+            if (result.data?.path === null || result.data?.path === undefined) {
                 this.#reset();
             } else {
-                this.#applyLoadedFile(data.path, data.content ?? '', data.revision ?? null);
+                this.#applyLoadedFile(result.data.path, result.data.content ?? '', result.data.revision ?? null);
             }
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
@@ -594,7 +591,7 @@ export default class extends Controller<HTMLElement> {
             console.error('Failed to open file:', err);
             this.#failLoad((err as Error).message || null);
         } finally {
-            if (this.#fileRequest === request) {
+            if (this.#fileRequest === fileRequest) {
                 this.#fileRequest = null;
             }
         }
@@ -879,22 +876,13 @@ export default class extends Controller<HTMLElement> {
      * path before the markdown leaves the editor, same as save().
      */
     async #convertImageUrlsForCopy(markdown: string): Promise<string> {
-        const formData = new FormData();
-        formData.append('content', markdown);
+        const result = await request<{ content: string }>(this.urlsValue.copy, { method: 'POST', body: { content: markdown } });
 
-        const response = await fetch(this.urlsValue.copy, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
-            body: formData,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Copy failed: ${response.status}`);
+        if (!result.ok) {
+            throw new Error(`Copy failed: ${result.status}`);
         }
 
-        const { content } = await response.json();
-
-        return content;
+        return result.data!.content;
     }
 
     /**

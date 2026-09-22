@@ -3,7 +3,6 @@
 <div data-controller="editor"
      class="editor-shell is-a4"
      data-editor-editor-state-outlet="#editor-state"
-     data-editor-csrf-token-value="{{ csrf_token('papermark_app') }}"
      data-editor-urls-value="{{ {
          file: path('app_document_read'),
          copy: path('app_document_copy'),
@@ -93,7 +92,6 @@
                     data-theme-switch-themes-value="{{ appearance.themes|json_encode }}"
                     data-theme-switch-labels-value="{{ appearance.themeLabels|json_encode }}"
                     data-theme-switch-url-value="{{ path('app_settings_theme') }}"
-                    data-theme-switch-token-value="{{ csrf_token('papermark_app') }}"
                     data-theme-switch-i18n-value="{{ {
                         label: 'components.editor.theme_button'|trans({}, 'components'),
                         failed: 'components.editor.error.request_failed'|trans({}, 'components'),

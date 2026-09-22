@@ -23,7 +23,6 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
                  data-export-initial-kind-value="${kind}"
                  data-export-initial-path-value="${INITIAL.file}"
                  data-export-initial-directory-value="${INITIAL.dir}"
-                 data-export-csrf-token-value="tk-export"
                  data-export-run-url-value="/archive/export"
                  data-export-i18n-value="${attr(EXPORT_I18N)}">
             <input type="radio" name="export-kind" value="file" data-export-target="kindFileRadio" data-action="change->export#changeKind">

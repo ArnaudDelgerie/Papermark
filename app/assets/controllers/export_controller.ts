@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { type EditorState, on } from '../editor/events';
+import { request } from '../utils/http';
 import { type SaveFilter, pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
@@ -57,7 +58,6 @@ export default class extends Controller {
         initialKind: { type: String, default: 'file' },
         initialPath: String,
         initialDirectory: String,
-        csrfToken: String,
         runUrl: String,
         i18n: Object,
     };
@@ -71,7 +71,6 @@ export default class extends Controller {
     declare readonly initialKindValue: string;
     declare readonly initialPathValue: string;
     declare readonly initialDirectoryValue: string;
-    declare readonly csrfTokenValue: string;
     declare readonly runUrlValue: string;
     declare readonly i18nValue: I18n;
 
@@ -166,20 +165,14 @@ export default class extends Controller {
         }
 
         try {
-            const response = await fetch(this.runUrlValue, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': this.csrfTokenValue },
-                body: formData,
-            });
+            const result = await request<Partial<ExportResponse> & ExportRefusal>(this.runUrlValue, { method: 'POST', body: formData });
 
-            const data: Partial<ExportResponse> & ExportRefusal = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                throw new Error(data.genericErrors?.[0] || data.mappedErrors?.[0]?.message || this.i18nValue.failed);
+            if (!result.ok) {
+                throw new Error(result.message ?? this.i18nValue.failed);
             }
 
-            showToast('success', this.i18nValue.done.replace('{path}', data.path ?? ''));
-            this.#renderReport(data.issues || []);
+            showToast('success', this.i18nValue.done.replace('{path}', result.data?.path ?? ''));
+            this.#renderReport(result.data?.issues || []);
         } catch (err) {
             console.error('Failed to export archive:', err);
             showToast('error', (err as Error).message || this.i18nValue.failed);

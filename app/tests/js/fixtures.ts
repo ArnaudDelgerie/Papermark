@@ -19,7 +19,6 @@ export function masterHtml(state: EditorState = INITIAL, inner = ''): string {
             refreshDir: '/editor/dir/refresh', save: '/document/save', delete: '/document/delete', rename: '/document/rename',
             setKey: '/settings/provider/__name__/key', deleteKey: '/settings/provider/__name__/key', import: '/archive/import',
         })}"
-        data-editor-state-token-value="tk-app"
         data-editor-state-i18n-value="${attr(editorStateI18n)}">${inner}</div>`;
 }
 
