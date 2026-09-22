@@ -12,6 +12,7 @@ use App\Enum\Setting\ThemeMode;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
+use App\Tests\Trait\ContractAssertions;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -22,6 +23,8 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class SettingsControllerTest extends WebTestCase
 {
+    use ContractAssertions;
+
     private KernelBrowser $client;
     private InMemorySecretStore $secretStore;
 
@@ -125,7 +128,7 @@ final class SettingsControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame([], $body['action']);
-        self::assertSame(['mode', 'file', 'dir', 'ai_enabled'], array_keys($body['state']));
+        $this->assertMatchesContract('editor-state', $body['state']);
 
         static::getContainer()->get(EntityManagerInterface::class)->clear();
         $providers = static::getContainer()->get(ProviderRepository::class)->findAllByName();

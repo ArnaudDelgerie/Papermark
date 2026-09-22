@@ -1,4 +1,7 @@
 import type { EditorState } from '../../assets/editor/events';
+import type { FileEntryI18n } from '../../assets/editor/file-entries';
+import editorStateI18n from '../contract/i18n/editor-state.json';
+import fileEntriesI18n from '../contract/i18n/file-entries.json';
 
 export const INITIAL: EditorState = { mode: 'single', file: '/notes/a.md', dir: '/notes', readonly: false, ai_enabled: true };
 
@@ -17,19 +20,10 @@ export function masterHtml(state: EditorState = INITIAL, inner = ''): string {
             setKey: '/settings/provider/__name__/key', deleteKey: '/settings/provider/__name__/key', import: '/archive/import',
         })}"
         data-editor-state-token-value="tk-app"
-        data-editor-state-i18n-value="${attr({ failed: 'Generic failure' })}">${inner}</div>`;
+        data-editor-state-i18n-value="${attr(editorStateI18n)}">${inner}</div>`;
 }
 
-export const FILE_ENTRY_I18N = {
-    rename: 'Rename',
-    delete: 'Delete',
-    renamePrompt: 'New name for {name}',
-    deleteConfirmMessage: 'This cannot be undone.',
-    deleteConfirmMessageCurrent: 'This file is open with unsaved changes.',
-    deleteConfirmQuestion: 'Delete {name}?',
-    deleted: 'File deleted',
-    renamed: 'File renamed',
-};
+export const FILE_ENTRY_I18N: FileEntryI18n = fileEntriesI18n;
 
 /** The left column, as the shell and its components render it. */
 export function sidebarHtml(mode: EditorState['mode'] = 'single', dir: string | null = '/notes'): string {

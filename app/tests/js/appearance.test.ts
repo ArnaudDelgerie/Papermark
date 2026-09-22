@@ -4,6 +4,7 @@ import LocaleStepperController from '../../assets/controllers/locale_stepper_con
 import ThemeSwitchController from '../../assets/controllers/theme_switch_controller';
 import { attr } from './fixtures';
 import { jsonResponse, mount, unmount } from './stimulus';
+import THEME_SWITCH_I18N from '../contract/i18n/theme-switch.json';
 
 const toasts: Array<{ type: string; message: string }> = [];
 const onToast = (event: Event): number => toasts.push((event as CustomEvent).detail);
@@ -27,7 +28,7 @@ describe('the theme button', () => {
                 data-theme-switch-labels-value="${attr({ auto: 'Auto', light: 'Light', dark: 'Dark' })}"
                 data-theme-switch-url-value="/settings/theme" data-theme-switch-token-value="tk-settings"
                 data-theme-switch-delay-value="300"
-                data-theme-switch-i18n-value="${attr({ label: 'Theme: {theme}', failed: 'Failed' })}">
+                data-theme-switch-i18n-value="${attr(THEME_SWITCH_I18N)}">
                 <span data-theme-switch-target="label">Theme: ${current}</span>
             </button>`,
             { 'theme-switch': ThemeSwitchController },
@@ -100,7 +101,7 @@ describe('the theme button', () => {
 
         expect(html()).toBe('auto');
         expect(button().dataset.value).toBe('auto');
-        expect(toasts).toEqual([{ type: 'error', message: 'Failed' }]);
+        expect(toasts).toEqual([{ type: 'error', message: THEME_SWITCH_I18N.failed }]);
     });
 
     it('a saved theme becomes the one to come back to', async () => {

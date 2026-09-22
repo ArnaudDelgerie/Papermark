@@ -5,41 +5,6 @@ import { trailing } from '@milkdown/plugin-trailing';
 import { prism } from '@milkdown/plugin-prism';
 import { createCodeBlockView } from './code-block-view.js';
 
-const DEFAULT_I18N = {
-    placeholder: 'Start writing…',
-    link: { confirm: 'Confirm', inputPlaceholder: 'Paste link…' },
-    codeBlock: { noLanguage: 'Plain text', copy: 'Copy code' },
-    slashMenu: {
-        text: 'Text',
-        paragraph: 'Text',
-        h1: 'Heading 1',
-        h2: 'Heading 2',
-        h3: 'Heading 3',
-        h4: 'Heading 4',
-        h5: 'Heading 5',
-        h6: 'Heading 6',
-        quote: 'Quote',
-        divider: 'Divider',
-        list: 'List',
-        bulletList: 'Bullet List',
-        orderedList: 'Ordered List',
-        taskList: 'Task List',
-        advanced: 'Advanced',
-        image: 'Image',
-        code: 'Code',
-        table: 'Table',
-    },
-    ai: {
-        askAi: 'Ask AI',
-        instructionPlaceholder: 'Tell AI what to do with the selection…',
-        suggestionsHeader: 'SUGGESTIONS',
-        sendAsPromptHeader: 'SEND AS PROMPT',
-        sendAsPrompt: 'Ask AI:',
-        submitButton: 'Send prompt',
-        listbox: 'AI suggestions',
-    },
-};
-
 /**
  * Builds and creates a Crepe editor instance, isolating the milkdown/crepe
  * setup (features, feature configs, i18n defaults) from the Stimulus
@@ -52,7 +17,7 @@ export default class EditorFactory {
      * @param {Object} options
      * @param {Element} options.root
      * @param {string} [options.defaultValue]
-     * @param {Object} [options.i18n] Partial translations; missing keys fall back to DEFAULT_I18N.
+     * @param {import('../controllers/editor_controller').I18n} options.i18n The whole of Editor::getI18n(): every key required.
      * @param {(ctx: import('@milkdown/kit/ctx').Ctx) => void} options.onInsertImage
      * @param {(text: string) => void} options.onCopyCode Copy button of a code block.
      * @param {boolean} [options.aiEnabled]
@@ -60,47 +25,8 @@ export default class EditorFactory {
      * @param {(error: Error) => void} [options.onAiError]
      * @returns {Promise<Crepe>}
      */
-    static async create({ root, defaultValue = '', i18n = {}, onInsertImage, onCopyCode, aiEnabled = false, aiProvider, onAiError }) {
-        const t = {
-            placeholder: i18n.placeholder ?? DEFAULT_I18N.placeholder,
-            link: {
-                confirm: i18n.link?.confirm ?? DEFAULT_I18N.link.confirm,
-                inputPlaceholder: i18n.link?.inputPlaceholder ?? DEFAULT_I18N.link.inputPlaceholder,
-            },
-            codeBlock: {
-                noLanguage: i18n.codeBlock?.noLanguage ?? DEFAULT_I18N.codeBlock.noLanguage,
-                copy: i18n.codeBlock?.copy ?? DEFAULT_I18N.codeBlock.copy,
-            },
-            slashMenu: {
-                text: i18n.slashMenu?.text ?? DEFAULT_I18N.slashMenu.text,
-                paragraph: i18n.slashMenu?.paragraph ?? DEFAULT_I18N.slashMenu.paragraph,
-                h1: i18n.slashMenu?.h1 ?? DEFAULT_I18N.slashMenu.h1,
-                h2: i18n.slashMenu?.h2 ?? DEFAULT_I18N.slashMenu.h2,
-                h3: i18n.slashMenu?.h3 ?? DEFAULT_I18N.slashMenu.h3,
-                h4: i18n.slashMenu?.h4 ?? DEFAULT_I18N.slashMenu.h4,
-                h5: i18n.slashMenu?.h5 ?? DEFAULT_I18N.slashMenu.h5,
-                h6: i18n.slashMenu?.h6 ?? DEFAULT_I18N.slashMenu.h6,
-                quote: i18n.slashMenu?.quote ?? DEFAULT_I18N.slashMenu.quote,
-                divider: i18n.slashMenu?.divider ?? DEFAULT_I18N.slashMenu.divider,
-                list: i18n.slashMenu?.list ?? DEFAULT_I18N.slashMenu.list,
-                bulletList: i18n.slashMenu?.bulletList ?? DEFAULT_I18N.slashMenu.bulletList,
-                orderedList: i18n.slashMenu?.orderedList ?? DEFAULT_I18N.slashMenu.orderedList,
-                taskList: i18n.slashMenu?.taskList ?? DEFAULT_I18N.slashMenu.taskList,
-                advanced: i18n.slashMenu?.advanced ?? DEFAULT_I18N.slashMenu.advanced,
-                image: i18n.slashMenu?.image ?? DEFAULT_I18N.slashMenu.image,
-                code: i18n.slashMenu?.code ?? DEFAULT_I18N.slashMenu.code,
-                table: i18n.slashMenu?.table ?? DEFAULT_I18N.slashMenu.table,
-            },
-            ai: {
-                askAi: i18n.ai?.askAi ?? DEFAULT_I18N.ai.askAi,
-                instructionPlaceholder: i18n.ai?.instructionPlaceholder ?? DEFAULT_I18N.ai.instructionPlaceholder,
-                suggestionsHeader: i18n.ai?.suggestionsHeader ?? DEFAULT_I18N.ai.suggestionsHeader,
-                sendAsPromptHeader: i18n.ai?.sendAsPromptHeader ?? DEFAULT_I18N.ai.sendAsPromptHeader,
-                sendAsPrompt: i18n.ai?.sendAsPrompt ?? DEFAULT_I18N.ai.sendAsPrompt,
-                submitButton: i18n.ai?.submitButton ?? DEFAULT_I18N.ai.submitButton,
-                listbox: i18n.ai?.listbox ?? DEFAULT_I18N.ai.listbox,
-            },
-        };
+    static async create({ root, defaultValue = '', i18n, onInsertImage, onCopyCode, aiEnabled = false, aiProvider, onAiError }) {
+        const t = i18n;
 
         const crepe = new Crepe({
             root,

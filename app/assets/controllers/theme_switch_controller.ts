@@ -1,6 +1,11 @@
 import { Controller } from '@hotwired/stimulus';
 import { showToast } from '../utils/toast';
 
+export interface I18n {
+    label: string;
+    failed: string;
+}
+
 /**
  * The theme button of the file bar (EDITOR_SETTINGS.md). Every click applies
  * the next theme at once, on `<html data-theme>`: Crepe's theme is CSS on
@@ -30,7 +35,7 @@ export default class extends Controller<HTMLElement> {
     declare readonly urlValue: string;
     declare readonly tokenValue: string;
     declare readonly delayValue: number;
-    declare readonly i18nValue: { label?: string; failed?: string };
+    declare readonly i18nValue: I18n;
 
     #saved = '';
     #timer: ReturnType<typeof setTimeout> | undefined;
@@ -57,7 +62,7 @@ export default class extends Controller<HTMLElement> {
         document.documentElement.dataset.theme = theme;
         this.element.dataset.value = theme;
 
-        const label = (this.i18nValue.label ?? 'Theme: {theme}').replace('{theme}', this.labelsValue[theme] ?? theme);
+        const label = this.i18nValue.label.replace('{theme}', this.labelsValue[theme] ?? theme);
         this.element.title = label;
         if (this.hasLabelTarget) {
             this.labelTarget.textContent = label;
@@ -79,7 +84,7 @@ export default class extends Controller<HTMLElement> {
             this.#saved = theme;
         } catch (error) {
             console.error('Could not save the theme:', error);
-            showToast('error', this.i18nValue.failed ?? 'The action failed, please try again');
+            showToast('error', this.i18nValue.failed);
             // Unless a later click has already moved on.
             if (this.#timer === undefined) {
                 this.#show(this.#saved);

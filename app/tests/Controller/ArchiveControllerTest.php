@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Tests\Trait\ContractAssertions;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class ArchiveControllerTest extends WebTestCase
 {
+    use ContractAssertions;
+
     private string $workDir;
 
     protected function setUp(): void
@@ -90,6 +93,19 @@ final class ArchiveControllerTest extends WebTestCase
         // The import goes through the master: the block carries no route nor token.
         self::assertStringNotContainsString('data-import-run-url-value', $content);
         self::assertStringNotContainsString('data-import-csrf-token-value', $content);
+    }
+
+    public function testI18nAttributesMatchTheirContracts(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', '/archive');
+
+        $export = $crawler->filter('section[data-controller="export"]');
+        $this->assertMatchesContract('i18n/export', json_decode((string) $export->attr('data-export-i18n-value'), true));
+
+        $import = $crawler->filter('section[data-controller="import"]');
+        $this->assertMatchesContract('i18n/import', json_decode((string) $import->attr('data-import-i18n-value'), true));
     }
 
     public function testIndexIsTheContentOfTheModalFrame(): void
@@ -201,6 +217,7 @@ final class ArchiveControllerTest extends WebTestCase
         self::assertCount(1, $data['issues']);
         self::assertSame('not_found', $data['issues'][0]['reason']);
         self::assertSame('./missing.png', $data['issues'][0]['originalTarget']);
+        $this->assertMatchesContract('archive-export', $data);
 
         $zip = new \ZipArchive();
         $zip->open($data['path']);

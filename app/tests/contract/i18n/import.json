@@ -1,0 +1,10 @@
+{
+    "browse": "Browse…",
+    "importButton": "Import",
+    "noSource": "Choose an archive and a destination",
+    "done": "Imported into {path}",
+    "report": {
+        "title": "Ignored entries",
+        "empty": "Nothing was ignored"
+    }
+}

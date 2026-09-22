@@ -21,14 +21,14 @@ export default class AiClient {
      * @param {{ subscribe: string, instruct: string, abort: string }} options.urls
      * @param {string} options.mercureUrl
      * @param {string} options.topic
-     * @param {string} [options.requestFailedMessage]
+     * @param {string} options.requestFailedMessage
      */
     constructor({ csrfToken, urls, mercureUrl, topic, requestFailedMessage }) {
         this.#csrfToken = csrfToken;
         this.#urls = urls;
         this.#mercureUrl = mercureUrl;
         this.#topic = topic;
-        this.#requestFailedMessage = requestFailedMessage ?? 'The AI request failed';
+        this.#requestFailedMessage = requestFailedMessage;
     }
 
     /**

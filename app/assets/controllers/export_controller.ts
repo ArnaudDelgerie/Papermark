@@ -14,11 +14,22 @@ interface ReportIssue {
     referencingPath: string;
 }
 
-interface I18n {
+export interface I18n {
     noSource: string;
     failed: string;
     done: string;
     report: { title: string; empty: string; count_one: string; count_other: string; reason: Record<string, string> };
+}
+
+/** ArchiveController::export(): the archive it wrote, and the references left at their original path. */
+export interface ExportResponse {
+    path: string;
+    issues: ReportIssue[];
+}
+
+interface ExportRefusal {
+    genericErrors?: string[];
+    mappedErrors?: { field: string; message: string }[];
 }
 
 function dirname(path: string): string {
@@ -161,13 +172,13 @@ export default class extends Controller {
                 body: formData,
             });
 
-            const data = await response.json().catch(() => ({}));
+            const data: Partial<ExportResponse> & ExportRefusal = await response.json().catch(() => ({}));
 
             if (!response.ok) {
                 throw new Error(data.genericErrors?.[0] || data.mappedErrors?.[0]?.message || this.i18nValue.failed);
             }
 
-            showToast('success', this.i18nValue.done.replace('{path}', data.path));
+            showToast('success', this.i18nValue.done.replace('{path}', data.path ?? ''));
             this.#renderReport(data.issues || []);
         } catch (err) {
             console.error('Failed to export archive:', err);

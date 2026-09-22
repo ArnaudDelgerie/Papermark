@@ -3,7 +3,7 @@ import { emit, on } from '../editor/events';
 import { pickPath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
-interface I18n {
+export interface I18n {
     noSource: string;
     done: string;
     report: { title: string; empty: string };

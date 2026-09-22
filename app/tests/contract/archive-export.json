@@ -1,0 +1,6 @@
+{
+    "path": "/exports/notes.zip",
+    "issues": [
+        { "referencingPath": "/notes/doc.md", "originalTarget": "./missing.png", "reason": "not_found" }
+    ]
+}

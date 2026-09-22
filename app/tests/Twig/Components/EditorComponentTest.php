@@ -9,6 +9,7 @@ use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\ThemeMode;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
+use App\Tests\Trait\ContractAssertions;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -22,6 +23,8 @@ use Twig\Environment;
 
 final class EditorComponentTest extends KernelTestCase
 {
+    use ContractAssertions;
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -61,6 +64,14 @@ final class EditorComponentTest extends KernelTestCase
         self::assertSame(1, $toggle->count());
         // Edit is shown when currently readonly.
         self::assertSame('Edit', trim($toggle->text()));
+    }
+
+    public function testI18nMatchesItsContract(): void
+    {
+        $html = $this->twig()->createTemplate("{{ component('editor') }}")->render([]);
+        $editor = (new Crawler($html))->filter('div[data-controller="editor"]');
+
+        $this->assertMatchesContract('i18n/editor', json_decode((string) $editor->attr('data-editor-i18n-value'), true));
     }
 
     public function testAiConfigAlwaysCarriesTheHubAndTopic(): void

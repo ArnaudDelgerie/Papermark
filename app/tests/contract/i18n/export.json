@@ -1,0 +1,22 @@
+{
+    "sourceTitle": "Source",
+    "sourceFile": "File",
+    "sourceFolder": "Folder",
+    "browse": "Browse…",
+    "noSourceSelected": "No source selected",
+    "includeExternalMarkdown": "Include external Markdown files",
+    "exportButton": "Export",
+    "noSource": "Choose a source first",
+    "done": "Exported to {path}",
+    "failed": "Export failed",
+    "report": {
+        "title": "Report",
+        "empty": "Nothing left out",
+        "count_one": "{count} reference left at its original path",
+        "count_other": "{count} references left at their original path",
+        "reason": {
+            "not_found": "Not found",
+            "limit_exceeded": "Size limit exceeded"
+        }
+    }
+}

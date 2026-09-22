@@ -7,12 +7,15 @@ namespace App\Tests\Controller;
 use App\Enum\Setting\EditorMode;
 use App\Service\Directory\DirectoryTree;
 use App\Repository\SettingRepository;
+use App\Tests\Trait\ContractAssertions;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 
 final class EditorControllerTest extends WebTestCase
 {
+    use ContractAssertions;
+
     /** CSRF token, read from the rendered page */
     private string $token;
 
@@ -93,6 +96,27 @@ final class EditorControllerTest extends WebTestCase
         unlink($path);
     }
 
+    /**
+     * The three i18n objects Twig renders inline (not through a component's
+     * getI18n()): the master's, the theme button's, and the shared one both
+     * mode-single and mode-dir render for their file entries.
+     */
+    public function testInlineI18nAttributesMatchTheirContracts(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', '/editor');
+
+        $master = $crawler->filter('div[data-controller="editor-state"]');
+        $this->assertMatchesContract('i18n/editor-state', json_decode((string) $master->attr('data-editor-state-i18n-value'), true));
+
+        $theme = $crawler->filter('button[data-controller="theme-switch"]');
+        $this->assertMatchesContract('i18n/theme-switch', json_decode((string) $theme->attr('data-theme-switch-i18n-value'), true));
+
+        $this->assertMatchesContract('i18n/file-entries', json_decode((string) $crawler->filter('div[data-controller="mode-single"]')->attr('data-mode-single-i18n-value'), true));
+        $this->assertMatchesContract('i18n/file-entries', json_decode((string) $crawler->filter('div[data-controller="mode-dir"]')->attr('data-mode-dir-i18n-value'), true));
+    }
+
     public function testGetStateReturnsTheSessionState(): void
     {
         $client = $this->createClientWithTokens();
@@ -104,6 +128,7 @@ final class EditorControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'single', 'file' => realpath($path), 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
+        $this->assertMatchesContract('editor-state', $this->responseState($client));
 
         unlink($path);
     }
@@ -175,6 +200,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
         self::assertSame(['mode' => 'dir'], $this->responseData($client)['action']);
+        $this->assertMatchesContract('state-success', $this->responseData($client));
 
         // Switching back doesn't bring the file back: one file, not one per mode.
         $this->post($client, '/editor/mode', ['mode' => 'single']);
@@ -202,6 +228,7 @@ final class EditorControllerTest extends WebTestCase
         // A refusal still carries the state (S6).
         self::assertSame('single', $this->responseState($client)['mode']);
         self::assertSame('mode', $this->responseData($client)['mappedErrors'][0]['field']);
+        $this->assertMatchesContract('state-error', $this->responseData($client));
     }
 
     public function testSetFileMakesTheFileCurrentAndGetFileReadsIt(): void

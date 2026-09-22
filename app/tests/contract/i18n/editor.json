@@ -1,0 +1,51 @@
+{
+    "placeholder": "Start writing…",
+    "link": { "confirm": "Confirm", "inputPlaceholder": "Paste link…" },
+    "toggle": { "edit": "Edit", "readonly": "Read only" },
+    "untitled": "Untitled",
+    "unsaved": { "confirm": "Continue and lose unsaved changes?", "cancel": "Cancel", "continue": "Continue" },
+    "conflict": { "question": "What should happen to your changes?", "cancel": "Cancel", "saveAs": "Save as…", "overwrite": "Overwrite" },
+    "loadError": "The file could not be loaded",
+    "slashMenu": {
+        "text": "Text",
+        "paragraph": "Text",
+        "h1": "Heading 1",
+        "h2": "Heading 2",
+        "h3": "Heading 3",
+        "h4": "Heading 4",
+        "h5": "Heading 5",
+        "h6": "Heading 6",
+        "quote": "Quote",
+        "divider": "Divider",
+        "list": "List",
+        "bulletList": "Bullet List",
+        "orderedList": "Ordered List",
+        "taskList": "Task List",
+        "advanced": "Advanced",
+        "image": "Image",
+        "code": "Code",
+        "table": "Table"
+    },
+    "codeBlock": { "noLanguage": "Plain text", "copy": "Copy code" },
+    "toast": {
+        "saved": "File saved",
+        "savedAs": "File saved as {name}",
+        "copiedMarkdown": "Markdown copied to clipboard",
+        "copyMarkdownFailed": "Failed to copy markdown",
+        "copiedCode": "Code copied to clipboard",
+        "copyCodeFailed": "Failed to copy code",
+        "currentFileDeleted": "\"{name}\" has been deleted: its content stays open, unsaved. Save it under another name to keep it.",
+        "currentFileGone": "\"{name}\" no longer exists: its content stays open, unsaved. Save it under another name to keep it.",
+        "fileNotFound": "File not found"
+    },
+    "ai": {
+        "askAi": "Ask AI",
+        "instructionPlaceholder": "Tell AI what to do with the selection…",
+        "suggestionsHeader": "SUGGESTIONS",
+        "sendAsPromptHeader": "SEND AS PROMPT",
+        "sendAsPrompt": "Ask AI:",
+        "submitButton": "Send prompt",
+        "listbox": "AI suggestions",
+        "requestFailed": "The AI request failed"
+    }
+}

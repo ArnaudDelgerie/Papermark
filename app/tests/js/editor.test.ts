@@ -11,6 +11,7 @@ import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { saveConflictDialog } from '../../assets/utils/conflict-dialog';
 import { INITIAL, attr, masterHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
+import EDITOR_I18N from '../contract/i18n/editor.json';
 
 vi.mock('../../assets/editor/editor-factory', () => ({ default: { create: vi.fn() } }));
 vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
@@ -81,17 +82,7 @@ function editorHtml(): string {
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
          data-editor-csrf-token-value="tk-app"
          data-editor-urls-value="${attr({ file: '/document', copy: '/document/copy', image: '/document/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
-         data-editor-i18n-value="${attr({
-             untitled: 'Untitled',
-             conflict: { question: 'What about your changes?', cancel: 'Cancel', saveAs: 'Save as', overwrite: 'Overwrite' },
-             loadError: 'Could not load the file',
-             toast: {
-                 saved: 'Saved',
-                 savedAs: 'Saved as {name}',
-                 currentFileDeleted: '{name} was deleted: save it under another name',
-                 currentFileGone: '{name} is gone: save it under another name',
-             },
-         })}">
+         data-editor-i18n-value="${attr(EDITOR_I18N)}">
         <button type="button" data-action="click->editor#newFile" data-editor-leave-guard>New</button>
         <button type="button" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>Save</button>
         <button type="button" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>Save as</button>
@@ -328,7 +319,7 @@ describe('the editor, with the master', () => {
         expect((init!.body as FormData).get('revision')).toBe('r0');
         expect(files['/notes/a.md']).toBe('# A, edited');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
-        expect(toasts).toEqual([{ type: 'success', message: 'Saved' }]);
+        expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.saved }]);
     });
 
     it('Save as takes the path the server answers with', async () => {
@@ -343,7 +334,7 @@ describe('the editor, with the master', () => {
         // The dialog opens in the current folder, in dir mode.
         expect(invoke).toHaveBeenCalledWith('save_path', expect.objectContaining({ fileName: 'untitled.md', directory: '/notes' }));
         expect(label()).toBe('/notes/new.md');
-        expect(toasts).toEqual([{ type: 'success', message: 'Saved as new.md' }]);
+        expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.savedAs.replace('{name}', 'new.md') }]);
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
     });
 
@@ -409,7 +400,7 @@ describe('the editor, with the master', () => {
             expect(saveButton().disabled).toBe(true);
             expect(saveAsButton().disabled).toBe(false);
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
-            expect(toasts).toEqual([{ type: 'success', message: 'Saved' }]);
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.saved }]);
         });
 
         it('renews the revision at each save and sends it back on the next one', async () => {
@@ -439,10 +430,10 @@ describe('the editor, with the master', () => {
             // The 409 itself is never toasted — only the overwrite's success.
             expect(saveConflictDialog).toHaveBeenCalledWith(expect.objectContaining({
                 message: 'The file was modified outside of Papermark',
-                question: 'What about your changes?',
-                cancelLabel: 'Cancel',
-                saveAsLabel: 'Save as',
-                overwriteLabel: 'Overwrite',
+                question: EDITOR_I18N.conflict.question,
+                cancelLabel: EDITOR_I18N.conflict.cancel,
+                saveAsLabel: EDITOR_I18N.conflict.saveAs,
+                overwriteLabel: EDITOR_I18N.conflict.overwrite,
             }));
             // Écraser replays the save without a revision, on fresh markdown.
             expect(calls('POST', '/document/save')).toHaveLength(2);
@@ -451,7 +442,7 @@ describe('the editor, with the master', () => {
             expect((init!.body as FormData).get('content')).toBe('# A, edited');
             expect(files['/notes/a.md']).toBe('# A, edited');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
-            expect(toasts).toEqual([{ type: 'success', message: 'Saved' }]);
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.saved }]);
         });
 
         it('on a 409, Save as goes through the picker', async () => {
@@ -484,7 +475,7 @@ describe('the editor, with the master', () => {
             // Still dirty, and Save as is the way out.
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
             expect(saveAsButton().disabled).toBe(false);
-            expect(toasts).toEqual([{ type: 'error', message: 'a.md was deleted: save it under another name' }]);
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.currentFileDeleted.replace('{name}', 'a.md') }]);
         });
 
         it('marks a clean document unsaved when its file goes: the text is nowhere else now', async () => {
@@ -520,7 +511,7 @@ describe('the editor, with the master', () => {
 
             expect(crepe.getMarkdown()).toBe('# A');
             expect(label()).toBe('Untitled');
-            expect(toasts).toEqual([{ type: 'error', message: 'a.md is gone: save it under another name' }]);
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.currentFileGone.replace('{name}', 'a.md') }]);
         });
 
         it('same when asking again for the current file finds it gone', async () => {
@@ -569,7 +560,7 @@ describe('the editor, with the master', () => {
             fetchMock.mockImplementation(async () => jsonResponse({}, 500));
             await start(current);
 
-            expect($('[data-editor-target="loadErrorMessage"]').textContent).toBe('Could not load the file');
+            expect($('[data-editor-target="loadErrorMessage"]').textContent).toBe(EDITOR_I18N.loadError);
         });
     });
 
@@ -589,7 +580,7 @@ describe('the editor, with the master', () => {
         expect(crepe.getMarkdown()).toBe('# A');
         expect(label()).toBe('Untitled');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
-        expect(toasts).toEqual([{ type: 'error', message: 'b.md was deleted: save it under another name' }]);
+        expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.currentFileDeleted.replace('{name}', 'b.md') }]);
     });
 
     it('a current file found gone empties the editor and resyncs everyone', async () => {

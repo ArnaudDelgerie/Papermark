@@ -56,7 +56,7 @@ const ROUTES: Record<ActionName, Route> = {
  * Every state route answers this: `action` on success, `genericErrors` and
  * `mappedErrors` on a refusal — always both present, empty or not (S6).
  */
-interface StateResponse {
+export interface StateResponse {
     state?: Partial<EditorState>;
     action?: ResultOf<ActionName>;
     genericErrors?: string[];

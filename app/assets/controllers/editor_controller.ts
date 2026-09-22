@@ -37,32 +37,70 @@ interface Urls {
     aiAbort: string;
 }
 
-/** Controller-owned texts; the editor's own ones go straight to EditorFactory. */
-interface I18n {
-    untitled?: string;
-    toggle?: { edit?: string; readonly?: string };
-    unsaved?: { confirm?: string; cancel?: string; continue?: string };
-    conflict?: { question?: string; cancel?: string; saveAs?: string; overwrite?: string };
-    loadError?: string;
-    toast?: {
-        saved?: string;
-        savedAs?: string;
-        copiedMarkdown?: string;
-        copyMarkdownFailed?: string;
-        copiedCode?: string;
-        copyCodeFailed?: string;
-        currentFileDeleted?: string;
-        currentFileGone?: string;
+/**
+ * The whole of Editor::getI18n(): the controller's own texts, plus what it
+ * passes straight through to EditorFactory (placeholder, link, slashMenu,
+ * codeBlock, ai.*) and AiClient (ai.requestFailed). No key is optional: the
+ * server always sends the lot, so a front-end fallback would only ever mask
+ * a translation missing at the source.
+ */
+export interface I18n {
+    placeholder: string;
+    link: { confirm: string; inputPlaceholder: string };
+    toggle: { edit: string; readonly: string };
+    untitled: string;
+    unsaved: { confirm: string; cancel: string; continue: string };
+    conflict: { question: string; cancel: string; saveAs: string; overwrite: string };
+    loadError: string;
+    slashMenu: {
+        text: string;
+        paragraph: string;
+        h1: string;
+        h2: string;
+        h3: string;
+        h4: string;
+        h5: string;
+        h6: string;
+        quote: string;
+        divider: string;
+        list: string;
+        bulletList: string;
+        orderedList: string;
+        taskList: string;
+        advanced: string;
+        image: string;
+        code: string;
+        table: string;
     };
-    ai?: { requestFailed?: string };
-    [key: string]: unknown;
+    codeBlock: { noLanguage: string; copy: string };
+    toast: {
+        saved: string;
+        savedAs: string;
+        copiedMarkdown: string;
+        copyMarkdownFailed: string;
+        copiedCode: string;
+        copyCodeFailed: string;
+        currentFileDeleted: string;
+        currentFileGone: string;
+        fileNotFound: string;
+    };
+    ai: {
+        askAi: string;
+        instructionPlaceholder: string;
+        suggestionsHeader: string;
+        sendAsPromptHeader: string;
+        sendAsPrompt: string;
+        submitButton: string;
+        listbox: string;
+        requestFailed: string;
+    };
 }
 
 /**
  * GET /editor/file: the current file with its revision, none, or the
  * state's refusal form (`genericErrors`) on a failed read.
  */
-interface FileResponse {
+export interface FileResponse {
     path?: string | null;
     content?: string | null;
     revision?: string | null;
@@ -268,7 +306,7 @@ export default class extends Controller<HTMLElement> {
             // was an intention to leave, leave guard included.
             on('editor:nav-change_file-failed', ({ state, action }) => {
                 if (action.path === this.#currentPath && state.file === null) {
-                    this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast?.currentFileGone, action.path));
+                    this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast.currentFileGone, action.path));
                 } else if (state.file === null && this.#currentPath !== null) {
                     this.#resetTo(state);
                 }
@@ -284,14 +322,14 @@ export default class extends Controller<HTMLElement> {
                 }
             }),
 
-            on('editor:do-save-succeeded', ({ action }) => this.#saved(this.i18nValue.toast?.saved ?? 'File saved', action.revision)),
+            on('editor:do-save-succeeded', ({ action }) => this.#saved(this.i18nValue.toast.saved, action.revision)),
             on('editor:do-save-failed', ({ action }) => this.#saveFailed(action.status, action.message ?? null)),
             on('editor:do-save_as-succeeded', ({ state, action }) => {
                 // The server made the new file the current one, realpath'd.
                 this.#currentPath = action.path;
                 this.#syncDirectory(state);
                 this.#updateFilePath();
-                const template = this.i18nValue.toast?.savedAs ?? 'File saved as {name}';
+                const template = this.i18nValue.toast.savedAs;
                 this.#saved(template.replace('{name}', basename(action.path)), action.revision);
             }),
             on('editor:do-save_as-failed', ({ action }) => this.#saveFailed(action.status, action.message ?? null)),
@@ -313,7 +351,7 @@ export default class extends Controller<HTMLElement> {
             // and how to keep the text — the sidebar's says "deleted" (lot 03).
             on('editor:do-delete-succeeded', ({ action }) => {
                 if (action.path === this.#currentPath) {
-                    this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast?.currentFileDeleted, action.path));
+                    this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast.currentFileDeleted, action.path));
                 }
             }),
             on('editor:do-rename-succeeded', ({ action }) => {
@@ -334,7 +372,7 @@ export default class extends Controller<HTMLElement> {
             // it isn't anymore (lot 03).
             on('editor:state-resynced', ({ anomaly }) => {
                 if (anomaly.file !== undefined && anomaly.file === this.#currentPath) {
-                    this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast?.currentFileGone, anomaly.file));
+                    this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast.currentFileGone, anomaly.file));
                 }
             }),
 
@@ -391,7 +429,7 @@ export default class extends Controller<HTMLElement> {
             urls: { subscribe: this.urlsValue.aiSubscribe, instruct: this.urlsValue.aiInstruct, abort: this.urlsValue.aiAbort },
             mercureUrl,
             topic,
-            requestFailedMessage: this.i18nValue.ai?.requestFailed,
+            requestFailedMessage: this.i18nValue.ai.requestFailed,
         });
     }
 
@@ -469,8 +507,8 @@ export default class extends Controller<HTMLElement> {
 
         if (this.hasToggleLabelTarget) {
             this.toggleLabelTarget.textContent = this.#isReadonly
-                ? this.i18nValue.toggle?.edit ?? 'Edit'
-                : this.i18nValue.toggle?.readonly ?? 'Read only';
+                ? this.i18nValue.toggle.edit
+                : this.i18nValue.toggle.readonly;
         }
     }
 
@@ -527,7 +565,7 @@ export default class extends Controller<HTMLElement> {
                 if (loadingPath !== null) {
                     emit('editor:state-anomaly-reported', { anomaly: { file: loadingPath } });
                 }
-                showToast('error', data.genericErrors?.[0] || 'File not found');
+                showToast('error', data.genericErrors?.[0] || this.i18nValue.toast.fileNotFound);
 
                 return;
             }
@@ -739,10 +777,10 @@ export default class extends Controller<HTMLElement> {
 
         void saveConflictDialog({
             message,
-            question: this.i18nValue.conflict?.question ?? 'The file changed outside of Papermark. What happens to your changes?',
-            cancelLabel: this.i18nValue.conflict?.cancel ?? 'Cancel',
-            saveAsLabel: this.i18nValue.conflict?.saveAs ?? 'Save as',
-            overwriteLabel: this.i18nValue.conflict?.overwrite ?? 'Overwrite',
+            question: this.i18nValue.conflict.question,
+            cancelLabel: this.i18nValue.conflict.cancel,
+            saveAsLabel: this.i18nValue.conflict.saveAs,
+            overwriteLabel: this.i18nValue.conflict.overwrite,
         }).then((choice) => {
             if (choice === 'save_as') {
                 void this.saveFileAs();
@@ -775,7 +813,7 @@ export default class extends Controller<HTMLElement> {
         this.#loadFailed = true;
         this.element.classList.add('is-load-failed');
         if (this.hasLoadErrorMessageTarget) {
-            this.loadErrorMessageTarget.textContent = message ?? this.i18nValue.loadError ?? 'Could not load the file';
+            this.loadErrorMessageTarget.textContent = message ?? this.i18nValue.loadError;
         }
         this.#updateSaveButton('');
         this.#applyEditable();
@@ -802,9 +840,8 @@ export default class extends Controller<HTMLElement> {
         showToast('error', message);
     }
 
-    #fileGoneMessage(template: string | undefined, path: string): string {
-        return (template ?? 'The file "{name}" is gone: its content stays open, unsaved. Save it under another name to keep it.')
-            .replace('{name}', basename(path));
+    #fileGoneMessage(template: string, path: string): string {
+        return template.replace('{name}', basename(path));
     }
 
     printFile(): void {
@@ -819,20 +856,20 @@ export default class extends Controller<HTMLElement> {
         try {
             const content = await this.#convertImageUrlsForCopy(markdown);
             await navigator.clipboard.writeText(content);
-            showToast('success', this.i18nValue.toast?.copiedMarkdown ?? 'Markdown copied to clipboard');
+            showToast('success', this.i18nValue.toast.copiedMarkdown);
         } catch (err) {
             console.error('Failed to copy markdown:', err);
-            showToast('error', this.i18nValue.toast?.copyMarkdownFailed ?? 'Failed to copy markdown');
+            showToast('error', this.i18nValue.toast.copyMarkdownFailed);
         }
     }
 
     async #copyCode(text: string): Promise<void> {
         try {
             await navigator.clipboard.writeText(text);
-            showToast('success', this.i18nValue.toast?.copiedCode ?? 'Code copied to clipboard');
+            showToast('success', this.i18nValue.toast.copiedCode);
         } catch (err) {
             console.error('Failed to copy code:', err);
-            showToast('error', this.i18nValue.toast?.copyCodeFailed ?? 'Failed to copy code');
+            showToast('error', this.i18nValue.toast.copyCodeFailed);
         }
     }
 
@@ -953,7 +990,7 @@ export default class extends Controller<HTMLElement> {
         if (!this.hasFilePathTarget) {
             return;
         }
-        const label = this.#currentPath ?? this.i18nValue.untitled ?? 'Untitled';
+        const label = this.#currentPath ?? this.i18nValue.untitled;
         this.filePathTarget.textContent = label;
         this.filePathTarget.title = label;
     }
@@ -1002,9 +1039,9 @@ export default class extends Controller<HTMLElement> {
         event.stopImmediatePropagation();
 
         void confirmDialog({
-            question: this.i18nValue.unsaved?.confirm ?? 'Continue and lose unsaved changes?',
-            cancelLabel: this.i18nValue.unsaved?.cancel ?? 'Cancel',
-            continueLabel: this.i18nValue.unsaved?.continue ?? 'Continue',
+            question: this.i18nValue.unsaved.confirm,
+            cancelLabel: this.i18nValue.unsaved.cancel,
+            continueLabel: this.i18nValue.unsaved.continue,
         }).then((confirmed) => {
             if (!confirmed) {
                 this.#restoreFocus();

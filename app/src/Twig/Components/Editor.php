@@ -92,6 +92,7 @@ final class Editor
                 'copyCodeFailed' => $this->trans('toast.copy_code_failed'),
                 'currentFileDeleted' => $this->trans('toast.current_file_deleted'),
                 'currentFileGone' => $this->trans('toast.current_file_gone'),
+                'fileNotFound' => $this->trans('toast.file_not_found'),
             ],
             'ai' => [
                 'askAi' => $this->trans('ai.ask_ai'),

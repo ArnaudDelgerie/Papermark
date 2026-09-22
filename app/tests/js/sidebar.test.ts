@@ -10,6 +10,7 @@ import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { renameDialog } from '../../assets/utils/rename-dialog';
 import { INITIAL, masterHtml, sidebarHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
+import EDITOR_STATE_I18N from '../contract/i18n/editor-state.json';
 
 vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
 vi.mock('../../assets/utils/rename-dialog', () => ({ renameDialog: vi.fn() }));
@@ -96,7 +97,7 @@ describe('the left column, with the master', () => {
             expect(dirColumn().hidden).toBe(true);
             expect($('[data-mode="single"]').classList.contains('is-active')).toBe(true);
             expect(fetchMock).toHaveBeenCalledTimes(1);
-            expect(toasts).toEqual([{ type: 'error', message: 'Generic failure' }]);
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_STATE_I18N.failed }]);
         });
 
         it('does not ask for the mode already shown', async () => {
@@ -304,7 +305,7 @@ describe('the left column, with the master', () => {
             expect(reload).not.toHaveBeenCalled();
             expect(refreshButton().disabled).toBe(false);
             expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
-            expect(toasts).toEqual([{ type: 'error', message: 'Generic failure' }]);
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_STATE_I18N.failed }]);
         });
     });
 

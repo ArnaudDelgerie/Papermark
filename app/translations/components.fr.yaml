@@ -61,6 +61,7 @@ components:
             copy_code_failed: Échec de la copie du code
             current_file_deleted: '« {name} » a été supprimé : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
             current_file_gone: '« {name} » n''existe plus : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
+            file_not_found: Fichier introuvable
         ai:
             ask_ai: Demander à l'IA
             instruction_placeholder: Indiquez à l'IA quoi faire avec la sélection…

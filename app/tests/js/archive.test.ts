@@ -10,6 +10,8 @@ import ModeSwitchController from '../../assets/controllers/mode_switch_controlle
 import { type EditorState, emit } from '../../assets/editor/events';
 import { INITIAL, attr, masterHtml, sidebarHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
+import EXPORT_I18N from '../contract/i18n/export.json';
+import IMPORT_I18N from '../contract/i18n/import.json';
 
 const HISTORY_KEY = 'editor.single.history';
 
@@ -23,7 +25,7 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
                  data-export-initial-directory-value="${INITIAL.dir}"
                  data-export-csrf-token-value="tk-export"
                  data-export-run-url-value="/archive/export"
-                 data-export-i18n-value="${attr({ noSource: 'Choose a source', failed: 'Export failed', done: 'Exported to {path}', report: { title: 'Report', empty: 'None', count_one: '{count} reference', count_other: '{count} references', reason: { not_found: 'Not found' } } })}">
+                 data-export-i18n-value="${attr(EXPORT_I18N)}">
             <input type="radio" name="export-kind" value="file" data-export-target="kindFileRadio" data-action="change->export#changeKind">
             <input type="radio" name="export-kind" value="directory" data-export-target="kindDirectoryRadio" data-action="change->export#changeKind">
             <span class="source" data-export-target="sourcePath"></span>
@@ -32,7 +34,7 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
             <div data-export-target="report" hidden></div>
         </section>
         <section data-controller="import"
-                 data-import-i18n-value="${attr({ noSource: 'Choose an archive', done: 'Imported into {path}', report: { title: 'Ignored', empty: 'Nothing ignored' } })}">
+                 data-import-i18n-value="${attr(IMPORT_I18N)}">
             <span data-import-target="archivePath"></span>
             <button type="button" class="browse-archive" data-action="click->import#browseArchive">Browse</button>
             <span data-import-target="parentPath"></span>
@@ -122,7 +124,7 @@ describe('the archive modal, with the master', () => {
             expect((init as RequestInit).headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
             expect(((init as RequestInit).body as FormData).get('archive')).toBe('/tmp/notes.zip');
             expect(((init as RequestInit).body as FormData).get('parentDir')).toBe('/dest');
-            expect(toasts).toEqual([{ type: 'success', message: 'Imported into /dest/notes' }]);
+            expect(toasts).toEqual([{ type: 'success', message: IMPORT_I18N.done.replace('{path}', '/dest/notes') }]);
             expect($('.report').hidden).toBe(false);
             expect($('.report li').textContent).toBe('a.pdf');
             expect($<HTMLButtonElement>('.import').disabled).toBe(false);
@@ -136,7 +138,7 @@ describe('the archive modal, with the master', () => {
             click('.import');
             await settle();
 
-            expect($('.report p').textContent).toBe('Nothing ignored');
+            expect($('.report p').textContent).toBe(IMPORT_I18N.report.empty);
         });
 
         it('on a failure, the master toasts, the button comes back and there is no report', async () => {
@@ -159,7 +161,7 @@ describe('the archive modal, with the master', () => {
             await settle();
 
             expect(importRequests()).toHaveLength(0);
-            expect(toasts).toEqual([{ type: 'error', message: 'Choose an archive' }]);
+            expect(toasts).toEqual([{ type: 'error', message: IMPORT_I18N.noSource }]);
         });
 
         it('pre-fills the folder with the archive\'s own, without overwriting one already picked', async () => {
@@ -290,21 +292,21 @@ describe('the archive modal, with the master', () => {
 
             const details = $<HTMLDetailsElement>('[data-export-target="report"] details');
             expect(details.open).toBe(false);
-            expect(details.querySelector('summary')!.textContent).toBe('3 references');
+            expect(details.querySelector('summary')!.textContent).toBe(EXPORT_I18N.report.count_other.replace('{count}', '3'));
             expect(details.querySelectorAll('li')).toHaveLength(3);
         });
 
         it('says the count in the singular for one', async () => {
             await exportWith([issue(1)]);
 
-            expect($('[data-export-target="report"] summary').textContent).toBe('1 reference');
+            expect($('[data-export-target="report"] summary').textContent).toBe(EXPORT_I18N.report.count_one.replace('{count}', '1'));
         });
 
         it('has no toggle when everything was embedded', async () => {
             await exportWith([]);
 
             expect(document.querySelector('[data-export-target="report"] details')).toBeNull();
-            expect($('[data-export-target="report"] p').textContent).toBe('None');
+            expect($('[data-export-target="report"] p').textContent).toBe(EXPORT_I18N.report.empty);
         });
     });
 

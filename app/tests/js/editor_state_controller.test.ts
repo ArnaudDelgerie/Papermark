@@ -4,6 +4,7 @@ import EditorStateController from '../../assets/controllers/editor_state_control
 import { emit, on } from '../../assets/editor/events';
 import { INITIAL, masterHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
+import EDITOR_STATE_I18N from '../contract/i18n/editor-state.json';
 
 describe('editor-state (the master)', () => {
     let application: Application;
@@ -92,7 +93,7 @@ describe('editor-state (the master)', () => {
         await settle();
 
         expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { path: '/other' } });
-        expect(toasts).toEqual([{ type: 'error', message: 'Generic failure' }]);
+        expect(toasts).toEqual([{ type: 'error', message: EDITOR_STATE_I18N.failed }]);
     });
 
     it('a 500 without JSON is a failure without answer', async () => {

@@ -2,12 +2,15 @@
 
 namespace App\Tests\Controller;
 
+use App\Tests\Trait\ContractAssertions;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class DocumentControllerTest extends WebTestCase
 {
+    use ContractAssertions;
+
     /**
      * @return array{0: KernelBrowser, 1: string}
      */
@@ -32,7 +35,26 @@ final class DocumentControllerTest extends WebTestCase
         $client->request('GET', '/document');
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['path' => null, 'content' => null], json_decode((string) $client->getResponse()->getContent(), true));
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(['path' => null, 'content' => null], $data);
+        $this->assertMatchesContract('document-none', $data);
+    }
+
+    public function testReadMatchesTheDocumentContract(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        $client->request('GET', '/document');
+
+        self::assertResponseIsSuccessful();
+        $this->assertMatchesContract('document', json_decode((string) $client->getResponse()->getContent(), true));
+
+        unlink($path);
     }
 
     public function testReadConvertsLocalImagePathsToServiceUrls(): void
@@ -597,7 +619,7 @@ final class DocumentControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(404);
         // A refusal still carries the state (S6).
-        self::assertSame(['mode', 'file', 'dir', 'ai_enabled'], array_keys($this->responseState($client)));
+        $this->assertMatchesContract('editor-state', $this->responseState($client));
     }
 
     public function testDeleteRejectsInvalidCsrf(): void
