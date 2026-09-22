@@ -18,11 +18,12 @@ describe('the theme button', () => {
         button().dispatchEvent(new MouseEvent('click', { bubbles: true }));
     };
 
-    async function start(current = 'auto'): Promise<void> {
+    async function start(current = 'auto', themes = ['auto', 'light', 'dark']): Promise<void> {
         document.documentElement.dataset.theme = current;
         application = await mount(
             `<button type="button" data-controller="theme-switch" data-action="click->theme-switch#next" data-value="${current}"
                 data-theme-switch-current-value="${current}"
+                data-theme-switch-themes-value="${attr(themes)}"
                 data-theme-switch-labels-value="${attr({ auto: 'Auto', light: 'Light', dark: 'Dark' })}"
                 data-theme-switch-url-value="/settings/theme" data-theme-switch-token-value="tk-settings"
                 data-theme-switch-delay-value="300"
@@ -112,6 +113,19 @@ describe('the theme button', () => {
         await vi.advanceTimersByTimeAsync(300);
 
         expect(html()).toBe('light');
+    });
+
+    it('follows the order it is given, not a hardcoded one', async () => {
+        await start('dark', ['dark', 'auto', 'light']);
+
+        click();
+        expect(html()).toBe('auto');
+
+        click();
+        expect(html()).toBe('light');
+
+        click();
+        expect(html()).toBe('dark');
     });
 });
 

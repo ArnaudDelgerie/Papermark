@@ -1,9 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { showToast } from '../utils/toast';
 
-/** Each click goes to the next one. Kept in step with App\Enum\Setting\ThemeMode. */
-const CYCLE = ['auto', 'light', 'dark'];
-
 /**
  * The theme button of the file bar (EDITOR_SETTINGS.md). Every click applies
  * the next theme at once, on `<html data-theme>`: Crepe's theme is CSS on
@@ -17,6 +14,7 @@ export default class extends Controller<HTMLElement> {
 
     static values = {
         current: String,
+        themes: Array,
         labels: Object,
         url: String,
         token: String,
@@ -27,6 +25,7 @@ export default class extends Controller<HTMLElement> {
     declare readonly hasLabelTarget: boolean;
     declare readonly labelTarget: HTMLElement;
     declare currentValue: string;
+    declare readonly themesValue: string[];
     declare readonly labelsValue: Record<string, string>;
     declare readonly urlValue: string;
     declare readonly tokenValue: string;
@@ -45,8 +44,9 @@ export default class extends Controller<HTMLElement> {
     }
 
     next(): void {
-        const index = CYCLE.indexOf(this.currentValue);
-        this.#show(CYCLE[(index + 1) % CYCLE.length]);
+        const themes = this.themesValue;
+        const index = themes.indexOf(this.currentValue);
+        this.#show(themes[(index + 1) % themes.length]);
 
         clearTimeout(this.#timer);
         this.#timer = setTimeout(() => void this.#save(), this.delayValue);

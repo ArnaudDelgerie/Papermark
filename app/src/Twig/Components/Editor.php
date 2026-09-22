@@ -129,25 +129,21 @@ final class Editor
 
     /**
      * What the theme and language buttons of the file bar start from. The
-     * languages come from the enum, so a new one shows up without any JS.
+     * values and labels come from the enums, so a new theme or language
+     * shows up without any JS.
      *
-     * @return array{theme: string, themeLabels: array<string, string>, locale: string, locales: list<string>, localeLabels: array<string, string>}
+     * @return array{theme: string, themes: list<string>, themeLabels: array<string, string>, locale: string, locales: list<string>, localeLabels: array<string, string>}
      */
     #[ExposeInTemplate(name: 'appearance')]
     public function getAppearance(): array
     {
         return [
             'theme' => $this->settings->getThemeMode()->value,
-            'themeLabels' => array_combine(
-                array_map(static fn (ThemeMode $mode): string => $mode->value, ThemeMode::cases()),
-                array_map(fn (ThemeMode $mode): string => $this->translator->trans('components.theme.' . $mode->value, [], self::TRANSLATION_DOMAIN), ThemeMode::cases()),
-            ),
+            'themes' => ThemeMode::values(),
+            'themeLabels' => ThemeMode::labels($this->translator),
             'locale' => $this->settings->getLocale()->value,
-            'locales' => array_map(static fn (AppLocale $locale): string => $locale->value, AppLocale::cases()),
-            'localeLabels' => array_combine(
-                array_map(static fn (AppLocale $locale): string => $locale->value, AppLocale::cases()),
-                array_map(fn (AppLocale $locale): string => $this->translator->trans('components.locale.' . $locale->value, [], self::TRANSLATION_DOMAIN), AppLocale::cases()),
-            ),
+            'locales' => AppLocale::values(),
+            'localeLabels' => AppLocale::labels($this->translator),
         ];
     }
 

@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Enum\Setting;
 
+use App\Trait\EnumLabelsTrait;
 use Symfony\Contracts\Translation\TranslatableInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 enum ThemeMode: string implements TranslatableInterface
 {
+    use EnumLabelsTrait;
+
+    // The cycle order: Auto -> Light -> Dark -> Auto.
+    case Auto = 'auto';
     case Light = 'light';
     case Dark = 'dark';
-    case Auto = 'auto';
 
     public function trans(TranslatorInterface $translator, ?string $locale = null): string
     {

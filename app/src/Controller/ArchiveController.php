@@ -7,7 +7,6 @@ namespace App\Controller;
 use App\Dto\Archive\ExportArchiveRequest;
 use App\Dto\Archive\ExportIssue;
 use App\Dto\Archive\ImportArchiveRequest;
-use App\Enum\Setting\EditorMode;
 use App\Response\StateSuccessResponse;
 use App\Service\Archive\ArchiveExporter;
 use App\Service\Archive\ArchiveImporter;
@@ -47,7 +46,7 @@ final class ArchiveController extends AbstractController
         // single mode, the current folder in dir mode. The export controller
         // then follows the state on its own (see EDITOR_ARCHIVE.md).
         return $this->render('archive/index.html.twig', [
-            'initial_kind' => $this->editorState->getMode() === EditorMode::Dir ? 'directory' : 'file',
+            'initial_kind' => $this->editorState->getMode()->exportKind(),
             'initial_path' => $this->editorState->getFile(),
             'initial_directory' => $this->editorState->getDir(),
             'export_i18n' => $this->exportI18n(),

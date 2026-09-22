@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Enum\Setting;
 
+use App\Trait\EnumLabelsTrait;
 use Symfony\Contracts\Translation\TranslatableInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 enum AppLocale: string implements TranslatableInterface
 {
+    use EnumLabelsTrait;
+
     case En = 'en';
     case Fr = 'fr';
 

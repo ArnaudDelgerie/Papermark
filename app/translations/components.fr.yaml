@@ -76,13 +76,6 @@ components:
             ai_failed: La requête IA a échoué
             request_failed: "L'action a échoué, veuillez réessayer"
             update_check_failed: Impossible de vérifier les mises à jour
-    theme:
-        light: Clair
-        dark: Sombre
-        auto: Auto
-    locale:
-        en: Anglais
-        fr: Français
     mode:
         single: Fichier unique
         dir: Dossier

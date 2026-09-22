@@ -93,6 +93,7 @@ final class EditorComponentTest extends KernelTestCase
 
         $theme = $crawler->filter('button[data-controller="theme-switch"]');
         self::assertSame('light', $theme->attr('data-theme-switch-current-value'));
+        self::assertSame(['auto', 'light', 'dark'], json_decode((string) $theme->attr('data-theme-switch-themes-value'), true));
         self::assertSame('/settings/theme', $theme->attr('data-theme-switch-url-value'));
         self::assertSame('Theme: Light', trim($theme->text()));
 
@@ -117,6 +118,26 @@ final class EditorComponentTest extends KernelTestCase
             self::assertSame($src, $frame->attr('src'));
         }
         self::assertSame(0, $crawler->filter('a[data-editor-leave-guard]')->count());
+    }
+
+    public function testThemeAndLocaleLabelsComeFromTheEnumsDomain(): void
+    {
+        // auto and en are the two values where the removed `components`
+        // domain used to read differently from `enums`.
+        $this->configureAi(selected: null, secrets: []);
+        $setting = self::getContainer()->get(SettingRepository::class)->getOrCreate();
+        $setting->setThemeMode(ThemeMode::Auto);
+        $setting->setLocale(AppLocale::En);
+        self::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $html = $this->twig()->createTemplate("{{ component('editor') }}")->render([]);
+        $crawler = new Crawler($html);
+
+        $theme = $crawler->filter('button[data-controller="theme-switch"]');
+        self::assertSame('Theme: Automatic', trim($theme->text()));
+
+        $locale = $crawler->filter('div[data-controller="locale-stepper"]');
+        self::assertSame('English', json_decode((string) $locale->attr('data-locale-stepper-labels-value'), true)['en']);
     }
 
     /**

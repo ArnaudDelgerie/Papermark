@@ -16,4 +16,12 @@ enum EditorMode: string implements TranslatableInterface
     {
         return $translator->trans('enums.editor_mode.' . $this->value, domain: 'enums', locale: $locale);
     }
+
+    public function exportKind(): string
+    {
+        return match ($this) {
+            self::Dir => 'directory',
+            self::Single => 'file',
+        };
+    }
 }

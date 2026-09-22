@@ -90,6 +90,7 @@
                     data-action="click->theme-switch#next"
                     data-value="{{ appearance.theme }}"
                     data-theme-switch-current-value="{{ appearance.theme }}"
+                    data-theme-switch-themes-value="{{ appearance.themes|json_encode }}"
                     data-theme-switch-labels-value="{{ appearance.themeLabels|json_encode }}"
                     data-theme-switch-url-value="{{ path('app_settings_theme') }}"
                     data-theme-switch-token-value="{{ csrf_token('papermark_app') }}"

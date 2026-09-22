@@ -76,13 +76,6 @@ components:
             ai_failed: The AI request failed
             request_failed: The action failed, please try again
             update_check_failed: Could not check for updates
-    theme:
-        light: Light
-        dark: Dark
-        auto: Auto
-    locale:
-        en: English
-        fr: French
     mode:
         single: Single file
         dir: Folder
