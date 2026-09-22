@@ -597,6 +597,19 @@ describe('the editor, with the master', () => {
         expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, file: null }, anomaly: { file: '/notes/a.md' } });
     });
 
+    it('a 404 without a body falls back to the server-given file-not-found text', async () => {
+        const answer = fetchMock.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+        fetchMock.mockImplementation(async (url: string, init?: RequestInit) =>
+            url === '/document' ? new Response('', { status: 404 }) : answer(url, init),
+        );
+
+        await start(current);
+        await settle();
+
+        expect(crepe.getMarkdown()).toBe('');
+        expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.fileNotFound }]);
+    });
+
     describe('the AI, following the state', () => {
         interface Creation {
             aiEnabled: boolean;
