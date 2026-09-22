@@ -7,7 +7,7 @@ namespace App\EventListener;
 use App\Event\Document\DocumentDeleted;
 use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 /**

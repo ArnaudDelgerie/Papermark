@@ -10,7 +10,7 @@ use App\Exception\InvalidRequestException;
 use App\Response\StateErrorResponse;
 use App\Response\StateSuccessResponse;
 use App\Service\Ai\ApiKeyResolver;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use App\Enum\ProviderName;
 use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\ThemeMode;

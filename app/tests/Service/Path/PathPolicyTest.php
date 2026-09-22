@@ -177,11 +177,23 @@ final class PathPolicyTest extends TestCase
 
     public function testListResolvesAnExistingDirectoryOnly(): void
     {
+        self::assertSame($this->root, $this->policy->list($this->root));
+    }
+
+    public function testListRefusesAPathThatDoesNotResolveToADirectory(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->list('/tmp/this_dir_does_not_exist_12345');
+    }
+
+    public function testListRefusesAFile(): void
+    {
         $file = $this->createFile('doc.md', '# Hello');
 
-        self::assertSame($this->root, $this->policy->list($this->root));
-        self::assertNull($this->policy->list('/tmp/this_dir_does_not_exist_12345'));
-        self::assertNull($this->policy->list($file));
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->list($file);
     }
 
     private function imageConstraint(): File

@@ -12,7 +12,7 @@ use App\Exception\Path\PathNotFoundException;
 use App\Response\StateSuccessResponse;
 use App\Service\Document\DocumentCodec;
 use App\Service\Document\DocumentStore;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;

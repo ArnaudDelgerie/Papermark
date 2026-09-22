@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Enum\DocumentExtension;
-use App\Exception\InvalidRequestException;
-use App\Exception\Path\PathNotFoundException;
+use App\Dto\Editor\SetDirRequest;
+use App\Dto\Editor\SetFileRequest;
+use App\Dto\Editor\SetModeRequest;
 use App\Response\StateSuccessResponse;
-use App\Service\EditorState;
-use App\Enum\Setting\EditorMode;
 use App\Service\Directory\OpenDirectoryTree;
-use App\Service\Document\DocumentStore;
-use App\Service\Path\PathPolicy;
+use App\Service\Editor\EditorNavigator;
+use App\Service\Editor\EditorState;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 
@@ -26,14 +24,15 @@ use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
  * anything, so the caller never has to guess (see EDITOR_REACTIVITY.md,
  * S5-S6). `action` is what was done, paths realpath'd. Every refusal is an
  * exception; UserFacingExceptionListener turns it into the state's refusal
- * form.
+ * form. The writes themselves go through EditorNavigator (lot
+ * 05-editor-navigator.md); this class only reads the state and builds
+ * responses.
  */
 final class EditorController extends AbstractController
 {
     public function __construct(
         private readonly EditorState $editorState,
-        private readonly DocumentStore $documentStore,
-        private readonly PathPolicy $pathPolicy,
+        private readonly EditorNavigator $editorNavigator,
     ) {
     }
 
@@ -76,55 +75,26 @@ final class EditorController extends AbstractController
      */
     #[Route('/editor/mode', name: 'app_editor_set_mode', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function setMode(Request $request): JsonResponse
+    public function setMode(#[MapRequestPayload(mapWhenEmpty: true)] SetModeRequest $payload): JsonResponse
     {
-        $value = $request->request->get('mode');
-        $mode = \is_string($value) ? EditorMode::tryFrom($value) : null;
-        if ($mode === null) {
-            throw new InvalidRequestException('invalid_mode');
-        }
+        \assert($payload->mode !== null);
 
-        $this->editorState->setMode($mode);
+        $this->editorNavigator->setMode($payload->mode);
 
-        return new StateSuccessResponse($this->editorState, ['mode' => $mode->value]);
+        return new StateSuccessResponse($this->editorState, ['mode' => $payload->mode->value]);
     }
 
     /**
      * Makes a file the current one, without reading it for the editor: it
-     * fetches the content itself once it hears of the change. The bytes are
-     * still read once here, to refuse a file the editor could never show:
-     * non-UTF-8 content would fail the JSON encoding on every later read
-     * (lot 03-services-document.md, FIL-09). The state doesn't change on that
-     * refusal, so the file shown before keeps opening after a reload.
+     * fetches the content itself once it hears of the change.
      */
     #[Route('/editor/file', name: 'app_editor_set_file', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function setFile(Request $request): JsonResponse
+    public function setFile(#[MapRequestPayload(mapWhenEmpty: true)] SetFileRequest $payload): JsonResponse
     {
-        $path = $request->request->get('path');
-        if (!\is_string($path) || $path === '') {
-            throw new InvalidRequestException('no_path');
-        }
+        $realPath = $this->editorNavigator->openFile($payload->path);
 
-        if (!DocumentExtension::isDocument($path)) {
-            throw new InvalidRequestException('unsupported_file_type');
-        }
-
-        try {
-            $document = $this->documentStore->read($path);
-        } catch (PathNotFoundException $e) {
-            // Whoever finds the file gone drops it — but only if it is the
-            // current one, a bad path picked by hand must not clear it.
-            if ($this->editorState->getFile() === $path) {
-                $this->editorState->setFile(null);
-            }
-
-            throw $e;
-        }
-
-        $this->editorState->setFile($document->path);
-
-        return new StateSuccessResponse($this->editorState, ['path' => $document->path]);
+        return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
     }
 
     /**
@@ -134,7 +104,7 @@ final class EditorController extends AbstractController
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function clearFile(): JsonResponse
     {
-        $this->editorState->setFile(null);
+        $this->editorNavigator->closeFile();
 
         return new StateSuccessResponse($this->editorState, []);
     }
@@ -168,16 +138,9 @@ final class EditorController extends AbstractController
      */
     #[Route('/editor/dir', name: 'app_editor_set_dir', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function setDir(Request $request, OpenDirectoryTree $openDirectoryTree): JsonResponse
+    public function setDir(#[MapRequestPayload(mapWhenEmpty: true)] SetDirRequest $payload): JsonResponse
     {
-        $path = $request->request->get('path');
-        $realPath = \is_string($path) ? $this->pathPolicy->list($path) : null;
-        if ($realPath === null) {
-            throw new PathNotFoundException(\is_string($path) ? $path : '');
-        }
-
-        $this->editorState->setDir($realPath);
-        $openDirectoryTree->forget();
+        $realPath = $this->editorNavigator->openDir($payload->path);
 
         return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
     }
@@ -189,9 +152,9 @@ final class EditorController extends AbstractController
      */
     #[Route('/editor/dir/refresh', name: 'app_editor_refresh_dir', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function refreshDir(Request $request, OpenDirectoryTree $openDirectoryTree): JsonResponse
+    public function refreshDir(): JsonResponse
     {
-        $openDirectoryTree->forget();
+        $this->editorNavigator->refreshDir();
 
         return new StateSuccessResponse($this->editorState, []);
     }

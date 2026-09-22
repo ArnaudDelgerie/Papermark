@@ -8,7 +8,7 @@ use App\Event\Document\DocumentDeleted;
 use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
 use App\EventListener\EditorStateListener;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;

@@ -106,14 +106,15 @@ final class PathPolicy
     /**
      * Intention list: an existing directory.
      *
-     * @return string|null the resolved real path, or null if there is no
-     *                     directory there
+     * @return string the resolved real path
+     *
+     * @throws PathNotFoundException
      */
-    public function list(string $path): ?string
+    public function list(string $path): string
     {
         $realPath = realpath($path);
         if ($realPath === false || !is_dir($realPath)) {
-            return null;
+            throw new PathNotFoundException($path);
         }
 
         return $realPath;

@@ -6,7 +6,7 @@ namespace App\Service\Directory;
 
 use App\Dto\Directory\DirectoryTreeResult;
 use App\Enum\DocumentExtension;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Finder\Exception\DirectoryNotFoundException;
 

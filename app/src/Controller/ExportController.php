@@ -8,7 +8,7 @@ use App\Exception\InvalidRequestException;
 use App\Exception\Path\PathNotFoundException;
 use App\Exception\Path\PathNotWritableException;
 use App\Response\StateSuccessResponse;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use App\Enum\Setting\EditorMode;
 use App\Service\Archive\ArchiveExportPlanner;
 use App\Service\Archive\ArchiveTargetResolver;

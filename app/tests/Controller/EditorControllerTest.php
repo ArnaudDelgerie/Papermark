@@ -201,6 +201,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
         // A refusal still carries the state (S6).
         self::assertSame('single', $this->responseState($client)['mode']);
+        self::assertSame('mode', $this->responseData($client)['mappedErrors'][0]['field']);
     }
 
     public function testSetFileMakesTheFileCurrentAndGetFileReadsIt(): void
@@ -314,7 +315,23 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist.exe']);
 
         self::assertResponseStatusCodeSame(422);
-        self::assertSame(['Only Markdown and text files are supported'], $this->responseData($client)['genericErrors']);
+        self::assertSame(
+            [['field' => 'path', 'message' => 'Only Markdown and text files are supported']],
+            $this->responseData($client)['mappedErrors'],
+        );
+    }
+
+    public function testSetFileReturnsMappedErrorForNoPath(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $this->post($client, '/editor/file', []);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            [['field' => 'path', 'message' => 'No file path provided']],
+            $this->responseData($client)['mappedErrors'],
+        );
     }
 
     public function testSetFileRejectsInvalidCsrf(): void
@@ -422,6 +439,16 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/dir', ['path' => '/nope/nope']);
 
         self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testSetDirReturnsMappedErrorForABlankPath(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $this->post($client, '/editor/dir', ['path' => '']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('path', $this->responseData($client)['mappedErrors'][0]['field']);
     }
 
     /**

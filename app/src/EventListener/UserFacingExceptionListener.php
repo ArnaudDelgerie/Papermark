@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventListener;
 
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use App\Interface\UserFacingExceptionInterface;
 use App\Response\StateErrorResponse;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;

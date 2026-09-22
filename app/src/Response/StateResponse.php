@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Response;
 
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 

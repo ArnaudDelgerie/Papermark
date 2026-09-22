@@ -1,10 +1,8 @@
 exceptions:
     request:
         no_path: Aucun chemin de fichier fourni
-        invalid_mode: Mode d'éditeur inconnu
         no_key: Aucune clé API fournie
         request_failed: "L'action a échoué, veuillez réessayer"
-        unsupported_file_type: Seuls les fichiers Markdown et texte sont pris en charge
     path:
         not_found: Chemin introuvable
         is_symlink: Un lien symbolique ne peut pas être modifié

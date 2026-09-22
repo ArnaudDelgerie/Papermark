@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Twig\Components;
 
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
 use Symfony\UX\TwigComponent\Attribute\ExposeInTemplate;

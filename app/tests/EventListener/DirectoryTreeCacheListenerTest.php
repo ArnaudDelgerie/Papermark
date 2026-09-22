@@ -9,7 +9,7 @@ use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
 use App\EventListener\DirectoryTreeCacheListener;
 use App\Service\Directory\OpenDirectoryTree;
-use App\Service\EditorState;
+use App\Service\Editor\EditorState;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
