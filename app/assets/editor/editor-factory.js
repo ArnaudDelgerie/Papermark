@@ -35,7 +35,7 @@ export default class EditorFactory {
                 [Crepe.Feature.Toolbar]: false,
                 [Crepe.Feature.TopBar]: true,
                 [Crepe.Feature.BlockEdit]: true,
-                // Plain <pre> code blocks (see code-block-view.js): CodeMirror's
+                // Plain <pre> code blocks (see code-block-view.ts): CodeMirror's
                 // lazy mount/teardown makes the page jump in WebKitGTK. LaTeX
                 // requires CodeMirror, so it goes with it.
                 [Crepe.Feature.CodeMirror]: false,

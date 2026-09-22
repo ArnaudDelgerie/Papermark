@@ -1,5 +1,6 @@
 import { $view } from '@milkdown/kit/utils';
 import { codeBlockSchema } from '@milkdown/kit/preset/commonmark';
+import type { NodeViewConstructor } from '@milkdown/kit/prose/view';
 
 // Canonical names of refractor's common set, the one @milkdown/plugin-prism
 // highlights (aliases such as "js" still highlight, they're just not listed).
@@ -10,20 +11,21 @@ const LANGUAGES = [
     'rust', 'sass', 'scss', 'sql', 'swift', 'typescript', 'yaml',
 ];
 
+export interface CodeBlockViewOptions {
+    noLanguageLabel: string;
+    copyLabel: string;
+    onCopy: (text: string) => void;
+}
+
 /**
  * Code block node view for the plain <pre> code blocks (Crepe's CodeMirror
  * feature is off, see editor-factory.js). Same <pre><code> as the schema's
  * toDOM, with the code left to ProseMirror, plus a language <select> and a
  * copy button laid over the block's top border so they don't change the
  * block's height.
- *
- * @param {Object} options
- * @param {string} options.noLanguageLabel
- * @param {string} options.copyLabel
- * @param {(text: string) => void} options.onCopy
  */
-export function createCodeBlockView({ noLanguageLabel, copyLabel, onCopy }) {
-    return $view(codeBlockSchema.node, () => (initialNode, view, getPos) => {
+export function codeBlockNodeView({ noLanguageLabel, copyLabel, onCopy }: CodeBlockViewOptions): NodeViewConstructor {
+    return (initialNode, view, getPos) => {
         let node = initialNode;
 
         const dom = document.createElement('div');
@@ -53,8 +55,8 @@ export function createCodeBlockView({ noLanguageLabel, copyLabel, onCopy }) {
         pre.append(code);
         dom.append(tools, pre);
 
-        const render = () => {
-            const language = node.attrs.language ?? '';
+        const render = (): void => {
+            const language = (node.attrs.language as string | undefined) ?? '';
             pre.dataset.language = language;
 
             // Keep a language outside the list (an alias, or one prism doesn't
@@ -100,8 +102,13 @@ export function createCodeBlockView({ noLanguageLabel, copyLabel, onCopy }) {
                 }
                 return true;
             },
-            stopEvent: (event) => tools.contains(event.target),
+            stopEvent: (event) => tools.contains(event.target as Node | null),
             ignoreMutation: (mutation) => tools.contains(mutation.target),
         };
-    });
+    };
+}
+
+/** Wraps {@link codeBlockNodeView} as the $view Milkdown plugin editor-factory.js registers. */
+export function createCodeBlockView(options: CodeBlockViewOptions) {
+    return $view(codeBlockSchema.node, () => codeBlockNodeView(options));
 }

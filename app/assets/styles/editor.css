@@ -405,7 +405,7 @@
 }
 
 /* Code blocks: plain ProseMirror <pre> (Crepe's CodeMirror feature is off,
-   see editor-factory.js), wrapped by code-block-view.js.
+   see editor-factory.js), wrapped by code-block-view.ts.
    No border: this <pre> has its own overflow-x: auto and sits inside
    .editor-content, which scrolls too (see there) — a bordered box nested
    inside another scrollable flashed on scroll in the hub's WebKitGTK
@@ -433,7 +433,7 @@
 }
 
 /* Language picker and copy button of the code block node view
-   (code-block-view.js), laid over the block so they don't add height. The
+   (code-block-view.ts), laid over the block so they don't add height. The
    picker is hidden in read-only: the toggle only flips contenteditable, the
    node view can't tell.
    The block's margin moves from the <pre> to its wrapper (same 0.6em of the
