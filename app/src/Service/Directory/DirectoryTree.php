@@ -7,11 +7,13 @@ namespace App\Service\Directory;
 use App\Dto\Directory\DirectoryFile;
 use App\Dto\Directory\DirectoryNode;
 use App\Dto\Directory\DirectoryTreeResult;
+use App\Enum\DocumentExtension;
 use Symfony\Component\Finder\Finder;
 
 /**
- * Builds the dir-mode tree: only directories that hold a .md file at some
- * depth, hidden files and directories included. The whole subtree has to be
+ * Builds the dir-mode tree: only directories that hold a document (see
+ * DocumentExtension) at some depth, hidden files and directories included.
+ * The whole subtree has to be
  * walked to know that (see EDITOR_FOLDER_MODE.md), so a traversal cap guards
  * against a pathological directory (the whole filesystem, a symlink cycle —
  * though Finder doesn't follow symlinks by default). Measured on this repo,
@@ -42,7 +44,7 @@ final class DirectoryTree
     }
 
     /**
-     * The walk: the .md files below `$root`, relative to it and '/'-separated,
+     * The walk: the documents below `$root`, relative to it and '/'-separated,
      * or null past the traversal cap. This is the costly part, kept apart so
      * that OpenDirectoryTree can cache its result.
      *
@@ -60,7 +62,7 @@ final class DirectoryTree
                 return null;
             }
 
-            if ($fileInfo->isFile() && self::isListed($fileInfo->getFilename())) {
+            if ($fileInfo->isFile() && DocumentExtension::isDocument($fileInfo->getFilename())) {
                 $mdFiles[] = $fileInfo->getRelativePathname();
             }
         }
@@ -76,12 +78,6 @@ final class DirectoryTree
         $root = rtrim($root, '/');
 
         return DirectoryTreeResult::ok($this->buildNode(basename($root), $root, $relativePaths));
-    }
-
-    /** Whether the tree shows this file: .md only, whatever the case. */
-    public static function isListed(string $path): bool
-    {
-        return strtolower(pathinfo($path, \PATHINFO_EXTENSION)) === 'md';
     }
 
     /**

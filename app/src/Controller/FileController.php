@@ -2,22 +2,14 @@
 
 namespace App\Controller;
 
-use App\Exception\Document\DocumentGoneException;
-use App\Exception\Document\DocumentModifiedException;
-use App\Exception\Filesystem\DeleteFailedException;
-use App\Exception\Filesystem\WriteFailedException;
+use App\Enum\DocumentExtension;
 use App\Exception\InvalidRequestException;
-use App\Exception\Path\PathNotWritableException;
 use App\Response\StateSuccessResponse;
+use App\Service\Document\DocumentCodec;
+use App\Service\Document\DocumentStore;
 use App\Service\EditorState;
-use App\File\AtomicFileWriter;
-use App\File\DiskFormat;
-use App\File\MarkdownImageUrls;
-use App\File\NoReplaceRename;
-use App\Service\Directory\OpenDirectoryTree;
 use App\Service\Path\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,26 +22,23 @@ use Symfony\Component\Validator\Constraints\File as FileConstraint;
 
 final class FileController extends AbstractController
 {
-    private const ALLOWED_EXTENSIONS = ['md', 'markdown', 'txt'];
     private const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
     private const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'];
     private const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MiB
 
     public function __construct(
         private readonly PathPolicy $pathPolicy,
-        private readonly NoReplaceRename $noReplaceRename,
-        private readonly MarkdownImageUrls $markdownImageUrls,
-        private readonly AtomicFileWriter $atomicWriter,
-        private readonly DiskFormat $diskFormat,
+        private readonly DocumentStore $documentStore,
+        private readonly DocumentCodec $documentCodec,
         private readonly EditorState $editorState,
-        private readonly OpenDirectoryTree $openDirectoryTree,
     ) {
     }
 
     /**
      * Converts /file/image service URLs back to their raw path just before
-     * the markdown leaves the editor via copy — the same conversion applied
-     * to the content written by save(), see EDITOR_IMAGES.md.
+     * the markdown leaves the editor via copy — the same transform applied to
+     * the content written by save(), <br> stripped included, see
+     * EDITOR_IMAGES.md.
      */
     #[Route('/file/copy', name: 'app_file_copy', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
@@ -60,7 +49,7 @@ final class FileController extends AbstractController
             throw new InvalidRequestException('no_content');
         }
 
-        return new JsonResponse(['content' => $this->markdownImageUrls->toRawPaths($content)]);
+        return new JsonResponse(['content' => $this->documentCodec->toDisk($content, null)]);
     }
 
     /**
@@ -106,16 +95,12 @@ final class FileController extends AbstractController
     }
 
     /**
-     * Writes the markdown whole, or not at all (lot 03-enregistrement.md).
+     * Writes the markdown whole, or not at all (lot 03-services-document.md).
      * A request that carries the revision it read answers 409 when the file
      * changed or disappeared meanwhile, without touching anything. The
      * revision comes back renewed with the path, so the next save compares
      * against what was written — no revision (Save as, Écraser) skips the
      * control entirely.
-     *
-     * A content identical to the disk after BOM and line endings are put
-     * back in the file's shape answers success without writing: the file
-     * keeps its date, no other app sees it move (FIL-11).
      */
     #[Route('/file/save', name: 'app_file_save', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
@@ -132,63 +117,16 @@ final class FileController extends AbstractController
             throw new InvalidRequestException('no_content');
         }
 
-        $content = $this->sanitizeMarkdown($content);
-        $content = $this->markdownImageUrls->toRawPaths($content);
-
-        if (!$this->isAllowedExtension($path)) {
+        if (!DocumentExtension::isDocument($path)) {
             throw new InvalidRequestException('unsupported_file_type');
         }
 
-        $realPath = $this->pathPolicy->save($path);
-
-        // rename() asks the folder, not the file: without this control the
-        // atomic write would make a read-only file replaceable.
-        if (!is_writable(\dirname($realPath)) || (is_file($realPath) && !is_writable($realPath))) {
-            throw new PathNotWritableException($realPath);
-        }
-
-        // What the client says it read — the HTTP ETag/If-Match motive.
         $revision = $request->request->get('revision');
         $clientRevision = \is_string($revision) && $revision !== '' ? $revision : null;
 
-        // The reread that verifies the revision is also where the file's
-        // byte-level shape (BOM, line endings) is picked up.
-        $diskBytes = is_file($realPath) ? @file_get_contents($realPath) : false;
+        $event = $this->documentStore->save($path, $content, $clientRevision);
 
-        if ($clientRevision !== null) {
-            if ($diskBytes === false) {
-                throw new DocumentGoneException($realPath);
-            }
-            if (hash('xxh128', $diskBytes) !== $clientRevision) {
-                throw new DocumentModifiedException($realPath);
-            }
-        }
-
-        if ($diskBytes !== false) {
-            $content = $this->diskFormat->apply($content, $diskBytes);
-
-            if ($content === $diskBytes) {
-                // Same path on a plain save; on a Save as, the new file
-                // becomes the current one, so a reload reopens it.
-                $this->openDirectoryTree->fileAdded($realPath);
-                $this->editorState->setFile($realPath);
-
-                return new StateSuccessResponse($this->editorState, ['path' => $realPath, 'revision' => hash('xxh128', $diskBytes)]);
-            }
-        }
-
-        try {
-            $this->atomicWriter->write($realPath, $content);
-        } catch (IOException) {
-            throw new WriteFailedException($realPath);
-        }
-        $this->openDirectoryTree->fileAdded($realPath);
-
-        // Same path on a plain save; on a Save as, the new file becomes the
-        // current one, so a reload reopens it (see EDITOR_REACTIVITY.md).
-        $this->editorState->setFile($realPath);
-
-        return new StateSuccessResponse($this->editorState, ['path' => $realPath, 'revision' => hash('xxh128', $content)]);
+        return new StateSuccessResponse($this->editorState, ['path' => $event->path, 'revision' => $event->revision]);
     }
 
     /**
@@ -204,18 +142,9 @@ final class FileController extends AbstractController
             throw new InvalidRequestException('no_path');
         }
 
-        $realPath = $this->pathPolicy->delete($path);
+        $event = $this->documentStore->delete($path);
 
-        if (!@unlink($realPath)) {
-            throw new DeleteFailedException($realPath);
-        }
-        $this->openDirectoryTree->fileRemoved($realPath);
-
-        if ($this->editorState->getFile() === $realPath) {
-            $this->editorState->setFile(null);
-        }
-
-        return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
+        return new StateSuccessResponse($this->editorState, ['path' => $event->path]);
     }
 
     /**
@@ -239,35 +168,14 @@ final class FileController extends AbstractController
             throw new InvalidRequestException('invalid_name');
         }
 
-        if (!$this->isAllowedExtension($name)) {
+        if (!DocumentExtension::isDocument($name)) {
             throw new InvalidRequestException('unsupported_file_type');
         }
 
-        $realPath = $this->pathPolicy->rename($path);
-
-        $newPath = \dirname($realPath) . '/' . $name;
-
-        $this->noReplaceRename->rename($realPath, $newPath);
-        $this->openDirectoryTree->fileRenamed($realPath, $newPath);
-
-        if ($this->editorState->getFile() === $realPath) {
-            $this->editorState->setFile($newPath);
-        }
+        $event = $this->documentStore->rename($path, $name);
 
         // Both paths whether or not it is the current file: the sidebar
         // needs them for its own entries.
-        return new StateSuccessResponse($this->editorState, ['oldPath' => $realPath, 'newPath' => $newPath]);
-    }
-
-    private function isAllowedExtension(string $path): bool
-    {
-        $extension = strtolower(pathinfo($path, \PATHINFO_EXTENSION));
-
-        return \in_array($extension, self::ALLOWED_EXTENSIONS, true);
-    }
-
-    private function sanitizeMarkdown(string $content): string
-    {
-        return preg_replace('/<br\s*\/?>\n?/i', '', $content);
+        return new StateSuccessResponse($this->editorState, ['oldPath' => $event->oldPath, 'newPath' => $event->newPath]);
     }
 }

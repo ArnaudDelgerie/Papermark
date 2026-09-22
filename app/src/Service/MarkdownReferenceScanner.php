@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Dto\MarkdownReference;
+use App\Enum\DocumentExtension;
 use App\Enum\MarkdownReferenceType;
 
 /**
@@ -12,36 +13,34 @@ use App\Enum\MarkdownReferenceType;
  * for the export archive feature (see EDITOR_EXPORT.md).
  *
  * A reference is only recognised when it points to a known extension:
- * IMAGE_EXTENSIONS for images `![]()`, DOCUMENT_EXTENSIONS for links `[]()`
- * to another .md/.markdown/.txt file. Same local-path rule as
- * MarkdownImageUrls: a scheme (http:, data:, …) means an external reference,
- * left alone — as is an `<img>` tag, which neither pattern matches. A link's
- * `#anchor`, if any, is split off into MarkdownReference::$fragment so a
- * rewriter can reattach it to the rewritten path.
+ * IMAGE_EXTENSIONS for images `![]()`, DocumentExtension for links `[]()` to
+ * another document. Same local-path rule as DocumentCodec: a scheme (http:,
+ * data:, …) means an external reference, left alone — as is an `<img>` tag,
+ * which neither pattern matches. A link's `#anchor`, if any, is split off
+ * into MarkdownReference::$fragment so a rewriter can reattach it to the
+ * rewritten path.
+ *
+ * IMAGE_PATTERN is public: DocumentCodec reuses it rather than keeping its
+ * own copy of the same regex (lot 03-services-document.md).
  */
 final class MarkdownReferenceScanner
 {
     public const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
-    public const DOCUMENT_EXTENSIONS = ['md', 'markdown', 'txt'];
 
-    private const IMAGE_PATTERN = '/!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/';
+    public const IMAGE_PATTERN = '/!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/';
     private const LINK_PATTERN = '/(?<!!)\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/';
 
     /** @return MarkdownReference[] */
     public function find(string $markdown): array
     {
         return [
-            ...$this->findMatches($markdown, self::IMAGE_PATTERN, MarkdownReferenceType::Image, self::IMAGE_EXTENSIONS),
-            ...$this->findMatches($markdown, self::LINK_PATTERN, MarkdownReferenceType::Link, self::DOCUMENT_EXTENSIONS),
+            ...$this->findMatches($markdown, self::IMAGE_PATTERN, MarkdownReferenceType::Image),
+            ...$this->findMatches($markdown, self::LINK_PATTERN, MarkdownReferenceType::Link),
         ];
     }
 
-    /**
-     * @param string[] $allowedExtensions
-     *
-     * @return MarkdownReference[]
-     */
-    private function findMatches(string $markdown, string $pattern, MarkdownReferenceType $type, array $allowedExtensions): array
+    /** @return MarkdownReference[] */
+    private function findMatches(string $markdown, string $pattern, MarkdownReferenceType $type): array
     {
         preg_match_all($pattern, $markdown, $matches, \PREG_SET_ORDER);
 
@@ -55,7 +54,7 @@ final class MarkdownReferenceScanner
 
             [$path, $fragment] = $this->splitFragment($target);
 
-            if ($path === '' || !$this->hasAllowedExtension($path, $allowedExtensions)) {
+            if ($path === '' || !$this->hasAllowedExtension($path, $type)) {
                 continue;
             }
 
@@ -81,11 +80,14 @@ final class MarkdownReferenceScanner
         return [substr($target, 0, $hashPos), substr($target, $hashPos)];
     }
 
-    /** @param string[] $allowedExtensions */
-    private function hasAllowedExtension(string $path, array $allowedExtensions): bool
+    private function hasAllowedExtension(string $path, MarkdownReferenceType $type): bool
     {
-        $extension = strtolower(pathinfo($path, \PATHINFO_EXTENSION));
+        if ($type === MarkdownReferenceType::Image) {
+            $extension = strtolower(pathinfo($path, \PATHINFO_EXTENSION));
 
-        return \in_array($extension, $allowedExtensions, true);
+            return \in_array($extension, self::IMAGE_EXTENSIONS, true);
+        }
+
+        return DocumentExtension::isDocument($path);
     }
 }

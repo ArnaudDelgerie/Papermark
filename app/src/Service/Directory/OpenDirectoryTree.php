@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Directory;
 
 use App\Dto\Directory\DirectoryTreeResult;
+use App\Enum\DocumentExtension;
 use App\Service\EditorState;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Finder\Exception\DirectoryNotFoundException;
@@ -100,7 +101,7 @@ final readonly class OpenDirectoryTree
     private function update(string $path, bool $present): void
     {
         $listing = $this->listing();
-        if ($listing === null || $listing['paths'] === null || !DirectoryTree::isListed($path)) {
+        if ($listing === null || $listing['paths'] === null || !DocumentExtension::isDocument($path)) {
             return;
         }
 

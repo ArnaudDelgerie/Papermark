@@ -22,13 +22,13 @@ final class DirectoryTreeTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testOnlyMdFilesAreListedAndOnlyDirsHoldingOneAppear(): void
+    public function testOnlyDocumentsAreListedAndOnlyDirsHoldingOneAppear(): void
     {
         mkdir($this->root . '/docs');
         mkdir($this->root . '/docs/nested');
         mkdir($this->root . '/images_only');
         file_put_contents($this->root . '/top.md', '#');
-        file_put_contents($this->root . '/top.txt', 'ignored');
+        file_put_contents($this->root . '/top.pdf', 'ignored');
         file_put_contents($this->root . '/docs/nested/deep.md', '#');
         file_put_contents($this->root . '/images_only/logo.png', 'ignored');
 
@@ -44,6 +44,19 @@ final class DirectoryTreeTest extends TestCase
         self::assertSame([], $docs->files);
         self::assertSame(['nested'], array_map(static fn ($d) => $d->name, $docs->directories));
         self::assertSame(['deep.md'], array_map(static fn ($f) => $f->name, $docs->directories[0]->files));
+    }
+
+    /** DocumentExtension covers .md, .markdown and .txt (lot 03-services-document.md). */
+    public function testMarkdownAndTxtFilesAreListedToo(): void
+    {
+        file_put_contents($this->root . '/notes.markdown', '#');
+        file_put_contents($this->root . '/readme.txt', 'text');
+
+        $result = (new DirectoryTree())->build($this->root);
+
+        $names = array_map(static fn ($f) => $f->name, $result->root->files);
+        sort($names);
+        self::assertSame(['notes.markdown', 'readme.txt'], $names);
     }
 
     public function testHiddenFilesAndDirectoriesAreIncluded(): void

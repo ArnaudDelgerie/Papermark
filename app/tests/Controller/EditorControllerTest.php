@@ -549,7 +549,7 @@ final class EditorControllerTest extends WebTestCase
         mkdir($root . '/.hidden');
         mkdir($root . '/assets_only');
         file_put_contents($root . '/readme.md', '# Readme');
-        file_put_contents($root . '/readme.txt', 'not markdown');
+        file_put_contents($root . '/readme.pdf', 'not a document');
         file_put_contents($root . '/notes/note.md', '# Note');
         file_put_contents($root . '/.hidden/secret.md', '# Secret');
         file_put_contents($root . '/assets_only/logo.png', 'not markdown');
@@ -561,7 +561,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame(1, $tree->count());
 
         self::assertSame(1, $tree->filter('a[data-path="' . $root . '/readme.md"]')->count());
-        self::assertSame(0, $tree->filter('a[data-path="' . $root . '/readme.txt"]')->count());
+        self::assertSame(0, $tree->filter('a[data-path="' . $root . '/readme.pdf"]')->count());
 
         // Hidden directory with a .md file is included.
         self::assertSame(1, $tree->filter('a[data-path="' . $root . '/.hidden/secret.md"]')->count());
@@ -618,14 +618,20 @@ final class EditorControllerTest extends WebTestCase
         $client->request('GET', '/editor/dir');
 
         $this->post($client, '/file/save', ['path' => $root . '/empty_yet/new.md', 'content' => '# New']);
-        $this->post($client, '/file/save', ['path' => $root . '/notes.txt', 'content' => 'not listed']);
+        // .txt is a document too (DocumentExtension): it gets listed like any other.
+        $this->post($client, '/file/save', ['path' => $root . '/notes.txt', 'content' => 'a text note']);
         $this->post($client, '/file/delete', ['path' => $root . '/only_one/last.md']);
         $this->post($client, '/file/rename', ['path' => $root . '/old.md', 'name' => 'renamed.md']);
 
         $crawler = $client->request('GET', '/editor/dir');
         $paths = $crawler->filter('.mode-tree a[data-path]')->each(static fn ($node) => $node->attr('data-path'));
         sort($paths);
-        self::assertSame([$root . '/empty_yet/new.md', $root . '/kept.md', $root . '/renamed.md'], $paths);
+        self::assertSame([
+            $root . '/empty_yet/new.md',
+            $root . '/kept.md',
+            $root . '/notes.txt',
+            $root . '/renamed.md',
+        ], $paths);
 
         // A folder left without any .md goes, like after a walk.
         $dirNames = $crawler->filter('.mode-tree-dir-name')->each(static fn ($node) => trim($node->text()));

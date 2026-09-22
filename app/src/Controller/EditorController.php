@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Exception\Document\DocumentNotUtf8Exception;
+use App\Enum\DocumentExtension;
 use App\Exception\InvalidRequestException;
 use App\Exception\Path\PathNotFoundException;
 use App\Response\StateSuccessResponse;
 use App\Service\EditorState;
 use App\Enum\Setting\EditorMode;
-use App\File\MarkdownFileReader;
-use App\File\MarkdownImageUrls;
 use App\Service\Directory\OpenDirectoryTree;
+use App\Service\Document\DocumentStore;
 use App\Service\Path\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -33,8 +32,7 @@ final class EditorController extends AbstractController
 {
     public function __construct(
         private readonly EditorState $editorState,
-        private readonly MarkdownFileReader $fileReader,
-        private readonly MarkdownImageUrls $markdownImageUrls,
+        private readonly DocumentStore $documentStore,
         private readonly PathPolicy $pathPolicy,
     ) {
     }
@@ -97,7 +95,7 @@ final class EditorController extends AbstractController
      * dropped from the state, and its path comes back with the 404 since the
      * caller has no other way to know which one it was. The revision is the
      * hash of the raw bytes — it describes the file, not what the editor
-     * shows of it — and travels with the content (lot 03-enregistrement.md,
+     * shows of it — and travels with the content (lot 03-services-document.md,
      * FIL-03): save() compares against it before writing.
      */
     #[Route('/editor/file', name: 'app_editor_get_file', methods: ['GET'])]
@@ -108,24 +106,18 @@ final class EditorController extends AbstractController
             return new JsonResponse(['path' => null, 'content' => null]);
         }
 
-        $raw = $this->fileReader->readRaw($path);
-        if ($raw === null) {
+        try {
+            $document = $this->documentStore->read($path);
+        } catch (PathNotFoundException $e) {
             $this->editorState->setFile(null);
 
-            throw new PathNotFoundException($path);
-        }
-
-        if (!mb_check_encoding($raw, 'UTF-8')) {
-            // Same belt as setFile(): the file may have changed hands since
-            // it was accepted. The state stays as it is, so the editor can
-            // retry without a reload loop.
-            throw new DocumentNotUtf8Exception($path);
+            throw $e;
         }
 
         return new JsonResponse([
-            'path' => $path,
-            'content' => $this->markdownImageUrls->toServiceUrls($raw),
-            'revision' => hash('xxh128', $raw),
+            'path' => $document->path,
+            'content' => $document->content,
+            'revision' => $document->revision,
         ]);
     }
 
@@ -134,7 +126,7 @@ final class EditorController extends AbstractController
      * fetches the content itself once it hears of the change. The bytes are
      * still read once here, to refuse a file the editor could never show:
      * non-UTF-8 content would fail the JSON encoding on every later read
-     * (lot 03-enregistrement.md, FIL-09). The state doesn't change on that
+     * (lot 03-services-document.md, FIL-09). The state doesn't change on that
      * refusal, so the file shown before keeps opening after a reload.
      */
     #[Route('/editor/file', name: 'app_editor_set_file', methods: ['POST'])]
@@ -146,29 +138,25 @@ final class EditorController extends AbstractController
             throw new InvalidRequestException('no_path');
         }
 
-        if (!$this->fileReader->supports($path)) {
+        if (!DocumentExtension::isDocument($path)) {
             throw new InvalidRequestException('unsupported_file_type');
         }
 
-        $realPath = $this->pathPolicy->read($path);
-        $raw = $realPath !== null ? $this->fileReader->readRaw($realPath) : null;
-        if ($raw === null) {
+        try {
+            $document = $this->documentStore->read($path);
+        } catch (PathNotFoundException $e) {
             // Whoever finds the file gone drops it — but only if it is the
             // current one, a bad path picked by hand must not clear it.
             if ($this->editorState->getFile() === $path) {
                 $this->editorState->setFile(null);
             }
 
-            throw new PathNotFoundException($path);
+            throw $e;
         }
 
-        if (!mb_check_encoding($raw, 'UTF-8')) {
-            throw new DocumentNotUtf8Exception($realPath);
-        }
+        $this->editorState->setFile($document->path);
 
-        $this->editorState->setFile($realPath);
-
-        return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
+        return new StateSuccessResponse($this->editorState, ['path' => $document->path]);
     }
 
     /**

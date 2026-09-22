@@ -9,6 +9,7 @@ use App\Dto\Archive\ExportPlan;
 use App\Dto\Archive\ExportQueueItem;
 use App\Dto\MarkdownReference;
 use App\Enum\Archive\ExportIssueReason;
+use App\Enum\DocumentExtension;
 use App\Enum\MarkdownReferenceType;
 use App\Exception\Archive\ArchiveExportRefusedException;
 use App\Service\MarkdownReferenceScanner;
@@ -28,7 +29,6 @@ use Symfony\Component\Validator\Constraints\File as FileConstraint;
  */
 final class ArchiveExportPlanner
 {
-    private const DOCUMENT_LINK_EXTENSIONS = ['md', 'markdown'];
     private const EXTERNAL_DIRS = ['ext_img', 'ext_md'];
 
     public function __construct(
@@ -116,7 +116,7 @@ final class ArchiveExportPlanner
 
         $paths = [];
         foreach ($finder as $fileInfo) {
-            if (strtolower($fileInfo->getExtension()) === 'md') {
+            if (DocumentExtension::isDocument($fileInfo->getFilename())) {
                 $paths[] = $fileInfo->getRelativePathname();
             }
         }
@@ -184,8 +184,7 @@ final class ArchiveExportPlanner
             return null;
         }
 
-        $targetExtension = strtolower(pathinfo($targetReal, \PATHINFO_EXTENSION));
-        $isMarkdownLink = !$isImage && \in_array($targetExtension, self::DOCUMENT_LINK_EXTENSIONS, true);
+        $isMarkdownLink = !$isImage && DocumentExtension::isDocument($targetReal);
 
         $archivePath = $state->archivePathFor($targetReal);
 
@@ -232,9 +231,7 @@ final class ArchiveExportPlanner
 
     private function isAnalyzable(string $realPath): bool
     {
-        $extension = strtolower(pathinfo($realPath, \PATHINFO_EXTENSION));
-
-        return \in_array($extension, self::DOCUMENT_LINK_EXTENSIONS, true);
+        return DocumentExtension::isDocument($realPath);
     }
 
     private function relativePath(string $fromArchivePath, string $toArchivePath): string

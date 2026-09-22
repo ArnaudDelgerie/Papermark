@@ -6,6 +6,7 @@ namespace App\Service\Archive;
 
 use App\Dto\Archive\ImportResult;
 use App\Enum\Archive\ArchiveImportRefusalReason;
+use App\Enum\DocumentExtension;
 use App\Enum\Setting\EditorMode;
 use App\Exception\Archive\ArchiveImportRefusedException;
 use App\Exception\Filesystem\WriteFailedException;
@@ -25,12 +26,6 @@ use App\Service\MarkdownReferenceScanner;
 final class ArchiveImporter
 {
     private const EXTERNAL_DIRS = ['ext_img', 'ext_md'];
-
-    /** @var string[] */
-    private const ACCEPTED_EXTENSIONS = [
-        ...MarkdownReferenceScanner::DOCUMENT_EXTENSIONS,
-        ...MarkdownReferenceScanner::IMAGE_EXTENSIONS,
-    ];
 
     public function __construct(
         private readonly ImportTargetResolver $targetResolver,
@@ -90,8 +85,7 @@ final class ArchiveImporter
                 continue;
             }
 
-            $extension = strtolower(pathinfo($name, \PATHINFO_EXTENSION));
-            if (!\in_array($extension, self::ACCEPTED_EXTENSIONS, true)) {
+            if (!$this->isAccepted($name)) {
                 $ignored[] = $name;
 
                 continue;
@@ -153,7 +147,7 @@ final class ArchiveImporter
     {
         $documentNames = array_values(array_filter(
             $extractedNames,
-            fn (string $name): bool => $this->isDocument($name) && !$this->isUnderExternalDir($name),
+            fn (string $name): bool => DocumentExtension::isDocument($name) && !$this->isUnderExternalDir($name),
         ));
 
         if (1 === \count($documentNames)) {
@@ -167,11 +161,15 @@ final class ArchiveImporter
         return [EditorMode::Dir, $destination];
     }
 
-    private function isDocument(string $name): bool
+    private function isAccepted(string $name): bool
     {
+        if (DocumentExtension::isDocument($name)) {
+            return true;
+        }
+
         $extension = strtolower(pathinfo($name, \PATHINFO_EXTENSION));
 
-        return \in_array($extension, MarkdownReferenceScanner::DOCUMENT_EXTENSIONS, true);
+        return \in_array($extension, MarkdownReferenceScanner::IMAGE_EXTENSIONS, true);
     }
 
     private function isUnderExternalDir(string $name): bool

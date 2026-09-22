@@ -220,17 +220,36 @@ final class ArchiveExportPlannerTest extends TestCase
         self::assertSame('./missing.png', $plan->issues[0]->originalTarget);
     }
 
-    public function testTxtFileIsEmbarkedButNotAnalyzed(): void
+    /**
+     * DocumentExtension covers .txt too (lot 03-services-document.md): an
+     * external link to one is now a "markdown link" like a .md or .markdown
+     * one — followed and analyzed only when the checkbox is on, and left
+     * alone otherwise.
+     */
+    public function testExternalTxtLinkIsEmbarkedAndAnalyzedWhenCheckboxIsOn(): void
     {
         $this->write('doc.md', '[notes](./notes.txt)');
         $this->write('notes.txt', 'See ![alt](./photo.png) for more.');
+        $this->write('photo.png', 'PNG');
 
-        $plan = $this->planner()->plan($this->root . '/doc.md', false);
+        $plan = $this->planner()->plan($this->root . '/doc.md', true);
 
         $txtEntry = $this->findEntry($plan, 'ext_md/notes.txt');
         self::assertNotNull($txtEntry);
-        self::assertNull($txtEntry->content);
-        self::assertNull($this->findEntry($plan, 'ext_img/photo.png'));
+        self::assertSame('See ![alt](../ext_img/photo.png) for more.', $txtEntry->content);
+        self::assertNotNull($this->findEntry($plan, 'ext_img/photo.png'));
+    }
+
+    public function testExternalTxtLinkNotFollowedWhenCheckboxOff(): void
+    {
+        $this->write('doc.md', '[notes](./notes.txt)');
+        $this->write('notes.txt', 'content');
+
+        $plan = $this->planner()->plan($this->root . '/doc.md', false);
+
+        self::assertSame('[notes](./notes.txt)', $this->entry($plan, 'doc.md')->content);
+        self::assertNull($this->findEntry($plan, 'ext_md/notes.txt'));
+        self::assertSame([], $plan->issues);
     }
 
     public function testSchemeAndHtmlImgAreIgnored(): void
@@ -244,10 +263,12 @@ final class ArchiveExportPlannerTest extends TestCase
         self::assertCount(1, $plan->entries);
     }
 
-    public function testDirectoryExportDiscoversMarkdownExtensionFileOnlyThroughALink(): void
+    public function testDirectoryExportDiscoversMarkdownExtensionFile(): void
     {
-        // The walk (like DirectoryTree) only sweeps .md files, so notes.markdown
-        // is found through the link, registered internal, and scanned in turn.
+        // The walk (like DirectoryTree) sweeps every DocumentExtension, so
+        // notes.markdown is registered internal by the walk itself, and
+        // scanned in turn — the link to it stays untouched either way, since
+        // an internal relative link needs no rewriting.
         $this->write('doc.md', '[notes](./notes.markdown)');
         $this->write('notes.markdown', '![alt](./img/photo.png)');
         $this->write('img/photo.png', 'PNG');

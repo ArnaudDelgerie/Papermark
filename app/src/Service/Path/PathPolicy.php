@@ -7,6 +7,7 @@ namespace App\Service\Path;
 use App\Exception\Path\PathIsSymlinkException;
 use App\Exception\Path\PathNotAFileException;
 use App\Exception\Path\PathNotFoundException;
+use App\Exception\Path\PathNotWritableException;
 use Symfony\Component\Validator\Constraint;
 
 /**
@@ -50,16 +51,26 @@ final class PathPolicy
      * Intention save: a file that may not exist yet. The parent must resolve
      * to a directory; an existing path must be a regular file and never a
      * symbolic link — whatever the link points to is not what was asked for.
+     * The folder must be writable, and an existing file must be too:
+     * rename() only asks the folder, so without this check the atomic write
+     * would make a read-only file replaceable.
      *
      * @return string the canonical path
      *
      * @throws PathNotFoundException  the parent can't be resolved
      * @throws PathIsSymlinkException
      * @throws PathNotAFileException
+     * @throws PathNotWritableException
      */
     public function save(string $path): string
     {
-        return $this->writable($path);
+        $canonical = $this->writable($path);
+
+        if (!is_writable(\dirname($canonical)) || (is_file($canonical) && !is_writable($canonical))) {
+            throw new PathNotWritableException($canonical);
+        }
+
+        return $canonical;
     }
 
     /**
