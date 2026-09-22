@@ -837,7 +837,7 @@ export default class extends Controller<HTMLElement> {
     }
 
     /**
-     * The editor only ever holds /file/image service URLs for local images
+     * The editor only ever holds /document/image service URLs for local images
      * (see EDITOR_IMAGES.md); the server converts them back to their raw
      * path before the markdown leaves the editor, same as save().
      */

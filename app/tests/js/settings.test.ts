@@ -10,7 +10,7 @@ vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }))
 
 /** The frame's form as templates/settings/index.html.twig renders it: two providers, the first with a key. */
 const FORM = `
-<form class="settings-form" data-controller="settings" data-action="submit->settings#submit" data-settings-delay-value="300">
+<form class="settings-form" action="/settings" data-controller="settings" data-action="submit->settings#submit" data-settings-delay-value="300">
     <div data-settings-target="activity" hidden></div>
     <div data-settings-target="errors" hidden><ul data-settings-target="errorList"></ul></div>
 
@@ -53,6 +53,7 @@ const FORM = `
 describe('the settings form', () => {
     let application: Application;
     let saves: FormData[];
+    let saveUrls: string[];
     let keyRequests: Array<{ name: string; key: string }>;
     let deletions: string[];
     const unsubscribers: Array<() => void> = [];
@@ -70,10 +71,14 @@ describe('the settings form', () => {
 
     beforeEach(async () => {
         saves = [];
+        saveUrls = [];
         keyRequests = [];
         deletions = [];
         unsubscribers.push(
-            on('editor:do-save_settings-requested', ({ action }) => saves.push(action.form)),
+            on('editor:do-save_settings-requested', ({ action }) => {
+                saves.push(action.form);
+                saveUrls.push(action.url);
+            }),
             on('editor:do-set_key-requested', ({ action }) => keyRequests.push(action)),
             on('editor:do-delete_key-requested', ({ action }) => deletions.push(action.name)),
         );
@@ -104,6 +109,8 @@ describe('the settings form', () => {
             expect(saves[0].get('settings[providers][mistral][model]')).toBe('mistral-large');
             expect(saves[0].get('settings[selected]')).toBe('anthropic');
             expect(saves[0].get('settings[defaultMode]')).toBe('single');
+            // The form's own `action`, not a URL the master looks up.
+            expect(saveUrls).toEqual(['/settings']);
         });
 
         it('radios use the same delay as the text fields', async () => {
@@ -178,6 +185,7 @@ describe('the settings form', () => {
                 state,
                 action: {
                     form: new FormData(),
+                    url: '/settings',
                     errors: [
                         { field: 'settings[providers][anthropic][model]', message: 'Anthropic · Model: not allowed' },
                         { field: 'settings[providers][mistral][model]', message: 'Mistral · Model: too long' },
@@ -201,7 +209,7 @@ describe('the settings form', () => {
         });
 
         it('a technical failure has no errors to show', async () => {
-            emit('editor:do-save_settings-failed', { state, action: { form: new FormData(), errors: [] } });
+            emit('editor:do-save_settings-failed', { state, action: { form: new FormData(), url: '/settings', errors: [] } });
 
             expect($('[data-settings-target="errors"]').hidden).toBe(true);
         });

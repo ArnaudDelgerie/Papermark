@@ -41,7 +41,7 @@ final class DocumentCodecTest extends KernelTestCase
 
     public function testToDiskConvertsServiceUrlsBackToRawPaths(): void
     {
-        $markdown = '![alt](/file/image?path=./photo.png)';
+        $markdown = '![alt](/document/image?path=./photo.png)';
 
         self::assertSame('![alt](./photo.png)', $this->codec->toDisk($markdown, null));
     }
@@ -62,7 +62,7 @@ final class DocumentCodecTest extends KernelTestCase
      */
     public function testToDiskUnescapesBackslashEscapedAmpersand(): void
     {
-        $markdown = '![alt](/file/image?path=/home/user/photo.png\&anchor=/home/user/doc.md)';
+        $markdown = '![alt](/document/image?path=/home/user/photo.png\&anchor=/home/user/doc.md)';
 
         self::assertSame('![alt](/home/user/photo.png)', $this->codec->toDisk($markdown, null));
     }
@@ -105,7 +105,7 @@ final class DocumentCodecTest extends KernelTestCase
         $markdown = 'Text ![alt](./img/photo.png) more text';
 
         self::assertSame(
-            'Text ![alt](/file/image?path=./img/photo.png) more text',
+            'Text ![alt](/document/image?path=./img/photo.png) more text',
             $this->codec->toEditor($markdown),
         );
     }

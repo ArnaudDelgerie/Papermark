@@ -4,19 +4,22 @@
    `settings` controller); the API keys are outside of it, each with its own
    actions. `data-turbo="false"`: a frame would otherwise capture the submit. #}
 <turbo-frame id="settings">
-    {{ form_start(form, {attr: {
-        class: 'settings-form',
-        'data-turbo': 'false',
-        'data-controller': 'settings',
-        'data-action': 'submit->settings#submit',
-        'data-settings-delete-label-value': 'components.settings.delete_key'|trans({}, 'components'),
-        'data-settings-confirm-message-value': 'components.settings.delete_key_confirm_message'|trans({}, 'components'),
-        'data-settings-confirm-question-value': 'components.settings.delete_key_confirm_question'|trans({}, 'components'),
-        'data-settings-update-available-value': 'components.settings.update_available'|trans({}, 'components'),
-        'data-settings-up-to-date-value': 'components.settings.up_to_date'|trans({}, 'components'),
-        'data-settings-update-check-failed-value': 'components.editor.error.update_check_failed'|trans({}, 'components'),
-        'data-settings-update-check-unavailable-value': 'components.settings.update_check_unavailable'|trans({}, 'components'),
-    }}) }}
+    {{ form_start(form, {
+        action: path('app_settings_save'),
+        attr: {
+            class: 'settings-form',
+            'data-turbo': 'false',
+            'data-controller': 'settings',
+            'data-action': 'submit->settings#submit',
+            'data-settings-delete-label-value': 'components.settings.delete_key'|trans({}, 'components'),
+            'data-settings-confirm-message-value': 'components.settings.delete_key_confirm_message'|trans({}, 'components'),
+            'data-settings-confirm-question-value': 'components.settings.delete_key_confirm_question'|trans({}, 'components'),
+            'data-settings-update-available-value': 'components.settings.update_available'|trans({}, 'components'),
+            'data-settings-up-to-date-value': 'components.settings.up_to_date'|trans({}, 'components'),
+            'data-settings-update-check-failed-value': 'components.editor.error.update_check_failed'|trans({}, 'components'),
+            'data-settings-update-check-unavailable-value': 'components.settings.update_check_unavailable'|trans({}, 'components'),
+        },
+    }) }}
         <div class="settings-errors" role="alert" data-settings-target="errors" hidden>
             <p>{{ 'components.settings.errors_title'|trans({}, 'components') }}</p>
             <ul data-settings-target="errorList"></ul>

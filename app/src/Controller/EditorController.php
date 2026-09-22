@@ -49,8 +49,8 @@ final class EditorController extends AbstractController
     #[Route('/editor', name: 'app_editor', methods: ['GET'])]
     public function index(): Response
     {
-        // The marker /file/image gates on: this render is the page the user
-        // actually opened, a third-party one never gets here (lot 02, SEC-04).
+        // The marker /document/image gates on: this render is the page the
+        // user actually opened, a third-party one never gets here (lot 02, SEC-04).
         $this->editorState->markOpened();
 
         $state = $this->editorState->toArray();
@@ -87,38 +87,6 @@ final class EditorController extends AbstractController
         $this->editorState->setMode($mode);
 
         return new StateSuccessResponse($this->editorState, ['mode' => $mode->value]);
-    }
-
-    /**
-     * Content of the current file. No parameter: the only way to change what
-     * is read is setFile(), behind its CSRF token. A file gone from disk is
-     * dropped from the state, and its path comes back with the 404 since the
-     * caller has no other way to know which one it was. The revision is the
-     * hash of the raw bytes — it describes the file, not what the editor
-     * shows of it — and travels with the content (lot 03-services-document.md,
-     * FIL-03): save() compares against it before writing.
-     */
-    #[Route('/editor/file', name: 'app_editor_get_file', methods: ['GET'])]
-    public function getFile(): JsonResponse
-    {
-        $path = $this->editorState->getFile();
-        if ($path === null) {
-            return new JsonResponse(['path' => null, 'content' => null]);
-        }
-
-        try {
-            $document = $this->documentStore->read($path);
-        } catch (PathNotFoundException $e) {
-            $this->editorState->setFile(null);
-
-            throw $e;
-        }
-
-        return new JsonResponse([
-            'path' => $document->path,
-            'content' => $document->content,
-            'revision' => $document->revision,
-        ]);
     }
 
     /**

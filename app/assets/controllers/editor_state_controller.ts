@@ -24,7 +24,6 @@ interface Urls {
     save: string;
     delete: string;
     rename: string;
-    settings: string;
     /** With a `__name__` placeholder (a `{name}` would come out URL-encoded): the provider. */
     setKey: string;
     deleteKey: string;
@@ -32,7 +31,8 @@ interface Urls {
 }
 
 interface Route {
-    url: keyof Urls;
+    /** `fromAction`: the URL travels with the request itself (do-save_settings, its form's own `action`). */
+    url: keyof Urls | 'fromAction';
     method: 'POST' | 'DELETE';
 }
 
@@ -46,7 +46,7 @@ const ROUTES: Record<ActionName, Route> = {
     'do-save_as': { url: 'save', method: 'POST' },
     'do-delete': { url: 'delete', method: 'POST' },
     'do-rename': { url: 'rename', method: 'POST' },
-    'do-save_settings': { url: 'settings', method: 'POST' },
+    'do-save_settings': { url: 'fromAction', method: 'POST' },
     'do-set_key': { url: 'setKey', method: 'POST' },
     'do-delete_key': { url: 'deleteKey', method: 'DELETE' },
     'do-import': { url: 'import', method: 'POST' },
@@ -198,6 +198,10 @@ export default class extends Controller {
 
     /** `__name__` is the provider of a key action. */
     #url(route: Route, action: RequestOf<ActionName>): string {
+        if (route.url === 'fromAction') {
+            return (action as RequestOf<'do-save_settings'>).url;
+        }
+
         const url = this.urlsValue[route.url];
 
         return 'name' in action ? url.replace('__name__', encodeURIComponent(action.name)) : url;

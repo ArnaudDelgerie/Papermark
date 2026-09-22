@@ -6,7 +6,7 @@ use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
-final class FileControllerTest extends WebTestCase
+final class DocumentControllerTest extends WebTestCase
 {
     /**
      * @return array{0: KernelBrowser, 1: string}
@@ -25,11 +25,87 @@ final class FileControllerTest extends WebTestCase
         return [$client, $csrfToken];
     }
 
-    public function testSaveReturnsTranslatedErrorForNoPath(): void
+    public function testReadReturnsNothingWithoutACurrentFile(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/document');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(['path' => null, 'content' => null], json_decode((string) $client->getResponse()->getContent(), true));
+    }
+
+    public function testReadConvertsLocalImagePathsToServiceUrls(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '![alt](./photo.png)');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        $client->request('GET', '/document');
+
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('![alt](/document/image?path=./photo.png)', $data['content']);
+
+        unlink($path);
+    }
+
+    /** The GET does the same UTF-8 check as setFile, as a belt: the file may have changed hands since. */
+    public function testReadRefusesANonUtf8FileAndKeepsTheState(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        // Windows-1252 "é" is not UTF-8.
+        file_put_contents($path, "Coucou \xE9\xE8.txt");
+
+        $client->request('GET', '/document');
+
+        self::assertResponseStatusCodeSame(403);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(['The file is not UTF-8 encoded; only UTF-8 files can be opened'], $data['genericErrors']);
+        // The state is unchanged: the editor can retry without a reload loop.
+        $client->request('GET', '/editor/state');
+        self::assertSame($path, json_decode((string) $client->getResponse()->getContent(), true)['state']['file']);
+
+        unlink($path);
+    }
+
+    /**
+     * The 404 no longer names the gone path: the front-end relies on the
+     * state it carries (already cleared) instead.
+     */
+    public function testReadDropsACurrentFileGoneFromDisk(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+        $client->disableReboot();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Gone');
+        $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        unlink($path);
+
+        $client->request('GET', '/document');
+
+        self::assertResponseStatusCodeSame(404);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame(['Path not found'], $data['genericErrors']);
+        self::assertNull($data['state']['file']);
+
+        $client->request('GET', '/document');
+        self::assertSame(['path' => null, 'content' => null], json_decode((string) $client->getResponse()->getContent(), true));
+    }
+
+    public function testSaveReturnsMappedErrorForNoPath(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'content' => 'hello',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
@@ -37,7 +113,113 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame(['No file path provided'], $data['genericErrors']);
+        self::assertSame([], $data['genericErrors']);
+        self::assertSame([['field' => 'path', 'message' => 'No file path provided']], $data['mappedErrors']);
+    }
+
+    public function testSaveReturnsMappedErrorForMissingContent(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+
+        $client->request('POST', '/document/save', [
+            'path' => $path,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('content', $data['mappedErrors'][0]['field']);
+        self::assertFileDoesNotExist($path);
+    }
+
+    public function testCopyReturnsMappedErrorForMissingContent(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $client->request('POST', '/document/copy', [], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('content', $data['mappedErrors'][0]['field']);
+    }
+
+    public function testDeleteReturnsMappedErrorForNoPath(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $client->request('POST', '/document/delete', [], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame([['field' => 'path', 'message' => 'No file path provided']], $data['mappedErrors']);
+    }
+
+    /** Décision 5 (lot 04): delete now applies the "document" rule too. */
+    public function testDeleteRejectsANonDocumentFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.png';
+        file_put_contents($path, 'not a document');
+
+        $client->request('POST', '/document/delete', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertFileExists($path);
+
+        unlink($path);
+    }
+
+    public function testRenameReturnsMappedErrorForNoPath(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $client->request('POST', '/document/rename', ['name' => 'new.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertContains(['field' => 'path', 'message' => 'No file path provided'], $data['mappedErrors']);
+    }
+
+    public function testRenameReturnsMappedErrorForInvalidName(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
+        file_put_contents($path, '# Hello');
+
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => '../evil.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertContains(['field' => 'name', 'message' => 'Invalid file name'], $data['mappedErrors']);
+        self::assertFileExists($path);
+
+        unlink($path);
+    }
+
+    /** Décision 5 (lot 04): rename now applies the "document" rule to its source too. */
+    public function testRenameRejectsANonDocumentSourceFile(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $path = tempnam(sys_get_temp_dir(), 'test_') . '.png';
+        file_put_contents($path, 'not a document');
+
+        // A valid target name: only the source's own extension is at fault.
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => 'renamed.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertContains(['field' => 'path', 'message' => 'Only Markdown and text files are supported'], $data['mappedErrors']);
+        self::assertFileExists($path);
+
+        unlink($path);
     }
 
     public function testImageServesFileAtAbsolutePath(): void
@@ -45,7 +227,7 @@ final class FileControllerTest extends WebTestCase
         [$client] = $this->createClientWithCsrf();
         $path = $this->createTestImage();
 
-        $client->request('GET', '/file/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path]);
 
         self::assertResponseIsSuccessful();
         self::assertResponseHeaderSame('Content-Type', 'image/png');
@@ -61,7 +243,7 @@ final class FileControllerTest extends WebTestCase
         $client = static::createClient();
         $path = $this->createTestImage();
 
-        $client->request('GET', '/file/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path]);
 
         self::assertResponseStatusCodeSame(404);
         unlink($path);
@@ -77,7 +259,7 @@ final class FileControllerTest extends WebTestCase
         file_put_contents($doc, '# Doc next to the image');
         $client->request('POST', '/editor/file', ['path' => $doc], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
-        $client->request('GET', '/file/image', ['path' => basename($path)]);
+        $client->request('GET', '/document/image', ['path' => basename($path)]);
 
         self::assertResponseIsSuccessful();
 
@@ -89,7 +271,7 @@ final class FileControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/file/image', ['path' => 'photo.png']);
+        $client->request('GET', '/document/image', ['path' => 'photo.png']);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -99,7 +281,7 @@ final class FileControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/file/image', ['path' => 'photo.png', 'anchor' => '/etc']);
+        $client->request('GET', '/document/image', ['path' => 'photo.png', 'anchor' => '/etc']);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -108,7 +290,7 @@ final class FileControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/file/image');
+        $client->request('GET', '/document/image');
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -117,7 +299,7 @@ final class FileControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/file/image', ['path' => '/tmp/this_image_does_not_exist_12345.png']);
+        $client->request('GET', '/document/image', ['path' => '/tmp/this_image_does_not_exist_12345.png']);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -130,7 +312,7 @@ final class FileControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.svg';
         file_put_contents($path, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 
-        $client->request('GET', '/file/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path]);
 
         self::assertResponseStatusCodeSame(404);
 
@@ -144,7 +326,7 @@ final class FileControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.txt';
         file_put_contents($path, 'not an image');
 
-        $client->request('GET', '/file/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path]);
 
         self::assertResponseStatusCodeSame(404);
 
@@ -157,9 +339,9 @@ final class FileControllerTest extends WebTestCase
 
         $docPath = tempnam(sys_get_temp_dir(), 'test_') . '.md';
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $docPath,
-            'content' => '![alt](/file/image?path=./photo.png)',
+            'content' => '![alt](/document/image?path=./photo.png)',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
@@ -181,7 +363,7 @@ final class FileControllerTest extends WebTestCase
 
         // Save as: a reload must reopen the new file, not the one opened before.
         $savedAs = sys_get_temp_dir() . '/save_as_' . uniqid() . '.md';
-        $client->request('POST', '/file/save', ['path' => $savedAs, 'content' => '# Saved as'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/save', ['path' => $savedAs, 'content' => '# Saved as'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseIsSuccessful();
         self::assertSame($savedAs, $this->responseState($client)['file']);
@@ -189,7 +371,7 @@ final class FileControllerTest extends WebTestCase
         $data = json_decode((string) $client->getResponse()->getContent(), true);
         self::assertSame(['path' => $savedAs, 'revision' => hash('xxh128', '# Saved as')], $data['action']);
 
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         self::assertSame(
             ['path' => $savedAs, 'content' => '# Saved as', 'revision' => hash('xxh128', '# Saved as')],
             json_decode((string) $client->getResponse()->getContent(), true),
@@ -216,7 +398,7 @@ final class FileControllerTest extends WebTestCase
         // The file changes outside of Papermark after the read.
         file_put_contents($path, "# Changed outside\n");
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $path,
             'content' => '# Mine',
             'revision' => hash('xxh128', '# On disk'),
@@ -228,7 +410,7 @@ final class FileControllerTest extends WebTestCase
         self::assertSame("# Changed outside\n", file_get_contents($path));
 
         // Écraser: the same save without a revision, blind write.
-        $client->request('POST', '/file/save', ['path' => $path, 'content' => '# Mine'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/save', ['path' => $path, 'content' => '# Mine'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseIsSuccessful();
         self::assertSame('# Mine', file_get_contents($path));
@@ -247,7 +429,7 @@ final class FileControllerTest extends WebTestCase
         $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
         unlink($path);
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $path,
             'content' => '# Mine',
             'revision' => hash('xxh128', '# On disk'),
@@ -268,7 +450,7 @@ final class FileControllerTest extends WebTestCase
         file_put_contents($path, '# On disk');
         $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $path,
             'content' => '# First',
             'revision' => hash('xxh128', '# On disk'),
@@ -278,7 +460,7 @@ final class FileControllerTest extends WebTestCase
         self::assertSame(hash('xxh128', '# First'), $data['action']['revision']);
 
         // The renewed revision is what the next save compares against.
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $path,
             'content' => '# Second',
             'revision' => $data['action']['revision'],
@@ -301,7 +483,7 @@ final class FileControllerTest extends WebTestCase
         touch($path, 1000000000);
         $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $path,
             'content' => "# Same\n",
             'revision' => hash('xxh128', "# Same\n"),
@@ -328,7 +510,7 @@ final class FileControllerTest extends WebTestCase
         file_put_contents($path, $disk);
         $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
-        $client->request('POST', '/file/save', [
+        $client->request('POST', '/document/save', [
             'path' => $path,
             'content' => "# A\n# B, edited\n",
             'revision' => hash('xxh128', $disk),
@@ -354,7 +536,7 @@ final class FileControllerTest extends WebTestCase
         file_put_contents($path, '# Read only');
         chmod($path, 0444);
 
-        $client->request('POST', '/file/save', ['path' => $path, 'content' => '# No'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/save', ['path' => $path, 'content' => '# No'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(403);
         self::assertSame('# Read only', file_get_contents($path));
@@ -367,8 +549,8 @@ final class FileControllerTest extends WebTestCase
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
-        $client->request('POST', '/file/copy', [
-            'content' => '![alt](/file/image?path=/home/user/photo.png)',
+        $client->request('POST', '/document/copy', [
+            'content' => '![alt](/document/image?path=/home/user/photo.png)',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
@@ -382,7 +564,7 @@ final class FileControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $client->request('POST', '/file/copy', [
+        $client->request('POST', '/document/copy', [
             'content' => '![alt](photo.png)',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => 'invalid',
@@ -398,7 +580,7 @@ final class FileControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
         file_put_contents($path, '# Hello');
 
-        $client->request('POST', '/file/delete', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/delete', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseIsSuccessful();
         self::assertFileDoesNotExist($path);
@@ -409,7 +591,7 @@ final class FileControllerTest extends WebTestCase
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
-        $client->request('POST', '/file/delete', [
+        $client->request('POST', '/document/delete', [
             'path' => '/tmp/this_file_does_not_exist_12345.md',
         ], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
@@ -422,7 +604,7 @@ final class FileControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $client->request('POST', '/file/delete', ['path' => '/tmp/test.md'], [], [
+        $client->request('POST', '/document/delete', ['path' => '/tmp/test.md'], [], [
             'HTTP_X-CSRF-TOKEN' => 'invalid',
         ]);
 
@@ -439,7 +621,7 @@ final class FileControllerTest extends WebTestCase
         $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
         self::assertSame($path, $this->responseState($client)['file']);
 
-        $client->request('POST', '/file/delete', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/delete', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseIsSuccessful();
         self::assertNull($this->responseState($client)['file']);
@@ -454,7 +636,7 @@ final class FileControllerTest extends WebTestCase
         $newName = basename($path, '.md') . '-renamed.md';
         $expectedPath = \dirname($path) . '/' . $newName;
 
-        $client->request('POST', '/file/rename', ['path' => $path, 'name' => $newName], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => $newName], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseIsSuccessful();
         $data = json_decode((string) $client->getResponse()->getContent(), true);
@@ -476,7 +658,7 @@ final class FileControllerTest extends WebTestCase
 
         $newName = basename($path, '.md') . '-renamed.md';
         $expectedPath = \dirname($path) . '/' . $newName;
-        $client->request('POST', '/file/rename', ['path' => $path, 'name' => $newName], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => $newName], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseIsSuccessful();
         self::assertSame($expectedPath, $this->responseState($client)['file']);
@@ -491,7 +673,7 @@ final class FileControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
         file_put_contents($path, '# Hello');
 
-        $client->request('POST', '/file/rename', ['path' => $path, 'name' => '../evil.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => '../evil.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(422);
         self::assertFileExists($path);
@@ -509,7 +691,7 @@ final class FileControllerTest extends WebTestCase
         $existingPath = \dirname($path) . '/' . $existingName;
         file_put_contents($existingPath, '# Taken');
 
-        $client->request('POST', '/file/rename', ['path' => $path, 'name' => $existingName], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => $existingName], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(409);
 
@@ -524,7 +706,7 @@ final class FileControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.md';
         file_put_contents($path, '# Hello');
 
-        $client->request('POST', '/file/rename', ['path' => $path, 'name' => 'renamed.exe'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/rename', ['path' => $path, 'name' => 'renamed.exe'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(422);
         self::assertFileExists($path);
@@ -536,7 +718,7 @@ final class FileControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $client->request('POST', '/file/rename', ['path' => '/tmp/test.md', 'name' => 'new.md'], [], [
+        $client->request('POST', '/document/rename', ['path' => '/tmp/test.md', 'name' => 'new.md'], [], [
             'HTTP_X-CSRF-TOKEN' => 'invalid',
         ]);
 
@@ -573,7 +755,7 @@ final class FileControllerTest extends WebTestCase
         [$client, $csrfToken] = $this->createClientWithCsrf();
         [$link, $target] = $this->createSymlinkedMarkdown();
 
-        $client->request('POST', '/file/save', ['path' => $link, 'content' => '# Overwritten'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/save', ['path' => $link, 'content' => '# Overwritten'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(403);
         self::assertSame('# Important', file_get_contents($target));
@@ -588,7 +770,7 @@ final class FileControllerTest extends WebTestCase
         [$client, $csrfToken] = $this->createClientWithCsrf();
         [$link, $target] = $this->createSymlinkedMarkdown();
 
-        $client->request('POST', '/file/delete', ['path' => $link], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/delete', ['path' => $link], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(403);
         self::assertFileExists($target);
@@ -603,7 +785,7 @@ final class FileControllerTest extends WebTestCase
         [$client, $csrfToken] = $this->createClientWithCsrf();
         [$link, $target] = $this->createSymlinkedMarkdown();
 
-        $client->request('POST', '/file/rename', ['path' => $link, 'name' => 'moved.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
+        $client->request('POST', '/document/rename', ['path' => $link, 'name' => 'moved.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(403);
         self::assertFileExists($target);

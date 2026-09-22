@@ -55,12 +55,12 @@ final class EditorControllerTest extends WebTestCase
         $path = $this->createFile('# Hello');
         $this->post($client, '/editor/file', ['path' => $path]);
 
-        // The editor fetches the current file itself, through getFile().
+        // The editor fetches the current file itself, through GET /document.
         $crawler = $client->request('GET', '/editor');
 
         $editor = $crawler->filter('div[data-controller="editor"]');
         self::assertStringNotContainsString('# Hello', $editor->outerHtml());
-        self::assertSame('/editor/file', json_decode((string) $editor->attr('data-editor-urls-value'), true)['file']);
+        self::assertSame('/document', json_decode((string) $editor->attr('data-editor-urls-value'), true)['file']);
 
         unlink($path);
     }
@@ -81,8 +81,8 @@ final class EditorControllerTest extends WebTestCase
         );
         $urls = json_decode((string) $master->attr('data-editor-state-urls-value'), true);
         self::assertSame('/editor/state', $urls['state']);
-        // The settings actions go through the master too; `__name__` is the provider, filled in by the master.
-        self::assertSame('/settings', $urls['settings']);
+        // The settings form carries its own `action`; the master no longer holds it (lot 04).
+        self::assertArrayNotHasKey('settings', $urls);
         self::assertSame('/settings/provider/__name__/key', $urls['setKey']);
         self::assertSame('/settings/provider/__name__/key', $urls['deleteKey']);
         self::assertNotEmpty($master->attr('data-editor-state-token-value'));
@@ -203,16 +203,6 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame('single', $this->responseState($client)['mode']);
     }
 
-    public function testGetFileReturnsNothingWithoutACurrentFile(): void
-    {
-        $client = static::createClient();
-
-        $client->request('GET', '/editor/file');
-
-        self::assertResponseIsSuccessful();
-        self::assertSame(['path' => null, 'content' => null], $this->responseData($client));
-    }
-
     public function testSetFileMakesTheFileCurrentAndGetFileReadsIt(): void
     {
         $client = $this->createClientWithTokens();
@@ -227,7 +217,7 @@ final class EditorControllerTest extends WebTestCase
             $this->responseData($client),
         );
 
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         self::assertSame(
             ['path' => $path, 'content' => '# Hello', 'revision' => hash('xxh128', '# Hello')],
             $this->responseData($client),
@@ -262,26 +252,6 @@ final class EditorControllerTest extends WebTestCase
         unlink($bad);
     }
 
-    /** The GET does the same check, as a belt: the file may have changed hands since setFile(). */
-    public function testGetFileRefusesANonUtf8FileAndKeepsTheState(): void
-    {
-        $client = $this->createClientWithTokens();
-
-        $path = $this->createFile('# Hello');
-        $this->post($client, '/editor/file', ['path' => $path]);
-        file_put_contents($path, "Coucou \xE9\xE8.txt");
-
-        $client->request('GET', '/editor/file');
-
-        self::assertResponseStatusCodeSame(403);
-        self::assertSame(['The file is not UTF-8 encoded; only UTF-8 files can be opened'], $this->responseData($client)['genericErrors']);
-        // The state is unchanged: the editor can retry without a reload loop.
-        $client->request('GET', '/editor/state');
-        self::assertSame($path, $this->responseState($client)['file']);
-
-        unlink($path);
-    }
-
     /** A UTF-8 BOM is valid UTF-8: these files pass (lot 03). */
     public function testSetAndGetFileAcceptAFileWithABom(): void
     {
@@ -291,24 +261,10 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/file', ['path' => $path]);
 
         self::assertResponseIsSuccessful();
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         $data = $this->responseData($client);
         self::assertSame("\xEF\xBB\xBF# With BOM", $data['content']);
         self::assertSame(hash('xxh128', "\xEF\xBB\xBF# With BOM"), $data['revision']);
-
-        unlink($path);
-    }
-
-    public function testGetFileConvertsLocalImagePathsToServiceUrls(): void
-    {
-        $client = $this->createClientWithTokens();
-
-        $path = $this->createFile('![alt](./photo.png)');
-        $this->post($client, '/editor/file', ['path' => $path]);
-
-        $client->request('GET', '/editor/file');
-
-        self::assertSame('![alt](/file/image?path=./photo.png)', $this->responseData($client)['content']);
 
         unlink($path);
     }
@@ -334,33 +290,11 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSame(realpath($target), $this->responseState($client)['file']);
 
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         self::assertSame('# Target', $this->responseData($client)['content']);
 
         unlink($link);
         unlink($target);
-    }
-
-    /**
-     * The 404 no longer names the gone path: the front-end relies on the
-     * state it carries (already cleared) instead.
-     */
-    public function testGetFileDropsACurrentFileGoneFromDisk(): void
-    {
-        $client = $this->createClientWithTokens();
-
-        $path = $this->createFile('# Gone');
-        $this->post($client, '/editor/file', ['path' => $path]);
-        unlink($path);
-
-        $client->request('GET', '/editor/file');
-
-        self::assertResponseStatusCodeSame(404);
-        self::assertSame(['Path not found'], $this->responseData($client)['genericErrors']);
-        self::assertNull($this->responseState($client)['file']);
-
-        $client->request('GET', '/editor/file');
-        self::assertSame(['path' => null, 'content' => null], $this->responseData($client));
     }
 
     public function testSetFileReturnsTranslatedErrorForMissingFile(): void
@@ -402,7 +336,7 @@ final class EditorControllerTest extends WebTestCase
 
         // An unrelated bad path leaves the current file alone…
         $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         self::assertSame($path, $this->responseData($client)['path']);
 
         // …the current file found gone is dropped.
@@ -411,7 +345,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
         // The refusal carries the state as corrected.
         self::assertNull($this->responseState($client)['file']);
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         self::assertNull($this->responseData($client)['path']);
     }
 
@@ -430,7 +364,7 @@ final class EditorControllerTest extends WebTestCase
         // An empty action is still an object, like every other one.
         self::assertStringContainsString('"action":{}', (string) $client->getResponse()->getContent());
 
-        $client->request('GET', '/editor/file');
+        $client->request('GET', '/document');
         self::assertSame(['path' => null, 'content' => null], $this->responseData($client));
 
         unlink($path);
@@ -617,11 +551,11 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/dir', ['path' => $root]);
         $client->request('GET', '/editor/dir');
 
-        $this->post($client, '/file/save', ['path' => $root . '/empty_yet/new.md', 'content' => '# New']);
+        $this->post($client, '/document/save', ['path' => $root . '/empty_yet/new.md', 'content' => '# New']);
         // .txt is a document too (DocumentExtension): it gets listed like any other.
-        $this->post($client, '/file/save', ['path' => $root . '/notes.txt', 'content' => 'a text note']);
-        $this->post($client, '/file/delete', ['path' => $root . '/only_one/last.md']);
-        $this->post($client, '/file/rename', ['path' => $root . '/old.md', 'name' => 'renamed.md']);
+        $this->post($client, '/document/save', ['path' => $root . '/notes.txt', 'content' => 'a text note']);
+        $this->post($client, '/document/delete', ['path' => $root . '/only_one/last.md']);
+        $this->post($client, '/document/rename', ['path' => $root . '/old.md', 'name' => 'renamed.md']);
 
         $crawler = $client->request('GET', '/editor/dir');
         $paths = $crawler->filter('.mode-tree a[data-path]')->each(static fn ($node) => $node->attr('data-path'));

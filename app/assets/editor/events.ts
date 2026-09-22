@@ -42,8 +42,8 @@ interface Requests {
     'do-save_as': { path: string; content: string };
     'do-delete': { path: string };
     'do-rename': { path: string; name: string };
-    /** The whole settings form, as the modal's controller reads it. */
-    'do-save_settings': { form: FormData };
+    /** The whole settings form, as the modal's controller reads it, with its own `action`. */
+    'do-save_settings': { form: FormData; url: string };
     'do-set_key': { name: string; key: string };
     'do-delete_key': { name: string };
     /** The archive and the folder it is extracted into, both picked by the import block. */

@@ -2,3 +2,10 @@ provider:
     model:
         too_long: 'The model name is too long (255 characters at most).'
         invalid: 'The model name contains characters that are not allowed.'
+document:
+    path:
+        blank: 'No file path provided'
+        unsupported_extension: 'Only Markdown and text files are supported'
+    name:
+        invalid: 'Invalid file name'
+        unsupported_extension: 'Only Markdown and text files are supported'

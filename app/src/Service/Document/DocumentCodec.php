@@ -16,7 +16,7 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
  *   byte-level shape (BOM, dominant line endings) is reapplied — skipped for
  *   a new file, which has no shape to copy (FIL-11): the editor serializes
  *   LF and strips the BOM, and a Windows file must stay a Windows file.
- * - toEditor(): image raw paths become /file/image service URLs (see
+ * - toEditor(): image raw paths become /document/image service URLs (see
  *   EDITOR_IMAGES.md).
  * - revision(): the xxh128 of a document's raw bytes — it describes the
  *   file, not what the editor shows of it.
@@ -77,7 +77,7 @@ final class DocumentCodec
                 // The URL carries the path alone: the anchor that resolves a
                 // relative one lives in the session, not in the markdown
                 // (lot 02-chemins.md, SEC-04).
-                $url = $this->urlGenerator->generate('app_file_image', ['path' => $path]);
+                $url = $this->urlGenerator->generate('app_document_image', ['path' => $path]);
 
                 return "![{$alt}]({$url}{$title})";
             },
@@ -110,7 +110,7 @@ final class DocumentCodec
 
     private function extractPath(string $url): ?string
     {
-        $prefix = '/file/image?';
+        $prefix = '/document/image?';
         if (!str_starts_with($url, $prefix)) {
             return null;
         }

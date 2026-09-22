@@ -80,7 +80,7 @@ function editorHtml(): string {
     </nav>
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
          data-editor-csrf-token-value="tk-app"
-         data-editor-urls-value="${attr({ file: '/editor/file', copy: '/file/copy', image: '/file/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
+         data-editor-urls-value="${attr({ file: '/document', copy: '/document/copy', image: '/document/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
          data-editor-i18n-value="${attr({
              untitled: 'Untitled',
              conflict: { question: 'What about your changes?', cancel: 'Cancel', saveAs: 'Save as', overwrite: 'Overwrite' },
@@ -145,7 +145,7 @@ describe('the editor, with the master', () => {
             const body = init?.body as FormData | undefined;
             const reply = (action: object): Response => jsonResponse({ state: current, action });
             switch (`${method} ${url}`) {
-                case 'GET /editor/file':
+                case 'GET /document':
                     if (current.file === null) {
                         return jsonResponse({ path: null, content: null });
                     }
@@ -166,7 +166,7 @@ describe('the editor, with the master', () => {
                     current = { ...current, file: null };
 
                     return reply({});
-                case 'POST /file/save': {
+                case 'POST /document/save': {
                     const path = body!.get('path') as string;
                     if (conflictNextSave) {
                         conflictNextSave = false;
@@ -222,7 +222,7 @@ describe('the editor, with the master', () => {
         current = { ...current, file: null };
         await start(current);
 
-        expect(calls('GET', '/editor/file')).toHaveLength(0);
+        expect(calls('GET', '/document')).toHaveLength(0);
         expect(label()).toBe('Untitled');
     });
 
@@ -245,7 +245,7 @@ describe('the editor, with the master', () => {
         await settle();
 
         expect(crepe.getMarkdown()).toBe('# A');
-        expect(calls('GET', '/editor/file')).toHaveLength(2);
+        expect(calls('GET', '/document')).toHaveLength(2);
     });
 
     describe('an import', () => {
@@ -290,7 +290,7 @@ describe('the editor, with the master', () => {
 
             expect(crepe.getMarkdown()).toBe('# A, edited');
             expect(label()).toBe('/notes/a.md');
-            expect(calls('GET', '/editor/file')).toHaveLength(1);
+            expect(calls('GET', '/document')).toHaveLength(1);
         });
     });
 
@@ -322,7 +322,7 @@ describe('the editor, with the master', () => {
         click('[data-editor-target="saveButton"]');
         await settle();
 
-        const [, init] = calls('POST', '/file/save')[0];
+        const [, init] = calls('POST', '/document/save')[0];
         expect((init!.body as FormData).get('content')).toBe('# A, edited');
         // What GET /editor/file gave with the content (lot 03).
         expect((init!.body as FormData).get('revision')).toBe('r0');
@@ -355,7 +355,7 @@ describe('the editor, with the master', () => {
             click('[data-editor-target="saveButton"]');
             await settle();
 
-            expect(calls('POST', '/file/save')).toHaveLength(0);
+            expect(calls('POST', '/document/save')).toHaveLength(0);
         });
 
         it('is active on an emptied document: a zero-byte file is a legitimate file', async () => {
@@ -382,14 +382,14 @@ describe('the editor, with the master', () => {
             await settle();
 
             expect(invoke).not.toHaveBeenCalled();
-            expect(calls('POST', '/file/save')).toHaveLength(0);
+            expect(calls('POST', '/document/save')).toHaveLength(0);
         });
 
         it('keeps the buttons disabled while a save is in flight, and ignores a second click', async () => {
             await start(current);
             crepe.type('# A, edited');
             let answer!: (response: Response) => void;
-            fetchMock.mockImplementation((url: string) => url === '/file/save'
+            fetchMock.mockImplementation((url: string) => url === '/document/save'
                 ? new Promise((resolve) => { answer = resolve; })
                 : Promise.reject(new Error(`Unexpected ${url}`)));
 
@@ -400,7 +400,7 @@ describe('the editor, with the master', () => {
             expect(saveAsButton().disabled).toBe(true);
             click('[data-editor-target="saveButton"]');
             await settle();
-            expect(calls('POST', '/file/save')).toHaveLength(1);
+            expect(calls('POST', '/document/save')).toHaveLength(1);
 
             answer(jsonResponse({ state: current, action: { path: '/notes/a.md', revision: 'r1' } }));
             await settle();
@@ -418,13 +418,13 @@ describe('the editor, with the master', () => {
 
             click('[data-editor-target="saveButton"]');
             await settle();
-            expect((calls('POST', '/file/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
+            expect((calls('POST', '/document/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
 
             crepe.type('# A, edited more');
             click('[data-editor-target="saveButton"]');
             await settle();
 
-            expect((calls('POST', '/file/save')[1][1]!.body as FormData).get('revision')).toBe('r1');
+            expect((calls('POST', '/document/save')[1][1]!.body as FormData).get('revision')).toBe('r1');
         });
 
         it('on a 409, asks Save as or Overwrite instead of toasting, and Overwrite writes without a revision', async () => {
@@ -445,8 +445,8 @@ describe('the editor, with the master', () => {
                 overwriteLabel: 'Overwrite',
             }));
             // Écraser replays the save without a revision, on fresh markdown.
-            expect(calls('POST', '/file/save')).toHaveLength(2);
-            const [, init] = calls('POST', '/file/save')[1];
+            expect(calls('POST', '/document/save')).toHaveLength(2);
+            const [, init] = calls('POST', '/document/save')[1];
             expect((init!.body as FormData).get('revision')).toBe(null);
             expect((init!.body as FormData).get('content')).toBe('# A, edited');
             expect(files['/notes/a.md']).toBe('# A, edited');
@@ -466,7 +466,7 @@ describe('the editor, with the master', () => {
 
             expect(saveConflictDialog).toHaveBeenCalledTimes(1);
             expect(invoke).toHaveBeenCalledWith('save_path', expect.objectContaining({ fileName: 'a.md' }));
-            const [, init] = calls('POST', '/file/save')[1];
+            const [, init] = calls('POST', '/document/save')[1];
             expect((init!.body as FormData).get('path')).toBe('/notes/copy.md');
             expect((init!.body as FormData).get('revision')).toBe(null);
         });
@@ -713,7 +713,7 @@ describe('the editor, with the master', () => {
             click('[data-editor-target="saveButton"]');
             await settle();
 
-            const [, init] = calls('POST', '/file/save')[0];
+            const [, init] = calls('POST', '/document/save')[0];
             expect((init!.body as FormData).get('content')).toBe('# A, edited');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
         });

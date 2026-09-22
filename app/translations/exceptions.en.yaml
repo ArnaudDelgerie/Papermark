@@ -1,8 +1,6 @@
 exceptions:
     request:
         no_path: No file path provided
-        no_content: No content provided
-        invalid_name: Invalid file name
         invalid_mode: Unknown editor mode
         no_key: No API key provided
         request_failed: The action failed, please try again

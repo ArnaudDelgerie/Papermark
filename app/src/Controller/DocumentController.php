@@ -1,33 +1,37 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controller;
 
-use App\Enum\DocumentExtension;
-use App\Exception\InvalidRequestException;
+use App\Dto\Document\CopyDocumentRequest;
+use App\Dto\Document\DeleteDocumentRequest;
+use App\Dto\Document\RenameDocumentRequest;
+use App\Dto\Document\SaveDocumentRequest;
+use App\Exception\Path\PathNotFoundException;
 use App\Response\StateSuccessResponse;
 use App\Service\Document\DocumentCodec;
 use App\Service\Document\DocumentStore;
 use App\Service\EditorState;
-use App\Service\Path\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
-use Symfony\Component\Validator\Constraints\File as FileConstraint;
 
-final class FileController extends AbstractController
+/**
+ * The content of the current document (lot 04-document-controller.md):
+ * read, copy, image, save, delete, rename. Everything here delegates to
+ * DocumentStore or DocumentCodec — no disk access in this class.
+ */
+final class DocumentController extends AbstractController
 {
-    private const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
-    private const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'];
-    private const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MiB
-
     public function __construct(
-        private readonly PathPolicy $pathPolicy,
         private readonly DocumentStore $documentStore,
         private readonly DocumentCodec $documentCodec,
         private readonly EditorState $editorState,
@@ -35,21 +39,47 @@ final class FileController extends AbstractController
     }
 
     /**
-     * Converts /file/image service URLs back to their raw path just before
-     * the markdown leaves the editor via copy — the same transform applied to
-     * the content written by save(), <br> stripped included, see
-     * EDITOR_IMAGES.md.
+     * Content of the current file. No parameter: the only way to change what
+     * is read is setFile() (POST /editor/file), behind its CSRF token. A file
+     * gone from disk is dropped from the state, and its path comes back with
+     * the 404 since the caller has no other way to know which one it was.
      */
-    #[Route('/file/copy', name: 'app_file_copy', methods: ['POST'])]
-    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function copy(Request $request): JsonResponse
+    #[Route('/document', name: 'app_document_read', methods: ['GET'])]
+    public function read(): JsonResponse
     {
-        $content = $request->request->get('content');
-        if (!\is_string($content)) {
-            throw new InvalidRequestException('no_content');
+        $path = $this->editorState->getFile();
+        if ($path === null) {
+            return new JsonResponse(['path' => null, 'content' => null]);
         }
 
-        return new JsonResponse(['content' => $this->documentCodec->toDisk($content, null)]);
+        try {
+            $document = $this->documentStore->read($path);
+        } catch (PathNotFoundException $e) {
+            $this->editorState->setFile(null);
+
+            throw $e;
+        }
+
+        return new JsonResponse([
+            'path' => $document->path,
+            'content' => $document->content,
+            'revision' => $document->revision,
+        ]);
+    }
+
+    /**
+     * Converts /document/image service URLs back to their raw path just
+     * before the markdown leaves the editor via copy — the same transform
+     * applied to the content written by save(), <br> stripped included, see
+     * EDITOR_IMAGES.md.
+     */
+    #[Route('/document/copy', name: 'app_document_copy', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
+    public function copy(#[MapRequestPayload(mapWhenEmpty: true)] CopyDocumentRequest $payload): JsonResponse
+    {
+        \assert($payload->content !== null);
+
+        return new JsonResponse(['content' => $this->documentCodec->toDisk($payload->content, null)]);
     }
 
     /**
@@ -59,11 +89,10 @@ final class FileController extends AbstractController
      * — and the whole route answers 404 unless the /editor page was rendered
      * for this session: a third-party page holds no session cookie
      * (SameSite=lax), so it can't use this route as an existence oracle
-     * (lot 02-chemins.md, SEC-04). No containment under a parent directory:
-     * trust comes from having opened the document, not from a per-image
-     * gesture — see EDITOR_IMAGES.md.
+     * (lot 02-chemins.md, SEC-04). No DTO: a #[MapQueryString] refusal would
+     * answer in JSON, where SEC-04 wants a 404 without a body.
      */
-    #[Route('/file/image', name: 'app_file_image', methods: ['GET'])]
+    #[Route('/document/image', name: 'app_document_image', methods: ['GET'])]
     public function image(Request $request): Response
     {
         if (!$this->editorState->hasOpened()) {
@@ -75,13 +104,9 @@ final class FileController extends AbstractController
             throw new NotFoundHttpException();
         }
 
-        $realPath = $this->pathPolicy->read($path, $this->editorState->getFile(), new FileConstraint(
-            extensions: self::IMAGE_EXTENSIONS,
-            mimeTypes: self::IMAGE_MIME_TYPES,
-            maxSize: self::MAX_IMAGE_SIZE,
-        ));
-
-        if ($realPath === null) {
+        try {
+            $realPath = $this->documentStore->readImage($path, $this->editorState->getFile());
+        } catch (PathNotFoundException) {
             throw new NotFoundHttpException();
         }
 
@@ -102,29 +127,15 @@ final class FileController extends AbstractController
      * against what was written — no revision (Save as, Écraser) skips the
      * control entirely.
      */
-    #[Route('/file/save', name: 'app_file_save', methods: ['POST'])]
+    #[Route('/document/save', name: 'app_document_save', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function save(Request $request): JsonResponse
+    public function save(#[MapRequestPayload(mapWhenEmpty: true)] SaveDocumentRequest $payload): JsonResponse
     {
-        $path = $request->request->get('path');
-        $content = $request->request->get('content');
+        \assert($payload->content !== null);
 
-        if (!\is_string($path) || $path === '') {
-            throw new InvalidRequestException('no_path');
-        }
+        $clientRevision = $payload->revision !== null && $payload->revision !== '' ? $payload->revision : null;
 
-        if (!\is_string($content)) {
-            throw new InvalidRequestException('no_content');
-        }
-
-        if (!DocumentExtension::isDocument($path)) {
-            throw new InvalidRequestException('unsupported_file_type');
-        }
-
-        $revision = $request->request->get('revision');
-        $clientRevision = \is_string($revision) && $revision !== '' ? $revision : null;
-
-        $event = $this->documentStore->save($path, $content, $clientRevision);
+        $event = $this->documentStore->save($payload->path, $payload->content, $clientRevision);
 
         return new StateSuccessResponse($this->editorState, ['path' => $event->path, 'revision' => $event->revision]);
     }
@@ -133,16 +144,11 @@ final class FileController extends AbstractController
      * No image cleanup: images referenced from the markdown may belong to the
      * user and be used elsewhere, they're left untouched (see EDITOR_FIX.md).
      */
-    #[Route('/file/delete', name: 'app_file_delete', methods: ['POST'])]
+    #[Route('/document/delete', name: 'app_document_delete', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function delete(Request $request): JsonResponse
+    public function delete(#[MapRequestPayload(mapWhenEmpty: true)] DeleteDocumentRequest $payload): JsonResponse
     {
-        $path = $request->request->get('path');
-        if (!\is_string($path) || $path === '') {
-            throw new InvalidRequestException('no_path');
-        }
-
-        $event = $this->documentStore->delete($path);
+        $event = $this->documentStore->delete($payload->path);
 
         return new StateSuccessResponse($this->editorState, ['path' => $event->path]);
     }
@@ -153,26 +159,11 @@ final class FileController extends AbstractController
      * no-replace one: a target created meanwhile is refused, not silently
      * overwritten (lot 02-chemins.md, FIL-06).
      */
-    #[Route('/file/rename', name: 'app_file_rename', methods: ['POST'])]
+    #[Route('/document/rename', name: 'app_document_rename', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function rename(Request $request): JsonResponse
+    public function rename(#[MapRequestPayload(mapWhenEmpty: true)] RenameDocumentRequest $payload): JsonResponse
     {
-        $path = $request->request->get('path');
-        $name = $request->request->get('name');
-
-        if (!\is_string($path) || $path === '') {
-            throw new InvalidRequestException('no_path');
-        }
-
-        if (!\is_string($name) || $name === '' || $name !== basename($name)) {
-            throw new InvalidRequestException('invalid_name');
-        }
-
-        if (!DocumentExtension::isDocument($name)) {
-            throw new InvalidRequestException('unsupported_file_type');
-        }
-
-        $event = $this->documentStore->rename($path, $name);
+        $event = $this->documentStore->rename($payload->path, $payload->name);
 
         // Both paths whether or not it is the current file: the sidebar
         // needs them for its own entries.

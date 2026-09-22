@@ -245,7 +245,7 @@ describe('editor-state (the master)', () => {
             const form = new FormData();
             form.append('settings[selected]', 'anthropic');
 
-            emit('editor:do-save_settings-requested', { action: { form } });
+            emit('editor:do-save_settings-requested', { action: { form, url: '/settings' } });
             await settle();
 
             const [url, init] = fetchMock.mock.calls[0];
@@ -268,10 +268,10 @@ describe('editor-state (the master)', () => {
             on('editor:do-save_settings-failed', failed);
             const form = new FormData();
 
-            emit('editor:do-save_settings-requested', { action: { form } });
+            emit('editor:do-save_settings-requested', { action: { form, url: '/settings' } });
             await settle();
 
-            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, errors: mappedErrors } });
+            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, url: '/settings', errors: mappedErrors } });
             expect(toasts).toEqual([]);
         });
 
@@ -286,12 +286,12 @@ describe('editor-state (the master)', () => {
             on('editor:do-save_settings-failed', failed);
             const form = new FormData();
 
-            emit('editor:do-save_settings-requested', { action: { form } });
+            emit('editor:do-save_settings-requested', { action: { form, url: '/settings' } });
             await settle();
 
             expect(failed).toHaveBeenCalledWith({
                 state: INITIAL,
-                action: { form, errors: [{ field: '', message: 'Could not save the setting' }] },
+                action: { form, url: '/settings', errors: [{ field: '', message: 'Could not save the setting' }] },
             });
             expect(toasts).toEqual([]);
         });

@@ -44,7 +44,7 @@ final class DocumentStoreTest extends TestCase
 
         $urlGenerator = $this->createStub(UrlGeneratorInterface::class);
         $urlGenerator->method('generate')->willReturnCallback(
-            static fn (string $name, array $params): string => '/file/image?path=' . $params['path'],
+            static fn (string $name, array $params): string => '/document/image?path=' . $params['path'],
         );
 
         $this->eventDispatcher = new EventDispatcher();
@@ -75,7 +75,7 @@ final class DocumentStoreTest extends TestCase
         $document = $this->store->read($path);
 
         self::assertSame($path, $document->path);
-        self::assertSame('![alt](/file/image?path=./photo.png)', $document->content);
+        self::assertSame('![alt](/document/image?path=./photo.png)', $document->content);
         self::assertSame(hash('xxh128', '![alt](./photo.png)'), $document->revision);
     }
 

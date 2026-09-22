@@ -357,7 +357,7 @@ describe('the left column, with the master', () => {
             expect(vi.mocked(confirmDialog).mock.calls[0][0].question).toBe('Delete b.md?');
             // Not the current file with unsaved changes: the plain message.
             expect(vi.mocked(confirmDialog).mock.calls[0][0].message).toBe('This cannot be undone.');
-            expect(fetchMock.mock.calls[0][0]).toBe('/file/delete');
+            expect(fetchMock.mock.calls[0][0]).toBe('/document/delete');
             expect(toasts).toEqual([{ type: 'success', message: 'File deleted' }]);
             expect(reload).toHaveBeenCalledTimes(1);
             expect(history()).toEqual(['/notes/a.md']);
@@ -432,7 +432,7 @@ describe('the left column, with the master', () => {
         fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
             const path = (init.body as FormData).get('path') as string;
 
-            return url === '/file/rename'
+            return url === '/document/rename'
                 ? jsonResponse({ state: {}, action: { oldPath: path, newPath: '/elsewhere/z.md' } })
                 : jsonResponse({ state: {}, action: { path } });
         });

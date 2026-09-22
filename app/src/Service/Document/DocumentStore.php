@@ -14,6 +14,7 @@ use App\Exception\Document\DocumentNotUtf8Exception;
 use App\Exception\Path\PathNotFoundException;
 use App\Service\Path\PathPolicy;
 use App\Service\SafeFilesystem;
+use Symfony\Component\Validator\Constraints\File as FileConstraint;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -28,6 +29,10 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  */
 final class DocumentStore
 {
+    private const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
+    private const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'];
+    private const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MiB
+
     public function __construct(
         private readonly PathPolicy $pathPolicy,
         private readonly DocumentCodec $codec,
@@ -62,6 +67,29 @@ final class DocumentStore
         }
 
         return new DocumentContent($realPath, $this->codec->toEditor($raw), $this->codec->revision($raw));
+    }
+
+    /**
+     * The image an open document refers to (lot 04-document-controller.md):
+     * `$anchor` resolves a relative `$path`, as `read()` does. Kept to
+     * `IMAGE_EXTENSIONS`, `IMAGE_MIME_TYPES` and `MAX_IMAGE_SIZE` — a
+     * document's own extensions don't apply here.
+     *
+     * @throws PathNotFoundException the path can't be resolved or isn't a valid image
+     */
+    public function readImage(string $path, ?string $anchor): string
+    {
+        $realPath = $this->pathPolicy->read($path, $anchor, new FileConstraint(
+            extensions: self::IMAGE_EXTENSIONS,
+            mimeTypes: self::IMAGE_MIME_TYPES,
+            maxSize: self::MAX_IMAGE_SIZE,
+        ));
+
+        if ($realPath === null) {
+            throw new PathNotFoundException($path);
+        }
+
+        return $realPath;
     }
 
     /**

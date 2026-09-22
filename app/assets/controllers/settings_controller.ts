@@ -108,7 +108,7 @@ export default class extends Controller<HTMLFormElement> {
         this.#timer = undefined;
         this.#saving++;
         this.#busy();
-        emit(requested('do-save_settings'), { action: { form: new FormData(this.element) } });
+        emit(requested('do-save_settings'), { action: { form: new FormData(this.element), url: this.element.getAttribute('action') ?? '' } });
     }
 
     #saved(): void {
