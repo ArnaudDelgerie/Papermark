@@ -176,7 +176,9 @@ export default class extends Controller {
         quiet: boolean,
         status?: number,
     ): void {
-        const message = genericErrors[0] ?? null;
+        // A refusal of the input alone (422) carries only field errors: the
+        // first one still says why, better than the generic fallback.
+        const message = genericErrors[0] ?? mappedErrors[0]?.message ?? null;
         if (!quiet) {
             showToast('error', message ?? this.i18nValue.failed);
         }

@@ -74,6 +74,15 @@ describe('editor-state (the master)', () => {
         expect(toasts).toEqual([{ type: 'error', message: 'File not found' }]);
     });
 
+    it('on a refusal with only field errors, toasts the first one', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, genericErrors: [], mappedErrors: [{ field: 'name', message: 'Not a document name' }] }, 422));
+
+        emit('editor:do-rename-requested', { action: { path: '/notes/a.md', name: 'note.png' } });
+        await settle();
+
+        expect(toasts).toEqual([{ type: 'error', message: 'Not a document name' }]);
+    });
+
     it('without an answer, fails with the unchanged state and the generic message', async () => {
         fetchMock.mockRejectedValue(new TypeError('Network down'));
         const failed = vi.fn();

@@ -110,7 +110,9 @@ final class DocumentCodec
 
     private function extractPath(string $url): ?string
     {
-        $prefix = '/document/image?';
+        // The same route toServiceUrls() generated, so the prefix follows it
+        // (base URL included) instead of being written here a second time.
+        $prefix = $this->urlGenerator->generate('app_document_image').'?';
         if (!str_starts_with($url, $prefix)) {
             return null;
         }

@@ -46,6 +46,17 @@ final class DocumentCodecTest extends KernelTestCase
         self::assertSame('![alt](./photo.png)', $this->codec->toDisk($markdown, null));
     }
 
+    /** The image URL is recognized from its route, not from a written prefix. */
+    public function testToDiskRecognizesTheImageUrlUnderABaseUrl(): void
+    {
+        self::getContainer()->get(UrlGeneratorInterface::class)->getContext()->setBaseUrl('/app');
+
+        $editor = $this->codec->toEditor('![alt](./photo.png)');
+
+        self::assertSame('![alt](/app/document/image?path=./photo.png)', $editor);
+        self::assertSame('![alt](./photo.png)', $this->codec->toDisk($editor, null));
+    }
+
     public function testToDiskLeavesNonServiceUrlUntouched(): void
     {
         $markdown = '![alt](https://example.com/photo.png)';
