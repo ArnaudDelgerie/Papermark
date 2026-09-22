@@ -2,9 +2,9 @@
 
 namespace App\Tests\Twig\Components;
 
-use App\Ai\AiTopicResolver;
+use App\Service\Ai\AiTopicResolver;
 use App\Entity\Provider;
-use App\Enum\Ai\ProviderName;
+use App\Enum\ProviderName;
 use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\ThemeMode;
 use App\Repository\SettingRepository;

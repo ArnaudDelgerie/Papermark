@@ -14,7 +14,7 @@
 export type EditorMode = 'single' | 'dir';
 
 /**
- * Mirror of App\Editor\EditorState::toArray(), copied by hand: nothing checks
+ * Mirror of App\Service\EditorState::toArray(), copied by hand: nothing checks
  * they stay aligned. `readonly` is not sent by the routes; the master fills it
  * at hydration and keeps it across merges.
  */

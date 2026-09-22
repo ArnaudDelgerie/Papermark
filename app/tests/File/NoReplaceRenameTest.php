@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\File;
 
-use App\Exception\File\RenameTargetExistsException;
-use App\Exception\File\WriteFailedException;
+use App\Exception\Filesystem\RenameTargetExistsException;
+use App\Exception\Filesystem\WriteFailedException;
 use App\File\NoReplaceRename;
 use PHPUnit\Framework\TestCase;
 

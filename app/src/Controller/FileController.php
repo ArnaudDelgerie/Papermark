@@ -2,13 +2,13 @@
 
 namespace App\Controller;
 
-use App\Editor\EditorState;
+use App\Service\EditorState;
 use App\File\AtomicFileWriter;
 use App\File\DiskFormat;
 use App\File\MarkdownImageUrls;
 use App\File\NoReplaceRename;
-use App\File\OpenDirectoryTree;
-use App\File\PathPolicy;
+use App\Service\Directory\OpenDirectoryTree;
+use App\Service\Path\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;

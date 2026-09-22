@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Ai\AiAbortRegistry;
-use App\Ai\AiInstructionMessage;
+use App\Service\Ai\AiAbortRegistry;
+use App\Message\AiInstructionMessage;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;

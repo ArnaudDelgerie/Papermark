@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Editor\EditorState;
+use App\Service\EditorState;
 use App\Enum\Setting\EditorMode;
 use App\File\MarkdownFileReader;
 use App\File\MarkdownImageUrls;
-use App\File\OpenDirectoryTree;
-use App\File\PathPolicy;
+use App\Service\Directory\OpenDirectoryTree;
+use App\Service\Path\PathPolicy;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

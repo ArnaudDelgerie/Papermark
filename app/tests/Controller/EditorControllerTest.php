@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Enum\Setting\EditorMode;
-use App\File\DirectoryTree;
+use App\Service\Directory\DirectoryTree;
 use App\Repository\SettingRepository;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;

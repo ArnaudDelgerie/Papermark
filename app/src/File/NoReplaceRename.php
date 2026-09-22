@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\File;
 
-use App\Exception\File\RenameTargetExistsException;
-use App\Exception\File\WriteFailedException;
+use App\Exception\Filesystem\RenameTargetExistsException;
+use App\Exception\Filesystem\WriteFailedException;
 
 /**
  * Renames without ever replacing a target that exists (lot 02-chemins.md,

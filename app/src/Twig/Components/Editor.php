@@ -2,10 +2,10 @@
 
 namespace App\Twig\Components;
 
-use App\Ai\AiTopicResolver;
+use App\Service\Ai\AiTopicResolver;
 use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\ThemeMode;
-use App\Setting\SettingStore;
+use App\Interface\SettingStoreInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -23,7 +23,7 @@ final class Editor
 
     public function __construct(
         private readonly TranslatorInterface $translator,
-        private readonly SettingStore $settings,
+        private readonly SettingStoreInterface $settings,
         private readonly RequestStack $requestStack,
         private readonly AiTopicResolver $topicResolver,
         private readonly HubInterface $hub,

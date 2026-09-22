@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventListener;
 
-use App\Setting\SettingStore;
+use App\Interface\SettingStoreInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -19,7 +19,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
 final class LocaleRequestListener
 {
     public function __construct(
-        private readonly SettingStore $settings,
+        private readonly SettingStoreInterface $settings,
     ) {
     }
 

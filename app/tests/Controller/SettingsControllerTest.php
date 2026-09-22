@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Entity\Provider;
-use App\Enum\Ai\ProviderName;
+use App\Enum\ProviderName;
 use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\EditorMode;
 use App\Enum\Setting\ThemeMode;

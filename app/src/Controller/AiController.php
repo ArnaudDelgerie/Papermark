@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Ai\AiAbortRegistry;
-use App\Ai\AiAbortRequest;
-use App\Ai\AiInstructionMessage;
-use App\Ai\AiInstructRequest;
-use App\Ai\AiTopicResolver;
+use App\Service\Ai\AiAbortRegistry;
+use App\Dto\Ai\AiAbortRequest;
+use App\Message\AiInstructionMessage;
+use App\Dto\Ai\AiInstructRequest;
+use App\Service\Ai\AiTopicResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

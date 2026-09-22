@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { showToast } from '../utils/toast';
 
-/** Each click goes to the next one. Kept in step with App\Theme\ThemeMode. */
+/** Each click goes to the next one. Kept in step with App\Enum\Setting\ThemeMode. */
 const CYCLE = ['auto', 'light', 'dark'];
 
 /**

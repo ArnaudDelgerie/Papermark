@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Ai\ApiKeyResolver;
-use App\Editor\EditorState;
-use App\Enum\Ai\ProviderName;
+use App\Service\Ai\ApiKeyResolver;
+use App\Service\EditorState;
+use App\Enum\ProviderName;
 use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\ThemeMode;
 use App\Form\SettingsType;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
-use App\Setting\SettingStore;
+use App\Interface\SettingStoreInterface;
 use ArnaudDelgerie\TFSAppBundle\Bridge\Exception\BridgeException;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -43,7 +43,7 @@ final class SettingsController extends AbstractController
         private readonly ApiKeyResolver $apiKeyResolver,
         private readonly ProviderRepository $providers,
         private readonly SettingRepository $settings,
-        private readonly SettingStore $settingStore,
+        private readonly SettingStoreInterface $settingStore,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
         private readonly EditorState $editorState,

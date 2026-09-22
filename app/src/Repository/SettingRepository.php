@@ -36,7 +36,7 @@ class SettingRepository extends ServiceEntityRepository
     }
 
     /**
-     * Flushes a change of the setting; the SettingStore follows through its
+     * Flushes a change of the setting; the SettingStoreInterface follows through its
      * entity listener.
      */
     public function update(Setting $setting): void

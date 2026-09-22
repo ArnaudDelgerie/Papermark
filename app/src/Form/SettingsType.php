@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Form;
 
 use App\Entity\Provider;
-use App\Enum\Ai\ProviderName;
+use App\Enum\ProviderName;
 use App\Enum\Setting\EditorMode;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
