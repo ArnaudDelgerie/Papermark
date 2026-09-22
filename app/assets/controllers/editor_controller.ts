@@ -58,12 +58,15 @@ interface I18n {
     [key: string]: unknown;
 }
 
-/** GET /editor/file: the current file with its revision, none, or `{error, path}` on a 404. */
+/**
+ * GET /editor/file: the current file with its revision, none, or the
+ * state's refusal form (`genericErrors`) on a failed read.
+ */
 interface FileResponse {
     path?: string | null;
     content?: string | null;
     revision?: string | null;
-    error?: string;
+    genericErrors?: string[];
 }
 
 /** The one save in flight, if any (FRT-01, lot 03): its answer, whatever its order, concludes exactly it. */
@@ -108,6 +111,8 @@ export default class extends Controller<HTMLElement> {
     static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
 
     static outlets = ['editor-state'];
+
+    declare readonly editorStateOutlet: EditorStateController;
 
     declare readonly csrfTokenValue: string;
     declare readonly urlsValue: Urls;
@@ -508,21 +513,27 @@ export default class extends Controller<HTMLElement> {
         this.#fileRequest?.abort();
         const request = new AbortController();
         this.#fileRequest = request;
+        // The path this read is for: the master's state already points at
+        // it (the events that lead here fire after the master merges), and
+        // a 404 no longer echoes it back.
+        const loadingPath = this.editorStateOutlet.state.file;
 
         try {
             const response = await fetch(this.urlsValue.file, { signal: request.signal });
             const data: FileResponse = await response.json().catch(() => ({}));
 
-            if (response.status === 404 && data.path) {
+            if (response.status === 404) {
                 this.#reset();
-                emit('editor:state-anomaly-reported', { anomaly: { file: data.path } });
-                showToast('error', data.error || 'File not found');
+                if (loadingPath !== null) {
+                    emit('editor:state-anomaly-reported', { anomaly: { file: loadingPath } });
+                }
+                showToast('error', data.genericErrors?.[0] || 'File not found');
 
                 return;
             }
 
             if (!response.ok) {
-                this.#failLoad(data.error ?? null);
+                this.#failLoad(data.genericErrors?.[0] ?? null);
 
                 return;
             }

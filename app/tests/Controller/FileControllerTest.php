@@ -35,9 +35,9 @@ final class FileControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('No file path provided', $data['error']);
+        self::assertSame(['No file path provided'], $data['genericErrors']);
     }
 
     public function testImageServesFileAtAbsolutePath(): void
@@ -224,7 +224,7 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(409);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('The file was modified outside of Papermark', $data['error']);
+        self::assertSame(['The file was modified outside of Papermark'], $data['genericErrors']);
         self::assertSame("# Changed outside\n", file_get_contents($path));
 
         // Écraser: the same save without a revision, blind write.
@@ -255,7 +255,7 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(409);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('The file no longer exists on disk', $data['error']);
+        self::assertSame(['The file no longer exists on disk'], $data['genericErrors']);
         self::assertFileDoesNotExist($path);
     }
 
@@ -493,7 +493,7 @@ final class FileControllerTest extends WebTestCase
 
         $client->request('POST', '/file/rename', ['path' => $path, 'name' => '../evil.md'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
         self::assertFileExists($path);
 
         unlink($path);
@@ -526,7 +526,7 @@ final class FileControllerTest extends WebTestCase
 
         $client->request('POST', '/file/rename', ['path' => $path, 'name' => 'renamed.exe'], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
-        self::assertResponseStatusCodeSame(415);
+        self::assertResponseStatusCodeSame(422);
         self::assertFileExists($path);
 
         unlink($path);
@@ -542,7 +542,7 @@ final class FileControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(403);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('Invalid security token, please reload the page', $data['error']);
+        self::assertSame(['Invalid security token, please reload the page'], $data['genericErrors']);
         self::assertArrayHasKey('state', $data);
     }
 

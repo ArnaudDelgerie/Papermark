@@ -6,18 +6,19 @@ namespace App\EventListener;
 
 use App\Service\EditorState;
 use App\Interface\UserFacingExceptionInterface;
+use App\Response\StateErrorResponse;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Security\Core\Exception\InvalidCsrfTokenException;
+use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * Answers the refusals the user should read with the editor's
- * `{ error, state }` response.
+ * The one place an error answer is built: every refusal a user should read
+ * comes out as a StateErrorResponse, whatever raised it.
  */
 final class UserFacingExceptionListener
 {
@@ -41,7 +42,40 @@ final class UserFacingExceptionListener
             return;
         }
 
-        $event->setResponse($this->response($exception->getTranslationKey(), $throwable->getStatusCode(), $throwable->getHeaders()));
+        $event->setResponse(new StateErrorResponse(
+            $this->editorState,
+            [$this->translator->trans($exception->getTranslationKey(), domain: 'exceptions')],
+            [],
+            $throwable->getStatusCode(),
+            $throwable->getHeaders(),
+        ));
+    }
+
+    /**
+     * A body #[MapRequestPayload] refused: each violation stays bound to its
+     * field, so the caller can show it in place instead of as a toast.
+     */
+    #[AsEventListener(event: KernelEvents::EXCEPTION, priority: -64)]
+    public function onValidationFailed(ExceptionEvent $event): void
+    {
+        $throwable = $event->getThrowable();
+        $exception = $throwable->getPrevious();
+        if (!$throwable instanceof HttpExceptionInterface || !$exception instanceof ValidationFailedException) {
+            return;
+        }
+
+        $mappedErrors = [];
+        foreach ($exception->getViolations() as $violation) {
+            $mappedErrors[] = ['field' => $violation->getPropertyPath(), 'message' => $violation->getMessage()];
+        }
+
+        $event->setResponse(new StateErrorResponse(
+            $this->editorState,
+            [],
+            $mappedErrors,
+            $throwable->getStatusCode(),
+            $throwable->getHeaders(),
+        ));
     }
 
     /**
@@ -55,17 +89,11 @@ final class UserFacingExceptionListener
             return;
         }
 
-        $event->setResponse($this->response('exceptions.security.csrf_invalid', Response::HTTP_FORBIDDEN));
-    }
-
-    /**
-     * @param array<string, string> $headers
-     */
-    private function response(string $translationKey, int $status, array $headers = []): JsonResponse
-    {
-        return new JsonResponse([
-            'error' => $this->translator->trans($translationKey, domain: 'exceptions'),
-            'state' => $this->editorState->toArray(),
-        ], $status, $headers);
+        $event->setResponse(new StateErrorResponse(
+            $this->editorState,
+            [$this->translator->trans('exceptions.security.csrf_invalid', domain: 'exceptions')],
+            [],
+            Response::HTTP_FORBIDDEN,
+        ));
     }
 }

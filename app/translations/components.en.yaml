@@ -70,37 +70,12 @@ components:
             submit_button: Send prompt
             listbox: AI suggestions
         error:
-            no_path: No file path provided
-            unsupported_file_type: Only Markdown and text files are supported
-            not_found: File not found
-            read_error: Could not read the file
-            no_content: No content provided
-            not_writable: File or directory is not writable
-            write_error: Could not write the file
-            save_failed: Could not save the setting
             provider_not_selected: No AI provider selected, choose one in the settings
             model_missing: No model set for the selected AI provider
             api_key_missing: No API key set for the selected AI provider
             ai_failed: The AI request failed
-            invalid_directory: Folder not found
-            invalid_mode: Unknown editor mode
             request_failed: The action failed, please try again
-            key_delete_failed: Could not delete the API key
-            key_save_failed: Could not save the API key
-            no_key: No API key provided
-            invalid_name: Invalid file name
-            save_conflict_modified: The file was modified outside of Papermark
-            save_conflict_gone: The file no longer exists on disk
-            not_utf8: The file is not UTF-8 encoded; only UTF-8 files can be opened
-            delete_error: Could not delete the file
             update_check_failed: Could not check for updates
-            ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
-            ext_md_conflict: 'Export needs "ext_md" to be a folder in the source folder'
-            not_a_zip: 'The selected file is not a valid zip archive'
-            zip_slip: 'This archive contains an unsafe file path and was rejected'
-            symlink: 'This archive contains a symbolic link and was rejected'
-            too_many_entries: 'This archive has too many entries to import'
-            too_large: 'This archive is too large to import'
     theme:
         light: Light
         dark: Dark

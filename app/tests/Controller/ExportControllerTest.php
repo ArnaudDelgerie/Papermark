@@ -145,7 +145,7 @@ final class ExportControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testRunReturns404ForMissingSource(): void
@@ -207,7 +207,29 @@ final class ExportControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(409);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('Export needs "ext_img" to be a folder in the source folder', $data['error']);
+        self::assertSame(['Export needs "ext_img" to be a folder in the source folder'], $data['genericErrors']);
+    }
+
+    public function testRunReturnsNotWritableForAReadOnlyTargetFolder(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $docPath = $this->workDir . '/doc.md';
+        file_put_contents($docPath, '# Hello');
+        $readOnlyDir = $this->workDir . '/locked';
+        mkdir($readOnlyDir);
+        chmod($readOnlyDir, 0o555);
+
+        $client->request('POST', '/export/run', [
+            'source' => $docPath,
+            'target' => $readOnlyDir . '/archive',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+
+        chmod($readOnlyDir, 0o755);
     }
 
     public function testImportRunRejectsInvalidCsrf(): void
@@ -234,7 +256,7 @@ final class ExportControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testImportRunReturns404ForMissingArchive(): void
@@ -251,7 +273,7 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
-    public function testImportRunReturnsNotWritableForMissingParentDir(): void
+    public function testImportRunReturns404ForMissingParentDir(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
@@ -268,7 +290,33 @@ final class ExportControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testImportRunReturnsNotWritableForAReadOnlyParentDir(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $zipPath = $this->workDir . '/archive.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('doc.md', '# Hello');
+        $zip->close();
+
+        $readOnlyDir = $this->workDir . '/locked';
+        mkdir($readOnlyDir);
+        chmod($readOnlyDir, 0o555);
+
+        $client->request('POST', '/import/run', [
+            'archive' => $zipPath,
+            'parentDir' => $readOnlyDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
         self::assertResponseStatusCodeSame(403);
+
+        chmod($readOnlyDir, 0o755);
     }
 
     public function testImportRunRejectsNonZipFile(): void
@@ -287,7 +335,7 @@ final class ExportControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(409);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertSame('The selected file is not a valid zip archive', $data['error']);
+        self::assertSame(['The selected file is not a valid zip archive'], $data['genericErrors']);
         // A refusal still says where the state is.
         self::assertSame('single', $data['state']['mode']);
         self::assertArrayNotHasKey('action', $data);

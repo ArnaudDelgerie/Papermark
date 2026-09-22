@@ -18,6 +18,6 @@ final class PathIsSymlinkException extends \RuntimeException implements UserFaci
 
     public function getTranslationKey(): string
     {
-        return 'exceptions.file.path_is_symlink';
+        return 'exceptions.path.is_symlink';
     }
 }

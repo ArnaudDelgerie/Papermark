@@ -18,6 +18,6 @@ final class RenameTargetExistsException extends \RuntimeException implements Use
 
     public function getTranslationKey(): string
     {
-        return 'exceptions.file.rename_target_exists';
+        return 'exceptions.filesystem.rename_target_exists';
     }
 }

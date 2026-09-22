@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Exception\Document\DocumentNotUtf8Exception;
+use App\Exception\InvalidRequestException;
+use App\Exception\Path\PathNotFoundException;
+use App\Response\StateSuccessResponse;
 use App\Service\EditorState;
 use App\Enum\Setting\EditorMode;
 use App\File\MarkdownFileReader;
@@ -16,26 +20,22 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
-use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Everything that reads or writes the EditorState lives under /editor. The
  * routes that write it return {state, action} whether or not they changed
- * anything, so the caller never has to guess, and {error, state} when they
- * refuse: the state may have been corrected meanwhile (see EDITOR_REACTIVITY.md,
- * S5-S6). `action` is what was done, paths realpath'd.
+ * anything, so the caller never has to guess (see EDITOR_REACTIVITY.md,
+ * S5-S6). `action` is what was done, paths realpath'd. Every refusal is an
+ * exception; UserFacingExceptionListener turns it into the state's refusal
+ * form.
  */
 final class EditorController extends AbstractController
 {
-    private const TRANSLATION_DOMAIN = 'components';
-    private const TRANSLATION_PREFIX = 'components.editor.error.';
-
     public function __construct(
         private readonly EditorState $editorState,
         private readonly MarkdownFileReader $fileReader,
         private readonly MarkdownImageUrls $markdownImageUrls,
         private readonly PathPolicy $pathPolicy,
-        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -83,12 +83,12 @@ final class EditorController extends AbstractController
         $value = $request->request->get('mode');
         $mode = \is_string($value) ? EditorMode::tryFrom($value) : null;
         if ($mode === null) {
-            return $this->stateErrorResponse('invalid_mode', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('invalid_mode');
         }
 
         $this->editorState->setMode($mode);
 
-        return $this->stateResponse(['mode' => $mode->value]);
+        return new StateSuccessResponse($this->editorState, ['mode' => $mode->value]);
     }
 
     /**
@@ -112,19 +112,14 @@ final class EditorController extends AbstractController
         if ($raw === null) {
             $this->editorState->setFile(null);
 
-            return new JsonResponse([
-                'error' => $this->translator->trans(self::TRANSLATION_PREFIX . 'not_found', [], self::TRANSLATION_DOMAIN),
-                'path' => $path,
-            ], Response::HTTP_NOT_FOUND);
+            throw new PathNotFoundException($path);
         }
 
         if (!mb_check_encoding($raw, 'UTF-8')) {
             // Same belt as setFile(): the file may have changed hands since
             // it was accepted. The state stays as it is, so the editor can
             // retry without a reload loop.
-            return new JsonResponse([
-                'error' => $this->translator->trans(self::TRANSLATION_PREFIX . 'not_utf8', [], self::TRANSLATION_DOMAIN),
-            ], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            throw new DocumentNotUtf8Exception($path);
         }
 
         return new JsonResponse([
@@ -148,11 +143,11 @@ final class EditorController extends AbstractController
     {
         $path = $request->request->get('path');
         if (!\is_string($path) || $path === '') {
-            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('no_path');
         }
 
         if (!$this->fileReader->supports($path)) {
-            return $this->stateErrorResponse('unsupported_file_type', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            throw new InvalidRequestException('unsupported_file_type');
         }
 
         $realPath = $this->pathPolicy->read($path);
@@ -164,16 +159,16 @@ final class EditorController extends AbstractController
                 $this->editorState->setFile(null);
             }
 
-            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
+            throw new PathNotFoundException($path);
         }
 
         if (!mb_check_encoding($raw, 'UTF-8')) {
-            return $this->stateErrorResponse('not_utf8', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+            throw new DocumentNotUtf8Exception($realPath);
         }
 
         $this->editorState->setFile($realPath);
 
-        return $this->stateResponse(['path' => $realPath]);
+        return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
     }
 
     /**
@@ -185,7 +180,7 @@ final class EditorController extends AbstractController
     {
         $this->editorState->setFile(null);
 
-        return $this->stateResponse([]);
+        return new StateSuccessResponse($this->editorState, []);
     }
 
     /**
@@ -222,13 +217,13 @@ final class EditorController extends AbstractController
         $path = $request->request->get('path');
         $realPath = \is_string($path) ? $this->pathPolicy->list($path) : null;
         if ($realPath === null) {
-            return $this->stateErrorResponse('invalid_directory', Response::HTTP_NOT_FOUND);
+            throw new PathNotFoundException(\is_string($path) ? $path : '');
         }
 
         $this->editorState->setDir($realPath);
         $openDirectoryTree->forget();
 
-        return $this->stateResponse(['path' => $realPath]);
+        return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
     }
 
     /**
@@ -242,22 +237,6 @@ final class EditorController extends AbstractController
     {
         $openDirectoryTree->forget();
 
-        return $this->stateResponse([]);
-    }
-
-    /**
-     * @param array<string, string> $action what was done, as an object even when empty
-     */
-    private function stateResponse(array $action): JsonResponse
-    {
-        return new JsonResponse(['state' => $this->editorState->toArray(), 'action' => (object) $action]);
-    }
-
-    private function stateErrorResponse(string $key, int $status): JsonResponse
-    {
-        return new JsonResponse([
-            'error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN),
-            'state' => $this->editorState->toArray(),
-        ], $status);
+        return new StateSuccessResponse($this->editorState, []);
     }
 }

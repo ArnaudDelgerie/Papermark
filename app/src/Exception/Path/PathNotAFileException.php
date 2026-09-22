@@ -18,6 +18,6 @@ final class PathNotAFileException extends \RuntimeException implements UserFacin
 
     public function getTranslationKey(): string
     {
-        return 'exceptions.file.path_not_a_file';
+        return 'exceptions.path.not_a_file';
     }
 }

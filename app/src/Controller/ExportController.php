@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Exception\InvalidRequestException;
+use App\Exception\Path\PathNotFoundException;
+use App\Exception\Path\PathNotWritableException;
+use App\Response\StateSuccessResponse;
 use App\Service\EditorState;
 use App\Enum\Setting\EditorMode;
 use App\Service\Archive\ArchiveExportPlanner;
-use App\Exception\Archive\ArchiveExportRefusedException;
 use App\Service\Archive\ArchiveTargetResolver;
 use App\Service\Archive\ArchiveWriter;
 use App\Dto\Archive\ExportIssue;
 use App\Service\Archive\ArchiveImporter;
-use App\Exception\Archive\ArchiveImportRefusedException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,7 +26,6 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class ExportController extends AbstractController
 {
     private const TRANSLATION_DOMAIN = 'components';
-    private const TRANSLATION_PREFIX = 'components.editor.error.';
 
     public function __construct(
         private readonly EditorState $editorState,
@@ -111,39 +112,36 @@ final class ExportController extends AbstractController
     {
         $source = $request->request->get('source');
         if (!\is_string($source) || '' === $source) {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('no_path');
         }
 
         $target = $request->request->get('target');
         if (!\is_string($target) || '' === $target) {
-            return $this->errorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('no_path');
         }
 
         $realSource = realpath($source);
         if (false === $realSource || (!is_file($realSource) && !is_dir($realSource))) {
-            return $this->errorResponse('not_found', Response::HTTP_NOT_FOUND);
+            throw new PathNotFoundException($source);
         }
 
         $resolvedTarget = $this->targetResolver->resolve($target);
 
         $realTargetParent = realpath(\dirname($resolvedTarget));
-        if (false === $realTargetParent || !is_dir($realTargetParent) || !is_writable($realTargetParent)) {
-            return $this->errorResponse('not_writable', Response::HTTP_FORBIDDEN);
+        if (false === $realTargetParent || !is_dir($realTargetParent)) {
+            throw new PathNotFoundException($resolvedTarget);
+        }
+        if (!is_writable($realTargetParent)) {
+            throw new PathNotWritableException($resolvedTarget);
         }
 
         $includeExternalMarkdown = $request->request->getBoolean('includeExternalMarkdown');
 
-        try {
-            $plan = $this->planner->plan($realSource, $includeExternalMarkdown);
-        } catch (ArchiveExportRefusedException $e) {
-            return $this->errorResponse($e->reservedName . '_conflict', Response::HTTP_CONFLICT);
-        }
-
-        try {
-            $this->writer->write($plan, $resolvedTarget);
-        } catch (\RuntimeException) {
-            return $this->errorResponse('write_error', Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
+        // ArchiveExportRefusedException (a reserved name conflict) is
+        // UserFacing on its own and propagates as-is, same for WriteFailedException
+        // thrown by the writer on a failed zip.
+        $plan = $this->planner->plan($realSource, $includeExternalMarkdown);
+        $this->writer->write($plan, $resolvedTarget);
 
         return new JsonResponse([
             'path' => $resolvedTarget,
@@ -164,29 +162,30 @@ final class ExportController extends AbstractController
     {
         $archive = $request->request->get('archive');
         if (!\is_string($archive) || '' === $archive) {
-            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('no_path');
         }
 
         $parentDir = $request->request->get('parentDir');
         if (!\is_string($parentDir) || '' === $parentDir) {
-            return $this->stateErrorResponse('no_path', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('no_path');
         }
 
         $realArchive = realpath($archive);
         if (false === $realArchive || !is_file($realArchive)) {
-            return $this->stateErrorResponse('not_found', Response::HTTP_NOT_FOUND);
+            throw new PathNotFoundException($archive);
         }
 
         $realParentDir = realpath($parentDir);
-        if (false === $realParentDir || !is_dir($realParentDir) || !is_writable($realParentDir)) {
-            return $this->stateErrorResponse('not_writable', Response::HTTP_FORBIDDEN);
+        if (false === $realParentDir || !is_dir($realParentDir)) {
+            throw new PathNotFoundException($parentDir);
+        }
+        if (!is_writable($realParentDir)) {
+            throw new PathNotWritableException($realParentDir);
         }
 
-        try {
-            $result = $this->importer->import($realArchive, $realParentDir);
-        } catch (ArchiveImportRefusedException $e) {
-            return $this->stateErrorResponse($e->reason->value, Response::HTTP_CONFLICT);
-        }
+        // ArchiveImportRefusedException and WriteFailedException (a failed
+        // extraction) are UserFacing on their own and propagate as-is.
+        $result = $this->importer->import($realArchive, $realParentDir);
 
         // The state now points at what the archive gave to open; the master
         // broadcasts it, and each column follows.
@@ -198,29 +197,10 @@ final class ExportController extends AbstractController
             $this->editorState->setDir($result->destination);
         }
 
-        return new JsonResponse([
-            'state' => $this->editorState->toArray(),
-            'action' => [
-                'destination' => $result->destination,
-                'openMode' => $result->openMode?->value,
-                'ignoredEntries' => $result->ignoredEntries,
-            ],
+        return new StateSuccessResponse($this->editorState, [
+            'destination' => $result->destination,
+            'openMode' => $result->openMode?->value,
+            'ignoredEntries' => $result->ignoredEntries,
         ]);
-    }
-
-    private function stateErrorResponse(string $key, int $status): JsonResponse
-    {
-        return new JsonResponse([
-            'error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN),
-            'state' => $this->editorState->toArray(),
-        ], $status);
-    }
-
-    private function errorResponse(string $key, int $status): JsonResponse
-    {
-        return new JsonResponse(
-            ['error' => $this->translator->trans(self::TRANSLATION_PREFIX . $key, [], self::TRANSLATION_DOMAIN)],
-            $status,
-        );
     }
 }

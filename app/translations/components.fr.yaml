@@ -70,37 +70,12 @@ components:
             submit_button: Envoyer l'invite
             listbox: Suggestions de l'IA
         error:
-            no_path: Aucun chemin de fichier fourni
-            unsupported_file_type: Seuls les fichiers Markdown et texte sont pris en charge
-            not_found: Fichier introuvable
-            read_error: Impossible de lire le fichier
-            no_content: Aucun contenu fourni
-            not_writable: Le fichier ou le dossier n'est pas accessible en écriture
-            write_error: Impossible d'écrire le fichier
-            save_failed: Impossible d'enregistrer le réglage
             provider_not_selected: Aucun fournisseur IA sélectionné, choisissez-en un dans les réglages
             model_missing: Aucun modèle défini pour le fournisseur IA sélectionné
             api_key_missing: Aucune clé API définie pour le fournisseur IA sélectionné
             ai_failed: La requête IA a échoué
-            invalid_directory: Dossier introuvable
-            invalid_mode: Mode d'éditeur inconnu
             request_failed: "L'action a échoué, veuillez réessayer"
-            key_delete_failed: Impossible de supprimer la clé API
-            key_save_failed: Impossible d'enregistrer la clé API
-            no_key: Aucune clé API fournie
-            invalid_name: Nom de fichier invalide
-            save_conflict_modified: Le fichier a été modifié en dehors de Papermark
-            save_conflict_gone: Le fichier n'existe plus sur le disque
-            not_utf8: Le fichier n'est pas encodé en UTF-8 ; seuls les fichiers UTF-8 peuvent être ouverts
-            delete_error: Impossible de supprimer le fichier
             update_check_failed: Impossible de vérifier les mises à jour
-            ext_img_conflict: 'L''export a besoin que « ext_img » soit un dossier dans le dossier source'
-            ext_md_conflict: 'L''export a besoin que « ext_md » soit un dossier dans le dossier source'
-            not_a_zip: 'Le fichier sélectionné n''est pas une archive zip valide'
-            zip_slip: 'Cette archive contient un chemin de fichier non sûr et a été refusée'
-            symlink: 'Cette archive contient un lien symbolique et a été refusée'
-            too_many_entries: 'Cette archive contient trop d''entrées pour être importée'
-            too_large: 'Cette archive est trop volumineuse pour être importée'
     theme:
         light: Clair
         dark: Sombre

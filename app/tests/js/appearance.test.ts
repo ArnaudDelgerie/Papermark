@@ -90,7 +90,7 @@ describe('the theme button', () => {
 
     it('goes back to the last saved theme, with a toast, when the save fails', async () => {
         await start('auto');
-        fetchMock.mockResolvedValue(jsonResponse({ error: 'Nope' }, 500));
+        fetchMock.mockResolvedValue(jsonResponse({ genericErrors: ['Nope'] }, 500));
 
         click();
         click();

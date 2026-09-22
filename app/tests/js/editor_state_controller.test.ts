@@ -60,7 +60,7 @@ describe('editor-state (the master)', () => {
     });
 
     it('on a refusal, takes the state the server sent and toasts its message', async () => {
-        fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'single', file: null, dir: '/notes' }, error: 'File not found' }, 404));
+        fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'single', file: null, dir: '/notes' }, genericErrors: ['File not found'], mappedErrors: [] }, 404));
         const failed = vi.fn();
         on('editor:nav-change_file-failed', failed);
 
@@ -113,7 +113,7 @@ describe('editor-state (the master)', () => {
      * toast, and the failure carries what its dialog needs.
      */
     it('a 409 on a save fails quietly, with the status and the message', async () => {
-        fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'The file was modified outside of Papermark' }, 409));
+        fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, genericErrors: ['The file was modified outside of Papermark'], mappedErrors: [] }, 409));
         const failed = vi.fn();
         on('editor:do-save-failed', failed);
 
@@ -209,7 +209,7 @@ describe('editor-state (the master)', () => {
         });
 
         it('a refusal toasts the message and fails with what was asked and the state', async () => {
-            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'The selected file is not a valid zip archive' }, 409));
+            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, genericErrors: ['The selected file is not a valid zip archive'], mappedErrors: [] }, 409));
             const failed = vi.fn();
             on('editor:do-import-failed', failed);
 
@@ -258,9 +258,12 @@ describe('editor-state (the master)', () => {
             expect(toasts).toEqual([]);
         });
 
-        it('an invalid form (422, errors, no error) fails with the errors and no toast', async () => {
-            const errors = [{ field: 'settings[providers][anthropic][model]', message: 'Anthropic · Model: not allowed' }];
-            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'single', file: '/notes/a.md', dir: '/notes', ai_enabled: true }, action: { errors } }, 422));
+        it('an invalid form (422) fails with the mapped errors and no toast', async () => {
+            const mappedErrors = [{ field: 'settings[providers][anthropic][model]', message: 'Anthropic · Model: not allowed' }];
+            fetchMock.mockResolvedValue(jsonResponse(
+                { state: { mode: 'single', file: '/notes/a.md', dir: '/notes', ai_enabled: true }, genericErrors: [], mappedErrors },
+                422,
+            ));
             const failed = vi.fn();
             on('editor:do-save_settings-failed', failed);
             const form = new FormData();
@@ -268,12 +271,17 @@ describe('editor-state (the master)', () => {
             emit('editor:do-save_settings-requested', { action: { form } });
             await settle();
 
-            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, errors } });
+            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, errors: mappedErrors } });
             expect(toasts).toEqual([]);
         });
 
-        it('a technical failure of the save toasts, with no errors to show', async () => {
-            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'Could not save the setting' }, 500));
+        /**
+         * do-save_settings always fails quietly: even a technical failure's
+         * generic message lands in the modal's error list, not a toast — the
+         * modal is always open when this action runs.
+         */
+        it('a technical failure of the save also fails quietly, its message in the errors', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, genericErrors: ['Could not save the setting'], mappedErrors: [] }, 500));
             const failed = vi.fn();
             on('editor:do-save_settings-failed', failed);
             const form = new FormData();
@@ -281,8 +289,11 @@ describe('editor-state (the master)', () => {
             emit('editor:do-save_settings-requested', { action: { form } });
             await settle();
 
-            expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { form, errors: [] } });
-            expect(toasts).toEqual([{ type: 'error', message: 'Could not save the setting' }]);
+            expect(failed).toHaveBeenCalledWith({
+                state: INITIAL,
+                action: { form, errors: [{ field: '', message: 'Could not save the setting' }] },
+            });
+            expect(toasts).toEqual([]);
         });
 
         it('do-set_key puts the provider in the url and the key in the body', async () => {

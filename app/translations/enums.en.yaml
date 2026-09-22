@@ -6,12 +6,6 @@ enums:
     export_issue_reason:
         not_found: Referenced file not found
         limit_exceeded: Export size limit exceeded
-    archive_import_refusal_reason:
-        not_a_zip: Not a ZIP archive
-        zip_slip: An entry path escapes the archive
-        symlink: The archive contains a symbolic link
-        too_many_entries: Too many entries in the archive
-        too_large: The archive is too large
     markdown_reference_type:
         image: Image
         link: Link

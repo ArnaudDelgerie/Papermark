@@ -198,7 +198,7 @@ final class EditorControllerTest extends WebTestCase
 
         $this->post($client, '/editor/mode', ['mode' => 'nope']);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
         // A refusal still carries the state (S6).
         self::assertSame('single', $this->responseState($client)['mode']);
     }
@@ -254,8 +254,8 @@ final class EditorControllerTest extends WebTestCase
 
         $this->post($client, '/editor/file', ['path' => $bad]);
 
-        self::assertResponseStatusCodeSame(415);
-        self::assertSame('The file is not UTF-8 encoded; only UTF-8 files can be opened', $this->responseData($client)['error']);
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame(['The file is not UTF-8 encoded; only UTF-8 files can be opened'], $this->responseData($client)['genericErrors']);
         self::assertSame($path, $this->responseState($client)['file']);
 
         unlink($path);
@@ -273,8 +273,8 @@ final class EditorControllerTest extends WebTestCase
 
         $client->request('GET', '/editor/file');
 
-        self::assertResponseStatusCodeSame(415);
-        self::assertSame('The file is not UTF-8 encoded; only UTF-8 files can be opened', $this->responseData($client)['error']);
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame(['The file is not UTF-8 encoded; only UTF-8 files can be opened'], $this->responseData($client)['genericErrors']);
         // The state is unchanged: the editor can retry without a reload loop.
         $client->request('GET', '/editor/state');
         self::assertSame($path, $this->responseState($client)['file']);
@@ -341,7 +341,11 @@ final class EditorControllerTest extends WebTestCase
         unlink($target);
     }
 
-    public function testGetFileDropsACurrentFileGoneFromDiskAndNamesIt(): void
+    /**
+     * The 404 no longer names the gone path: the front-end relies on the
+     * state it carries (already cleared) instead.
+     */
+    public function testGetFileDropsACurrentFileGoneFromDisk(): void
     {
         $client = $this->createClientWithTokens();
 
@@ -352,7 +356,8 @@ final class EditorControllerTest extends WebTestCase
         $client->request('GET', '/editor/file');
 
         self::assertResponseStatusCodeSame(404);
-        self::assertSame(['error' => 'File not found', 'path' => $path], $this->responseData($client));
+        self::assertSame(['Path not found'], $this->responseData($client)['genericErrors']);
+        self::assertNull($this->responseState($client)['file']);
 
         $client->request('GET', '/editor/file');
         self::assertSame(['path' => null, 'content' => null], $this->responseData($client));
@@ -365,7 +370,7 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
 
         self::assertResponseStatusCodeSame(404);
-        self::assertSame('File not found', $this->responseData($client)['error']);
+        self::assertSame(['Path not found'], $this->responseData($client)['genericErrors']);
     }
 
     public function testSetFileReturnsTranslatedErrorForUnsupportedType(): void
@@ -374,8 +379,8 @@ final class EditorControllerTest extends WebTestCase
 
         $this->post($client, '/editor/file', ['path' => '/tmp/this_file_does_not_exist.exe']);
 
-        self::assertResponseStatusCodeSame(415);
-        self::assertSame('Only Markdown and text files are supported', $this->responseData($client)['error']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Only Markdown and text files are supported'], $this->responseData($client)['genericErrors']);
     }
 
     public function testSetFileRejectsInvalidCsrf(): void
@@ -385,7 +390,7 @@ final class EditorControllerTest extends WebTestCase
         $client->request('POST', '/editor/file', ['path' => '/tmp/test.md'], [], ['HTTP_X-CSRF-TOKEN' => 'invalid']);
 
         self::assertResponseStatusCodeSame(403);
-        self::assertSame('Invalid security token, please reload the page', $this->responseData($client)['error']);
+        self::assertSame(['Invalid security token, please reload the page'], $this->responseData($client)['genericErrors']);
     }
 
     public function testSetFileClearsTheCurrentFileOnlyWhenItIsTheOneFound(): void

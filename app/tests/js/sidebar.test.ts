@@ -134,7 +134,7 @@ describe('the left column, with the master', () => {
 
         it('on failure, keeps the previous folder and its tree as they are', async () => {
             invoke.mockResolvedValue('/gone');
-            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, error: 'Folder not found' }, 404));
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, genericErrors: ['Folder not found'], mappedErrors: [] }, 404));
             await start([], 'dir');
 
             click('[data-action="click->current-directory#change"]');
@@ -324,7 +324,7 @@ describe('the left column, with the master', () => {
         });
 
         it('drops a history entry whose open fails: the file is gone', async () => {
-            fetchMock.mockResolvedValue(jsonResponse({ state: { file: null }, error: 'File not found' }, 404));
+            fetchMock.mockResolvedValue(jsonResponse({ state: { file: null }, genericErrors: ['File not found'], mappedErrors: [] }, 404));
             await start(['/notes/a.md', '/notes/gone.md']);
 
             click('.mode-history a[data-path="/notes/gone.md"]');
@@ -414,7 +414,7 @@ describe('the left column, with the master', () => {
 
         it('a failed rename leaves the history alone and only the master toasts', async () => {
             vi.mocked(renameDialog).mockResolvedValue('b.md');
-            fetchMock.mockResolvedValue(jsonResponse({ state: {}, error: 'A file with that name already exists' }, 409));
+            fetchMock.mockResolvedValue(jsonResponse({ state: {}, genericErrors: ['A file with that name already exists'], mappedErrors: [] }, 409));
             await start(['/notes/a.md']);
 
             click('.mode-history button[data-action$="renameEntry"]');

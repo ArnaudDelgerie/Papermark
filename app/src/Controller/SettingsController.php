@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Exception\Ai\ApiKeyDeleteFailedException;
+use App\Exception\Ai\ApiKeySaveFailedException;
+use App\Exception\InvalidRequestException;
+use App\Response\StateErrorResponse;
+use App\Response\StateSuccessResponse;
 use App\Service\Ai\ApiKeyResolver;
 use App\Service\EditorState;
 use App\Enum\ProviderName;
@@ -22,7 +27,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -31,8 +35,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * The settings live in a modal of the editor page (see EDITOR_SETTINGS.md).
  * GET /settings is the content of its frame; every change is then saved by
  * itself, through the routes below. The ones that can change the editor state
- * (`ai_enabled`) answer {state, action} like EditorController's, and
- * {error, state} when they refuse.
+ * (`ai_enabled`) answer {state, action} like EditorController's, and the
+ * state's refusal form when they refuse.
  */
 final class SettingsController extends AbstractController
 {
@@ -72,8 +76,8 @@ final class SettingsController extends AbstractController
 
     /**
      * Saves the whole form: the provider models, the selected provider and
-     * the default mode. Answers 422 with the `errors` of the form, and no
-     * `error`, when it is invalid: the client shows them itself.
+     * the default mode. A refused form answers its own refusal form (422),
+     * with the field errors in `mappedErrors`: the client shows them itself.
      */
     #[Route('/settings', name: 'app_settings_save', methods: ['POST'])]
     public function save(Request $request): JsonResponse
@@ -82,17 +86,16 @@ final class SettingsController extends AbstractController
         $form->handleRequest($request);
 
         if (!$form->isSubmitted()) {
-            return $this->stateErrorResponse('request_failed', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('request_failed');
         }
 
         if (!$form->isValid()) {
             // The submitted values are already in the entities: none may be flushed.
             $this->entityManager->clear();
 
-            return new JsonResponse([
-                'state' => $this->editorState->toArray(),
-                'action' => ['errors' => $this->formErrors($form)],
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            [$genericErrors, $mappedErrors] = $this->formErrors($form);
+
+            return new StateErrorResponse($this->editorState, $genericErrors, $mappedErrors, Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $setting = $this->settings->getOrCreate();
@@ -107,7 +110,7 @@ final class SettingsController extends AbstractController
 
         $this->editorState->refreshAiEnabled();
 
-        return $this->stateResponse([]);
+        return new StateSuccessResponse($this->editorState, []);
     }
 
     /**
@@ -121,18 +124,18 @@ final class SettingsController extends AbstractController
     {
         $key = $request->request->get('key');
         if (!\is_string($key) || trim($key) === '') {
-            return $this->stateErrorResponse('no_key', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('no_key');
         }
 
         try {
             $this->secretStore->set($name->value, trim($key));
         } catch (BridgeException) {
-            return $this->stateErrorResponse('key_save_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
+            throw new ApiKeySaveFailedException($name->value);
         }
 
         $this->editorState->refreshAiEnabled();
 
-        return $this->stateResponse(['name' => $name->value]);
+        return new StateSuccessResponse($this->editorState, ['name' => $name->value]);
     }
 
     /**
@@ -146,7 +149,7 @@ final class SettingsController extends AbstractController
         try {
             $this->secretStore->delete($name->value);
         } catch (BridgeException) {
-            return $this->stateErrorResponse('key_delete_failed', Response::HTTP_INTERNAL_SERVER_ERROR);
+            throw new ApiKeyDeleteFailedException($name->value);
         }
 
         $setting = $this->settings->getOrCreate();
@@ -157,7 +160,7 @@ final class SettingsController extends AbstractController
 
         $this->editorState->refreshAiEnabled();
 
-        return $this->stateResponse(['name' => $name->value]);
+        return new StateSuccessResponse($this->editorState, ['name' => $name->value]);
     }
 
     /**
@@ -171,7 +174,7 @@ final class SettingsController extends AbstractController
         $value = $request->request->get('theme');
         $theme = \is_string($value) ? ThemeMode::tryFrom($value) : null;
         if ($theme === null) {
-            return $this->errorResponse('request_failed', Response::HTTP_BAD_REQUEST);
+            throw new InvalidRequestException('request_failed');
         }
 
         $setting = $this->settings->getOrCreate();
@@ -192,7 +195,7 @@ final class SettingsController extends AbstractController
         $value = $request->request->get('locale');
         $locale = \is_string($value) ? AppLocale::tryFrom($value) : null;
         if ($locale === null) {
-            throw new BadRequestHttpException();
+            throw new InvalidRequestException('request_failed');
         }
 
         $setting = $this->settings->getOrCreate();
@@ -218,26 +221,35 @@ final class SettingsController extends AbstractController
     }
 
     /**
+     * A form-level error (no origin, or the form itself) is generic; a
+     * field's error is mapped, named after the field it came from.
+     *
      * @param FormInterface<mixed> $form
      *
-     * @return list<array{field: string, message: string}>
+     * @return array{0: list<string>, 1: list<array{field: string, message: string}>}
      */
     private function formErrors(FormInterface $form): array
     {
-        $errors = [];
+        $genericErrors = [];
+        $mappedErrors = [];
         foreach ($form->getErrors(true) as $error) {
             $origin = $error->getOrigin();
-            $label = $origin !== null ? $this->fieldLabel($origin) : null;
+            if ($origin === null || $origin === $form) {
+                $genericErrors[] = $error->getMessage();
 
-            $errors[] = [
-                'field' => $origin?->createView()->vars['full_name'] ?? '',
+                continue;
+            }
+
+            $label = $this->fieldLabel($origin);
+            $mappedErrors[] = [
+                'field' => $origin->createView()->vars['full_name'] ?? '',
                 'message' => $label !== null
                     ? $this->trans('components.settings.error_line', ['{field}' => $label, '{message}' => $error->getMessage()])
                     : $error->getMessage(),
             ];
         }
 
-        return $errors;
+        return [$genericErrors, $mappedErrors];
     }
 
     /**
@@ -258,27 +270,6 @@ final class SettingsController extends AbstractController
             'defaultMode' => $this->trans('components.settings.mode_title'),
             default => null,
         };
-    }
-
-    /**
-     * @param array<string, string> $action what was done, as an object even when empty
-     */
-    private function stateResponse(array $action): JsonResponse
-    {
-        return new JsonResponse(['state' => $this->editorState->toArray(), 'action' => (object) $action]);
-    }
-
-    private function stateErrorResponse(string $key, int $status): JsonResponse
-    {
-        return new JsonResponse([
-            'error' => $this->trans('components.editor.error.' . $key),
-            'state' => $this->editorState->toArray(),
-        ], $status);
-    }
-
-    private function errorResponse(string $key, int $status): JsonResponse
-    {
-        return new JsonResponse(['error' => $this->trans('components.editor.error.' . $key)], $status);
     }
 
     /**

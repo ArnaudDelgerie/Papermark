@@ -150,10 +150,9 @@ describe('the editor, with the master', () => {
                         return jsonResponse({ path: null, content: null });
                     }
                     if (!(current.file in files)) {
-                        const path = current.file;
                         current = { ...current, file: null };
 
-                        return jsonResponse({ error: 'File not found', path }, 404);
+                        return jsonResponse({ state: current, genericErrors: ['Path not found'], mappedErrors: [] }, 404);
                     }
 
                     return jsonResponse({ path: current.file, content: files[current.file], revision: 'r0' });
@@ -172,7 +171,7 @@ describe('the editor, with the master', () => {
                     if (conflictNextSave) {
                         conflictNextSave = false;
 
-                        return jsonResponse({ state: current, error: 'The file was modified outside of Papermark' }, 409);
+                        return jsonResponse({ state: current, genericErrors: ['The file was modified outside of Papermark'], mappedErrors: [] }, 409);
                     }
                     files[path] = body!.get('content') as string;
                     current = { ...current, file: path };
@@ -545,7 +544,7 @@ describe('the editor, with the master', () => {
 
     describe('a load that fails (FRT-04)', () => {
         it('shows an explicit error state with Retry, not the old document', async () => {
-            fetchMock.mockImplementation(async () => jsonResponse({ error: 'Open failed' }, 500));
+            fetchMock.mockImplementation(async () => jsonResponse({ genericErrors: ['Open failed'] }, 500));
             await start(current);
 
             expect(crepe.getMarkdown()).toBe('');
@@ -602,7 +601,7 @@ describe('the editor, with the master', () => {
         await settle();
 
         expect(crepe.getMarkdown()).toBe('');
-        expect(toasts).toEqual([{ type: 'error', message: 'File not found' }]);
+        expect(toasts).toEqual([{ type: 'error', message: 'Path not found' }]);
         expect(calls('GET', '/editor/state')).toHaveLength(1);
         expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, file: null }, anomaly: { file: '/notes/a.md' } });
     });

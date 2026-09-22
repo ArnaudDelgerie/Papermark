@@ -1,9 +1,36 @@
 exceptions:
-    file:
+    request:
+        no_path: Aucun chemin de fichier fourni
+        no_content: Aucun contenu fourni
+        invalid_name: Nom de fichier invalide
+        invalid_mode: Mode d'éditeur inconnu
+        no_key: Aucune clé API fournie
+        request_failed: "L'action a échoué, veuillez réessayer"
+        unsupported_file_type: Seuls les fichiers Markdown et texte sont pris en charge
+    path:
+        not_found: Chemin introuvable
+        is_symlink: Un lien symbolique ne peut pas être modifié
+        not_a_file: Le chemin n'est pas un fichier ordinaire
+        not_writable: Le fichier ou le dossier n'est pas accessible en écriture
+    document:
+        modified: Le fichier a été modifié en dehors de Papermark
+        gone: Le fichier n'existe plus sur le disque
+        not_utf8: Le fichier n'est pas encodé en UTF-8 ; seuls les fichiers UTF-8 peuvent être ouverts
+    filesystem:
         rename_target_exists: Un fichier avec ce nom existe déjà
         write_failed: Impossible d'écrire le fichier
-        path_is_symlink: Un lien symbolique ne peut pas être modifié
-        path_not_a_file: Le chemin n'est pas un fichier ordinaire
-        path_not_found: Chemin introuvable
+        delete_failed: Impossible de supprimer le fichier
+    ai:
+        key_save_failed: Impossible d'enregistrer la clé API
+        key_delete_failed: Impossible de supprimer la clé API
+    archive:
+        ext_img_conflict: 'L''export a besoin que « ext_img » soit un dossier dans le dossier source'
+        ext_md_conflict: 'L''export a besoin que « ext_md » soit un dossier dans le dossier source'
+        import_refused:
+            not_a_zip: 'Le fichier sélectionné n''est pas une archive zip valide'
+            zip_slip: 'Cette archive contient un chemin de fichier non sûr et a été refusée'
+            symlink: 'Cette archive contient un lien symbolique et a été refusée'
+            too_many_entries: 'Cette archive contient trop d''entrées pour être importée'
+            too_large: 'Cette archive est trop volumineuse pour être importée'
     security:
         csrf_invalid: Jeton de sécurité invalide, veuillez recharger la page

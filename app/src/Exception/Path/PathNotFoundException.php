@@ -18,6 +18,6 @@ final class PathNotFoundException extends \RuntimeException implements UserFacin
 
     public function getTranslationKey(): string
     {
-        return 'exceptions.file.path_not_found';
+        return 'exceptions.path.not_found';
     }
 }

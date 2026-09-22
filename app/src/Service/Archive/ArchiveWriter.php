@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Archive;
 
 use App\Dto\Archive\ExportPlan;
+use App\Exception\Filesystem\WriteFailedException;
 
 /**
  * Writes an ExportPlan to an actual zip file at an already-resolved path
@@ -15,13 +16,16 @@ use App\Dto\Archive\ExportPlan;
  */
 final class ArchiveWriter
 {
+    /**
+     * @throws WriteFailedException
+     */
     public function write(ExportPlan $plan, string $path): void
     {
         $zip = new \ZipArchive();
         $result = $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
         if (true !== $result) {
-            throw new \RuntimeException(\sprintf('Could not create zip archive at "%s" (code %d).', $path, $result));
+            throw new WriteFailedException($path);
         }
 
         foreach ($plan->entries as $entry) {

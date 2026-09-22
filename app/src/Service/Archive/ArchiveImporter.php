@@ -8,6 +8,7 @@ use App\Dto\Archive\ImportResult;
 use App\Enum\Archive\ArchiveImportRefusalReason;
 use App\Enum\Setting\EditorMode;
 use App\Exception\Archive\ArchiveImportRefusedException;
+use App\Exception\Filesystem\WriteFailedException;
 use App\Service\MarkdownReferenceScanner;
 
 /**
@@ -104,7 +105,7 @@ final class ArchiveImporter
         mkdir($tmpDir, 0o777, true);
 
         if ([] !== $toExtract && !$zip->extractTo($tmpDir, $toExtract)) {
-            throw new \RuntimeException(\sprintf('Could not extract archive at "%s".', $archivePath));
+            throw new WriteFailedException($archivePath);
         }
 
         rename($tmpDir, $destination);

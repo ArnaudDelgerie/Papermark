@@ -52,11 +52,15 @@ const ROUTES: Record<ActionName, Route> = {
     'do-import': { url: 'import', method: 'POST' },
 };
 
-/** Every state route answers this, error included (S6). */
+/**
+ * Every state route answers this: `action` on success, `genericErrors` and
+ * `mappedErrors` on a refusal — always both present, empty or not (S6).
+ */
 interface StateResponse {
     state?: Partial<EditorState>;
-    action?: ResultOf<ActionName> & { errors?: SettingsError[] };
-    error?: string;
+    action?: ResultOf<ActionName>;
+    genericErrors?: string[];
+    mappedErrors?: SettingsError[];
 }
 
 /**
@@ -130,7 +134,7 @@ export default class extends Controller {
                 return;
             }
             console.error(`Request ${name} failed:`, error);
-            this.#fail(name, action, null);
+            this.#fail(name, action, [], [], false);
 
             return;
         } finally {
@@ -156,30 +160,32 @@ export default class extends Controller {
             return;
         }
 
-        // A refusal that comes with the state and an action but no `error`
-        // (an invalid settings form, 422) is for its asker to show, not a toast.
-        // So is a save conflict: the editor asks Enregistrer sous or Écraser
-        // (lot 03) — the dialog replaces the toast.
+        // The invalid settings form shows its own errors inline, never a
+        // toast. So does a save conflict: the editor asks Enregistrer sous
+        // or Écraser (lot 03) — the dialog replaces the toast.
         const saveConflict = response.status === 409 && (name === 'do-save' || name === 'do-save_as');
-        const quiet = saveConflict
-            || (data?.state !== undefined && data.action !== undefined && data.error === undefined);
-        this.#fail(name, action, data?.error ?? null, quiet, data?.action?.errors, response.status);
+        const quiet = saveConflict || name === 'do-save_settings';
+        this.#fail(name, action, data?.genericErrors ?? [], data?.mappedErrors ?? [], quiet, response.status);
     }
 
     #fail(
         name: ActionName,
         action: RequestOf<ActionName>,
-        message: string | null,
-        quiet = false,
-        errors?: SettingsError[],
+        genericErrors: string[],
+        mappedErrors: SettingsError[],
+        quiet: boolean,
         status?: number,
     ): void {
+        const message = genericErrors[0] ?? null;
         if (!quiet) {
             showToast('error', message ?? this.i18nValue.failed);
         }
         const extras: Record<string, unknown> = {};
         if (name === 'do-save_settings') {
-            extras.errors = errors ?? [];
+            // The form-level and the field errors both land in the same
+            // inline list; the field ones keep their field, so the modal
+            // could single them out if it ever needs to.
+            extras.errors = [...genericErrors.map((message) => ({ field: '', message })), ...mappedErrors];
         }
         if ((name === 'do-save' || name === 'do-save_as') && status !== undefined) {
             // What the editor's conflict dialog needs: the status that says

@@ -142,7 +142,7 @@ describe('the archive modal, with the master', () => {
         it('on a failure, the master toasts, the button comes back and there is no report', async () => {
             await start();
             await pick();
-            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'Not a zip' }, 409));
+            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, genericErrors: ['Not a zip'], mappedErrors: [] }, 409));
 
             click('.import');
             await settle();
@@ -263,7 +263,7 @@ describe('the archive modal, with the master', () => {
         it('a failure changes nothing on screen', async () => {
             await start('single');
             await pick();
-            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, error: 'Not a zip' }, 409));
+            fetchMock.mockResolvedValue(jsonResponse({ state: INITIAL, genericErrors: ['Not a zip'], mappedErrors: [] }, 409));
 
             click('.import');
             await settle();

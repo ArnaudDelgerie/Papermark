@@ -54,7 +54,7 @@ final class AiControllerTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(403);
         $data = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('error', $data);
+        self::assertNotEmpty($data['genericErrors']);
     }
 
     public function testInstructRejectsMissingInstruction(): void

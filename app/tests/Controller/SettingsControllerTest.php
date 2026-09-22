@@ -165,20 +165,20 @@ final class SettingsControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
     }
 
-    public function testInvalidFormAnswers422WithErrorsAndNoErrorAndStoresNothing(): void
+    public function testInvalidFormAnswersItsOwnRefusalFormAndStoresNothing(): void
     {
         $body = $this->save(['providers' => ['anthropic' => ['model' => 'not a model!']]]);
 
         self::assertResponseStatusCodeSame(422);
-        // No `error`: the client shows the errors itself, the master shows no toast.
-        self::assertArrayNotHasKey('error', $body);
+        // A field error: mapped, not a toast — the client shows it itself.
+        self::assertSame([], $body['genericErrors']);
         self::assertArrayHasKey('state', $body);
-        self::assertCount(1, $body['action']['errors']);
-        self::assertSame('settings[providers][anthropic][model]', $body['action']['errors'][0]['field']);
+        self::assertCount(1, $body['mappedErrors']);
+        self::assertSame('settings[providers][anthropic][model]', $body['mappedErrors'][0]['field']);
         // The message names the field.
-        self::assertStringContainsString('Anthropic', $body['action']['errors'][0]['message']);
-        self::assertStringContainsString('Model', $body['action']['errors'][0]['message']);
-        self::assertStringContainsString('characters that are not allowed', $body['action']['errors'][0]['message']);
+        self::assertStringContainsString('Anthropic', $body['mappedErrors'][0]['message']);
+        self::assertStringContainsString('Model', $body['mappedErrors'][0]['message']);
+        self::assertStringContainsString('characters that are not allowed', $body['mappedErrors'][0]['message']);
 
         static::getContainer()->get(EntityManagerInterface::class)->clear();
         self::assertNull(static::getContainer()->get(ProviderRepository::class)->findAllByName()['anthropic']->getModel());
@@ -189,14 +189,14 @@ final class SettingsControllerTest extends WebTestCase
         $body = $this->save(['providers' => ['anthropic' => ['model' => str_repeat('a', 256)]]]);
 
         self::assertResponseStatusCodeSame(422);
-        self::assertStringContainsString('too long', $body['action']['errors'][0]['message']);
+        self::assertStringContainsString('too long', $body['mappedErrors'][0]['message']);
     }
 
     public function testSaveWithoutTheFormIsRefused(): void
     {
         $this->client->request('POST', '/settings', [], [], ['HTTP_ORIGIN' => 'http://localhost']);
 
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testSaveRecomputesAiEnabled(): void
@@ -241,9 +241,9 @@ final class SettingsControllerTest extends WebTestCase
     public function testSetKeyRefusesAnEmptyKeyAndAnInvalidToken(): void
     {
         $this->client->request('POST', '/settings/provider/mistral/key', ['key' => '  '], [], $this->tokenHeader());
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
         $body = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('error', $body);
+        self::assertNotEmpty($body['genericErrors']);
         self::assertArrayHasKey('state', $body);
 
         $this->client->request('POST', '/settings/provider/mistral/key', ['key' => 'k'], [], ['HTTP_X-CSRF-TOKEN' => 'invalid', 'HTTP_ORIGIN' => 'http://localhost']);
@@ -302,7 +302,7 @@ final class SettingsControllerTest extends WebTestCase
     public function testThemeRefusesAnUnknownValueAndAnInvalidToken(): void
     {
         $this->client->request('POST', '/settings/theme', ['theme' => 'pink'], [], $this->tokenHeader());
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
 
         $this->client->request('POST', '/settings/theme', ['theme' => 'light'], [], ['HTTP_X-CSRF-TOKEN' => 'invalid', 'HTTP_ORIGIN' => 'http://localhost']);
         self::assertResponseStatusCodeSame(403);
@@ -321,7 +321,7 @@ final class SettingsControllerTest extends WebTestCase
     public function testLocaleRefusesAnUnknownValueAndAnInvalidToken(): void
     {
         $this->client->request('POST', '/settings/locale', ['locale' => 'xx', '_token' => $this->token()], [], ['HTTP_ORIGIN' => 'http://localhost']);
-        self::assertResponseStatusCodeSame(400);
+        self::assertResponseStatusCodeSame(422);
 
         $this->client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => 'invalid'], [], ['HTTP_ORIGIN' => 'http://localhost']);
         self::assertResponseStatusCodeSame(403);

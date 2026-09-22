@@ -62,7 +62,7 @@ export default class AiClient {
                 if (!response.ok) {
                     finished = true;
                     const data = await response.json().catch(() => ({}));
-                    throw new Error(data.error || this.#requestFailedMessage);
+                    throw new Error(data.genericErrors?.[0] || this.#requestFailedMessage);
                 }
 
                 while (true) {
@@ -108,7 +108,7 @@ export default class AiClient {
         const response = await this.#post(this.#urls.subscribe, {});
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || this.#requestFailedMessage);
+            throw new Error(data.genericErrors?.[0] || this.#requestFailedMessage);
         }
 
         await this.#openSource();

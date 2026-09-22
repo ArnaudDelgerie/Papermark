@@ -74,7 +74,7 @@ export default class extends Controller<HTMLElement> {
             const response = await fetch(this.urlValue, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.tokenValue }, body });
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || `Theme save failed: ${response.status}`);
+                throw new Error(data.genericErrors?.[0] || `Theme save failed: ${response.status}`);
             }
             this.#saved = theme;
         } catch (error) {
