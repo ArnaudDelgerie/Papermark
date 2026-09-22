@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\EventListener;
 
+use App\Enum\Setting\EditorMode;
+use App\Event\ArchiveImported;
 use App\Event\Document\DocumentDeleted;
 use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
@@ -75,6 +77,32 @@ final class DirectoryTreeCacheListenerTest extends KernelTestCase
         self::assertSame(['renamed.md'], $this->listedFileNames());
     }
 
+    public function testArchiveImportedUnderTheCachedRootForgetsTheWalk(): void
+    {
+        $destination = $this->root . '/imported';
+        mkdir($destination);
+        file_put_contents($destination . '/new.md', '# New'); // written outside the app: the cache doesn't know yet
+
+        $this->listener->onArchiveImported(new ArchiveImported($destination, EditorMode::Dir, $destination));
+
+        // The forgotten walk is redone by build(): the new subfolder shows up.
+        self::assertSame(['imported'], $this->listedDirectoryNames());
+    }
+
+    public function testArchiveImportedOutsideTheCachedRootLeavesTheWalkAlone(): void
+    {
+        $elsewhere = sys_get_temp_dir() . '/directory_tree_cache_listener_elsewhere_' . uniqid();
+        mkdir($elsewhere);
+
+        try {
+            $this->listener->onArchiveImported(new ArchiveImported($elsewhere, EditorMode::Dir, $elsewhere));
+
+            self::assertSame([], $this->listedDirectoryNames());
+        } finally {
+            @rmdir($elsewhere);
+        }
+    }
+
     /** @return string[] */
     private function listedFileNames(): array
     {
@@ -85,14 +113,33 @@ final class DirectoryTreeCacheListenerTest extends KernelTestCase
         return $names;
     }
 
+    /** @return string[] */
+    private function listedDirectoryNames(): array
+    {
+        $directories = $this->openDirectoryTree->build()?->root->directories ?? [];
+        $names = array_map(static fn ($directory) => $directory->name, $directories);
+        sort($names);
+
+        return $names;
+    }
+
     private function removeDirectory(string $dir): void
     {
+        if (!is_dir($dir)) {
+            return;
+        }
+
         foreach (scandir($dir) as $item) {
             if ('.' === $item || '..' === $item) {
                 continue;
             }
 
-            @unlink($dir . '/' . $item);
+            $path = $dir . '/' . $item;
+            if (is_dir($path) && !is_link($path)) {
+                $this->removeDirectory($path);
+            } else {
+                @unlink($path);
+            }
         }
 
         @rmdir($dir);

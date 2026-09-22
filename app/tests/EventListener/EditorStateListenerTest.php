@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\EventListener;
 
+use App\Enum\Setting\EditorMode;
+use App\Event\ArchiveImported;
 use App\Event\Document\DocumentDeleted;
 use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
@@ -73,6 +75,37 @@ final class EditorStateListenerTest extends KernelTestCase
 
         $this->listener->onDocumentRenamed(new DocumentRenamed('/a/old.md', '/a/new.md'));
 
+        self::assertSame('/a/kept.md', $this->editorState->getFile());
+    }
+
+    public function testArchiveImportedOpeningAFileSwitchesToSingleMode(): void
+    {
+        $this->editorState->setMode(EditorMode::Dir);
+
+        $this->listener->onArchiveImported(new ArchiveImported('/dest/notes', EditorMode::Single, '/dest/notes/doc.md'));
+
+        self::assertSame(EditorMode::Single, $this->editorState->getMode());
+        self::assertSame('/dest/notes/doc.md', $this->editorState->getFile());
+    }
+
+    public function testArchiveImportedOpeningAFolderSwitchesToDirMode(): void
+    {
+        $this->editorState->setMode(EditorMode::Single);
+
+        $this->listener->onArchiveImported(new ArchiveImported('/dest/project', EditorMode::Dir, null));
+
+        self::assertSame(EditorMode::Dir, $this->editorState->getMode());
+        self::assertSame('/dest/project', $this->editorState->getDir());
+    }
+
+    public function testArchiveImportedWithNothingToOpenLeavesTheStateAsItWas(): void
+    {
+        $this->editorState->setMode(EditorMode::Single);
+        $this->editorState->setFile('/a/kept.md');
+
+        $this->listener->onArchiveImported(new ArchiveImported('/dest/pdfs', null, null));
+
+        self::assertSame(EditorMode::Single, $this->editorState->getMode());
         self::assertSame('/a/kept.md', $this->editorState->getFile());
     }
 }

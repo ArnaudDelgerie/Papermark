@@ -1,6 +1,5 @@
 exceptions:
     request:
-        no_path: No file path provided
         no_key: No API key provided
         request_failed: The action failed, please try again
     path:

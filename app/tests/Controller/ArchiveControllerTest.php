@@ -7,13 +7,13 @@ namespace App\Tests\Controller;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
-final class ExportControllerTest extends WebTestCase
+final class ArchiveControllerTest extends WebTestCase
 {
     private string $workDir;
 
     protected function setUp(): void
     {
-        $this->workDir = sys_get_temp_dir() . '/export_controller_test_' . uniqid();
+        $this->workDir = sys_get_temp_dir() . '/archive_controller_test_' . uniqid();
         mkdir($this->workDir, 0o777, true);
     }
 
@@ -117,15 +117,15 @@ final class ExportControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/editor');
 
         $master = $crawler->filter('div[data-controller="editor-state"]');
-        self::assertSame('/import/run', json_decode((string) $master->attr('data-editor-state-urls-value'), true)['import']);
+        self::assertSame('/archive/import', json_decode((string) $master->attr('data-editor-state-urls-value'), true)['import']);
         self::assertNotEmpty($master->attr('data-editor-state-token-value'));
     }
 
-    public function testRunRejectsInvalidCsrf(): void
+    public function testExportRejectsInvalidCsrf(): void
     {
         $client = static::createClient();
 
-        $client->request('POST', '/export/run', [
+        $client->request('POST', '/archive/export', [
             'source' => $this->workDir,
             'target' => $this->workDir . '/out',
         ], [], [
@@ -135,24 +135,41 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(403);
     }
 
-    public function testRunReturnsErrorForMissingSource(): void
+    public function testExportReturnsErrorForMissingSource(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
-        $client->request('POST', '/export/run', [
+        $client->request('POST', '/archive/export', [
             'target' => $this->workDir . '/out',
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
         self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('source', $data['mappedErrors'][0]['field']);
     }
 
-    public function testRunReturns404ForMissingSource(): void
+    public function testExportReturnsErrorForMissingTarget(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
-        $client->request('POST', '/export/run', [
+        $client->request('POST', '/archive/export', [
+            'source' => $this->workDir,
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('target', $data['mappedErrors'][0]['field']);
+    }
+
+    public function testExportReturns404ForMissingSource(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $client->request('POST', '/archive/export', [
             'source' => $this->workDir . '/does_not_exist.md',
             'target' => $this->workDir . '/out',
         ], [], [
@@ -162,14 +179,14 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
-    public function testRunWritesZipAppendsExtensionAndReportsIssues(): void
+    public function testExportWritesZipAppendsExtensionAndReportsIssues(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
         $docPath = $this->workDir . '/doc.md';
         file_put_contents($docPath, '![alt](./missing.png)');
 
-        $client->request('POST', '/export/run', [
+        $client->request('POST', '/archive/export', [
             'source' => $docPath,
             'target' => $this->workDir . '/archive',
         ], [], [
@@ -191,14 +208,14 @@ final class ExportControllerTest extends WebTestCase
         $zip->close();
     }
 
-    public function testRunRejectsDirectoryExportWhenExtImgIsAFile(): void
+    public function testExportRejectsDirectoryExportWhenExtImgIsAFile(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
         file_put_contents($this->workDir . '/doc.md', '# Hello');
         file_put_contents($this->workDir . '/ext_img', 'not a directory');
 
-        $client->request('POST', '/export/run', [
+        $client->request('POST', '/archive/export', [
             'source' => $this->workDir,
             'target' => $this->workDir . '/archive',
         ], [], [
@@ -210,7 +227,7 @@ final class ExportControllerTest extends WebTestCase
         self::assertSame(['Export needs "ext_img" to be a folder in the source folder'], $data['genericErrors']);
     }
 
-    public function testRunReturnsNotWritableForAReadOnlyTargetFolder(): void
+    public function testExportReturnsNotWritableForAReadOnlyTargetFolder(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
 
@@ -220,7 +237,7 @@ final class ExportControllerTest extends WebTestCase
         mkdir($readOnlyDir);
         chmod($readOnlyDir, 0o555);
 
-        $client->request('POST', '/export/run', [
+        $client->request('POST', '/archive/export', [
             'source' => $docPath,
             'target' => $readOnlyDir . '/archive',
         ], [], [
@@ -232,11 +249,11 @@ final class ExportControllerTest extends WebTestCase
         chmod($readOnlyDir, 0o755);
     }
 
-    public function testImportRunRejectsInvalidCsrf(): void
+    public function testImportRejectsInvalidCsrf(): void
     {
         $client = static::createClient();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $this->workDir . '/archive.zip',
             'parentDir' => $this->workDir,
         ], [], [
@@ -246,24 +263,41 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(403);
     }
 
-    public function testImportRunReturnsErrorForMissingArchive(): void
+    public function testImportReturnsErrorForMissingArchive(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'parentDir' => $this->workDir,
         ], [], [
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
         self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('archive', $data['mappedErrors'][0]['field']);
     }
 
-    public function testImportRunReturns404ForMissingArchive(): void
+    public function testImportReturnsErrorForMissingParentDir(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
+            'archive' => $this->workDir . '/archive.zip',
+        ], [], [
+            'HTTP_X-CSRF-TOKEN' => $csrfToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertSame('parentDir', $data['mappedErrors'][0]['field']);
+    }
+
+    public function testImportReturns404ForMissingArchive(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithImportCsrf();
+
+        $client->request('POST', '/archive/import', [
             'archive' => $this->workDir . '/does_not_exist.zip',
             'parentDir' => $this->workDir,
         ], [], [
@@ -273,7 +307,7 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
-    public function testImportRunReturns404ForMissingParentDir(): void
+    public function testImportReturns404ForMissingParentDir(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
@@ -283,7 +317,7 @@ final class ExportControllerTest extends WebTestCase
         $zip->addFromString('doc.md', '# Hello');
         $zip->close();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $zipPath,
             'parentDir' => $this->workDir . '/does_not_exist',
         ], [], [
@@ -293,7 +327,7 @@ final class ExportControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
-    public function testImportRunReturnsNotWritableForAReadOnlyParentDir(): void
+    public function testImportReturnsNotWritableForAReadOnlyParentDir(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
@@ -307,7 +341,7 @@ final class ExportControllerTest extends WebTestCase
         mkdir($readOnlyDir);
         chmod($readOnlyDir, 0o555);
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $zipPath,
             'parentDir' => $readOnlyDir,
         ], [], [
@@ -319,14 +353,14 @@ final class ExportControllerTest extends WebTestCase
         chmod($readOnlyDir, 0o755);
     }
 
-    public function testImportRunRejectsNonZipFile(): void
+    public function testImportRejectsNonZipFile(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
         $notAZip = $this->workDir . '/archive.zip';
         file_put_contents($notAZip, 'not a zip');
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $notAZip,
             'parentDir' => $this->workDir,
         ], [], [
@@ -341,7 +375,7 @@ final class ExportControllerTest extends WebTestCase
         self::assertArrayNotHasKey('action', $data);
     }
 
-    public function testImportRunExtractsArchiveAndReportsOpenTarget(): void
+    public function testImportExtractsArchiveAndReportsOpenTarget(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
@@ -352,7 +386,7 @@ final class ExportControllerTest extends WebTestCase
         $zip->addFromString('notes.pdf', 'ignored');
         $zip->close();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $zipPath,
             'parentDir' => $this->workDir,
         ], [], [
@@ -382,7 +416,7 @@ final class ExportControllerTest extends WebTestCase
         );
     }
 
-    public function testImportRunOfDirectoryArchiveOpensDirMode(): void
+    public function testImportOfDirectoryArchiveOpensDirMode(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
@@ -393,7 +427,7 @@ final class ExportControllerTest extends WebTestCase
         $zip->addFromString('b.md', '# B');
         $zip->close();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $zipPath,
             'parentDir' => $this->workDir,
         ], [], [
@@ -413,7 +447,7 @@ final class ExportControllerTest extends WebTestCase
         self::assertSame($data['state'], json_decode((string) $client->getResponse()->getContent(), true)['state']);
     }
 
-    public function testImportRunOfAnArchiveWithNothingToOpenLeavesTheStateAsItWas(): void
+    public function testImportOfAnArchiveWithNothingToOpenLeavesTheStateAsItWas(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
 
@@ -426,7 +460,7 @@ final class ExportControllerTest extends WebTestCase
         $zip->addFromString('notes.pdf', 'ignored');
         $zip->close();
 
-        $client->request('POST', '/import/run', [
+        $client->request('POST', '/archive/import', [
             'archive' => $zipPath,
             'parentDir' => $this->workDir,
         ], [], [

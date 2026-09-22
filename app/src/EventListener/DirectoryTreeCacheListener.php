@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventListener;
 
+use App\Event\ArchiveImported;
 use App\Event\Document\DocumentDeleted;
 use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
@@ -34,5 +35,11 @@ final class DirectoryTreeCacheListener
     public function onDocumentRenamed(DocumentRenamed $event): void
     {
         $this->openDirectoryTree->fileRenamed($event->oldPath, $event->newPath);
+    }
+
+    #[AsEventListener]
+    public function onArchiveImported(ArchiveImported $event): void
+    {
+        $this->openDirectoryTree->dirAdded($event->destination);
     }
 }

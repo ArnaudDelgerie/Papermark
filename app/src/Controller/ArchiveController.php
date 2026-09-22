@@ -4,34 +4,33 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Exception\InvalidRequestException;
-use App\Exception\Path\PathNotFoundException;
-use App\Exception\Path\PathNotWritableException;
-use App\Response\StateSuccessResponse;
-use App\Service\Editor\EditorState;
-use App\Enum\Setting\EditorMode;
-use App\Service\Archive\ArchiveExportPlanner;
-use App\Service\Archive\ArchiveTargetResolver;
-use App\Service\Archive\ArchiveWriter;
+use App\Dto\Archive\ExportArchiveRequest;
 use App\Dto\Archive\ExportIssue;
+use App\Dto\Archive\ImportArchiveRequest;
+use App\Enum\Setting\EditorMode;
+use App\Response\StateSuccessResponse;
+use App\Service\Archive\ArchiveExporter;
 use App\Service\Archive\ArchiveImporter;
+use App\Service\Editor\EditorState;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
-final class ExportController extends AbstractController
+/**
+ * The Archive modal (lot 06-archive-controller.md), under `/archive`: its
+ * page, and export and import, each behind a DTO and a single service call.
+ */
+final class ArchiveController extends AbstractController
 {
     private const TRANSLATION_DOMAIN = 'components';
 
     public function __construct(
         private readonly EditorState $editorState,
-        private readonly ArchiveExportPlanner $planner,
-        private readonly ArchiveTargetResolver $targetResolver,
-        private readonly ArchiveWriter $writer,
+        private readonly ArchiveExporter $exporter,
         private readonly ArchiveImporter $importer,
         private readonly TranslatorInterface $translator,
     ) {
@@ -106,96 +105,37 @@ final class ExportController extends AbstractController
         ];
     }
 
-    #[Route('/export/run', name: 'app_export_run', methods: ['POST'])]
+    #[Route('/archive/export', name: 'app_archive_export', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function run(Request $request): JsonResponse
+    public function export(#[MapRequestPayload(mapWhenEmpty: true)] ExportArchiveRequest $payload): JsonResponse
     {
-        $source = $request->request->get('source');
-        if (!\is_string($source) || '' === $source) {
-            throw new InvalidRequestException('no_path');
-        }
-
-        $target = $request->request->get('target');
-        if (!\is_string($target) || '' === $target) {
-            throw new InvalidRequestException('no_path');
-        }
-
-        $realSource = realpath($source);
-        if (false === $realSource || (!is_file($realSource) && !is_dir($realSource))) {
-            throw new PathNotFoundException($source);
-        }
-
-        $resolvedTarget = $this->targetResolver->resolve($target);
-
-        $realTargetParent = realpath(\dirname($resolvedTarget));
-        if (false === $realTargetParent || !is_dir($realTargetParent)) {
-            throw new PathNotFoundException($resolvedTarget);
-        }
-        if (!is_writable($realTargetParent)) {
-            throw new PathNotWritableException($resolvedTarget);
-        }
-
-        $includeExternalMarkdown = $request->request->getBoolean('includeExternalMarkdown');
-
         // ArchiveExportRefusedException (a reserved name conflict) is
         // UserFacing on its own and propagates as-is, same for WriteFailedException
         // thrown by the writer on a failed zip.
-        $plan = $this->planner->plan($realSource, $includeExternalMarkdown);
-        $this->writer->write($plan, $resolvedTarget);
+        $result = $this->exporter->export($payload->source, $payload->target, $payload->includeExternalMarkdown);
 
         return new JsonResponse([
-            'path' => $resolvedTarget,
+            'path' => $result['path'],
             'issues' => array_map(
                 static fn (ExportIssue $issue): array => [
                     'referencingPath' => $issue->referencingPath,
                     'originalTarget' => $issue->originalTarget,
                     'reason' => $issue->reason->value,
                 ],
-                $plan->issues,
+                $result['plan']->issues,
             ),
         ]);
     }
 
-    #[Route('/import/run', name: 'app_import_run', methods: ['POST'])]
+    #[Route('/archive/import', name: 'app_archive_import', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function importRun(Request $request): JsonResponse
+    public function import(#[MapRequestPayload(mapWhenEmpty: true)] ImportArchiveRequest $payload): JsonResponse
     {
-        $archive = $request->request->get('archive');
-        if (!\is_string($archive) || '' === $archive) {
-            throw new InvalidRequestException('no_path');
-        }
-
-        $parentDir = $request->request->get('parentDir');
-        if (!\is_string($parentDir) || '' === $parentDir) {
-            throw new InvalidRequestException('no_path');
-        }
-
-        $realArchive = realpath($archive);
-        if (false === $realArchive || !is_file($realArchive)) {
-            throw new PathNotFoundException($archive);
-        }
-
-        $realParentDir = realpath($parentDir);
-        if (false === $realParentDir || !is_dir($realParentDir)) {
-            throw new PathNotFoundException($parentDir);
-        }
-        if (!is_writable($realParentDir)) {
-            throw new PathNotWritableException($realParentDir);
-        }
-
         // ArchiveImportRefusedException and WriteFailedException (a failed
-        // extraction) are UserFacing on their own and propagate as-is.
-        $result = $this->importer->import($realArchive, $realParentDir);
-
-        // The state now points at what the archive gave to open; the master
-        // broadcasts it, and each column follows.
-        if (EditorMode::Single === $result->openMode) {
-            $this->editorState->setMode(EditorMode::Single);
-            $this->editorState->setFile($result->openPath);
-        } elseif (EditorMode::Dir === $result->openMode) {
-            $this->editorState->setMode(EditorMode::Dir);
-            $this->editorState->setDir($result->destination);
-        }
+        // extraction) are UserFacing on their own and propagate as-is. The
+        // state ArchiveImported carries is set by EditorStateListener before
+        // this response is built.
+        $result = $this->importer->import($payload->archive, $payload->parentDir);
 
         return new StateSuccessResponse($this->editorState, [
             'destination' => $result->destination,

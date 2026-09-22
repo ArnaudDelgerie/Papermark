@@ -208,7 +208,7 @@ describe('editor-state (the master)', () => {
             await settle();
 
             const [url, init] = fetchMock.mock.calls[0];
-            expect(url).toBe('/import/run');
+            expect(url).toBe('/archive/import');
             expect(init.method).toBe('POST');
             expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
             expect((init.body as FormData).get('archive')).toBe('/tmp/notes.zip');

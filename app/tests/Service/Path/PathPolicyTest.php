@@ -7,6 +7,7 @@ namespace App\Tests\Service\Path;
 use App\Exception\Path\PathIsSymlinkException;
 use App\Exception\Path\PathNotAFileException;
 use App\Exception\Path\PathNotFoundException;
+use App\Exception\Path\PathNotWritableException;
 use App\Service\Path\PathPolicy;
 use App\Service\Path\PathResolver;
 use PHPUnit\Framework\TestCase;
@@ -194,6 +195,98 @@ final class PathPolicyTest extends TestCase
         $this->expectException(PathNotFoundException::class);
 
         $this->policy->list($file);
+    }
+
+    public function testExportSourceAllowsAnExistingFile(): void
+    {
+        $path = $this->createFile('doc.md', '# Hello');
+
+        self::assertSame($path, $this->policy->exportSource($path));
+    }
+
+    public function testExportSourceAllowsAnExistingDirectory(): void
+    {
+        self::assertSame($this->root, $this->policy->exportSource($this->root));
+    }
+
+    public function testExportSourceRefusesAMissingPath(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->exportSource($this->root . '/missing.md');
+    }
+
+    public function testExportTargetAllowsAPathWhoseParentIsWritable(): void
+    {
+        self::assertSame($this->root . '/out.zip', $this->policy->exportTarget($this->root . '/out.zip'));
+    }
+
+    public function testExportTargetRefusesAPathWhoseParentCantBeResolved(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->exportTarget('/no/such/dir_' . uniqid() . '/out.zip');
+    }
+
+    public function testExportTargetRefusesAReadOnlyParent(): void
+    {
+        chmod($this->root, 0o555);
+        $this->tempPaths[] = $this->root;
+
+        try {
+            $this->expectException(PathNotWritableException::class);
+
+            $this->policy->exportTarget($this->root . '/out.zip');
+        } finally {
+            chmod($this->root, 0o755);
+        }
+    }
+
+    public function testImportArchiveAllowsAnExistingFile(): void
+    {
+        $path = $this->createFile('archive.zip', 'PK');
+
+        self::assertSame($path, $this->policy->importArchive($path));
+    }
+
+    public function testImportArchiveRefusesAMissingPath(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->importArchive($this->root . '/missing.zip');
+    }
+
+    public function testImportArchiveRefusesADirectory(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->importArchive($this->root);
+    }
+
+    public function testImportIntoAllowsAWritableDirectory(): void
+    {
+        self::assertSame($this->root, $this->policy->importInto($this->root));
+    }
+
+    public function testImportIntoRefusesAMissingDirectory(): void
+    {
+        $this->expectException(PathNotFoundException::class);
+
+        $this->policy->importInto($this->root . '/missing');
+    }
+
+    public function testImportIntoRefusesAReadOnlyDirectory(): void
+    {
+        chmod($this->root, 0o555);
+        $this->tempPaths[] = $this->root;
+
+        try {
+            $this->expectException(PathNotWritableException::class);
+
+            $this->policy->importInto($this->root);
+        } finally {
+            chmod($this->root, 0o755);
+        }
     }
 
     private function imageConstraint(): File

@@ -120,6 +120,84 @@ final class PathPolicy
         return $realPath;
     }
 
+    /**
+     * Intention export source: an existing file or directory.
+     *
+     * @return string the resolved real path
+     *
+     * @throws PathNotFoundException
+     */
+    public function exportSource(string $path): string
+    {
+        $realPath = realpath($path);
+        if ($realPath === false || (!is_file($realPath) && !is_dir($realPath))) {
+            throw new PathNotFoundException($path);
+        }
+
+        return $realPath;
+    }
+
+    /**
+     * Intention export target: a path whose parent directory exists and is
+     * writable. The target itself may not exist yet — ArchiveTargetResolver
+     * decides its final name.
+     *
+     * @return string the canonical path (real parent, original basename)
+     *
+     * @throws PathNotFoundException
+     * @throws PathNotWritableException
+     */
+    public function exportTarget(string $path): string
+    {
+        $parent = realpath(\dirname($path));
+        if ($parent === false || !is_dir($parent)) {
+            throw new PathNotFoundException($path);
+        }
+        if (!is_writable($parent)) {
+            throw new PathNotWritableException($path);
+        }
+
+        return $parent . '/' . basename($path);
+    }
+
+    /**
+     * Intention import archive: an existing file.
+     *
+     * @return string the resolved real path
+     *
+     * @throws PathNotFoundException
+     */
+    public function importArchive(string $path): string
+    {
+        $realPath = realpath($path);
+        if ($realPath === false || !is_file($realPath)) {
+            throw new PathNotFoundException($path);
+        }
+
+        return $realPath;
+    }
+
+    /**
+     * Intention import into: an existing, writable directory.
+     *
+     * @return string the resolved real path
+     *
+     * @throws PathNotFoundException
+     * @throws PathNotWritableException
+     */
+    public function importInto(string $path): string
+    {
+        $realPath = realpath($path);
+        if ($realPath === false || !is_dir($realPath)) {
+            throw new PathNotFoundException($path);
+        }
+        if (!is_writable($realPath)) {
+            throw new PathNotWritableException($realPath);
+        }
+
+        return $realPath;
+    }
+
     private function writable(string $path): string
     {
         $parent = realpath(\dirname($path));

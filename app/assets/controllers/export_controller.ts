@@ -164,7 +164,7 @@ export default class extends Controller {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.genericErrors?.[0] || this.i18nValue.failed);
+                throw new Error(data.genericErrors?.[0] || data.mappedErrors?.[0]?.message || this.i18nValue.failed);
             }
 
             showToast('success', this.i18nValue.done.replace('{path}', data.path));

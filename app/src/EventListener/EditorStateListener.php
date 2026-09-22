@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\EventListener;
 
+use App\Enum\Setting\EditorMode;
+use App\Event\ArchiveImported;
 use App\Event\Document\DocumentDeleted;
 use App\Event\Document\DocumentRenamed;
 use App\Event\Document\DocumentSaved;
@@ -42,6 +44,19 @@ final class EditorStateListener
     {
         if ($this->editorState->getFile() === $event->oldPath) {
             $this->editorState->setFile($event->newPath);
+        }
+    }
+
+    /** The state now points at what the archive gave to open, if anything. */
+    #[AsEventListener]
+    public function onArchiveImported(ArchiveImported $event): void
+    {
+        if (EditorMode::Single === $event->openMode) {
+            $this->editorState->setMode(EditorMode::Single);
+            $this->editorState->setFile($event->openPath);
+        } elseif (EditorMode::Dir === $event->openMode) {
+            $this->editorState->setMode(EditorMode::Dir);
+            $this->editorState->setDir($event->destination);
         }
     }
 }

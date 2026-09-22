@@ -8,9 +8,12 @@ use App\Dto\Archive\ImportResult;
 use App\Enum\Archive\ArchiveImportRefusalReason;
 use App\Enum\DocumentExtension;
 use App\Enum\Setting\EditorMode;
+use App\Event\ArchiveImported;
 use App\Exception\Archive\ArchiveImportRefusedException;
 use App\Exception\Filesystem\WriteFailedException;
 use App\Service\MarkdownReferenceScanner;
+use App\Service\Path\PathPolicy;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Extracts a zip archive into a fresh subfolder of a chosen parent directory
@@ -21,14 +24,18 @@ use App\Service\MarkdownReferenceScanner;
  * unsafe or oversized entry refuses the whole import (see
  * ArchiveImportRefusedException) — and extraction lands in a sibling
  * temporary folder, renamed into place only once complete, so a failure
- * never leaves a half-filled destination behind.
+ * never leaves a half-filled destination behind. Dispatches ArchiveImported
+ * once extraction succeeds; the cached tree and the editor's own state react
+ * to it, not to this class.
  */
 final class ArchiveImporter
 {
     private const EXTERNAL_DIRS = ['ext_img', 'ext_md'];
 
     public function __construct(
+        private readonly PathPolicy $pathPolicy,
         private readonly ImportTargetResolver $targetResolver,
+        private readonly EventDispatcherInterface $eventDispatcher,
         // Same ceiling as DirectoryTree::DEFAULT_MAX_ITEMS: the editor's own
         // folder tree doesn't exclude node_modules/vendor either, so a
         // directory export of a real project routinely produces archives
@@ -40,20 +47,27 @@ final class ArchiveImporter
 
     public function import(string $archivePath, string $parentDir): ImportResult
     {
-        if ('zip' !== strtolower(pathinfo($archivePath, \PATHINFO_EXTENSION))) {
+        $realArchivePath = $this->pathPolicy->importArchive($archivePath);
+        $realParentDir = $this->pathPolicy->importInto($parentDir);
+
+        if ('zip' !== strtolower(pathinfo($realArchivePath, \PATHINFO_EXTENSION))) {
             throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
         }
 
         $zip = new \ZipArchive();
-        if (true !== $zip->open($archivePath)) {
+        if (true !== $zip->open($realArchivePath)) {
             throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
         }
 
         try {
-            return $this->importFromZip($zip, $archivePath, $parentDir);
+            $result = $this->importFromZip($zip, $realArchivePath, $realParentDir);
         } finally {
             $zip->close();
         }
+
+        $this->eventDispatcher->dispatch(new ArchiveImported($result->destination, $result->openMode, $result->openPath));
+
+        return $result;
     }
 
     private function importFromZip(\ZipArchive $zip, string $archivePath, string $parentDir): ImportResult

@@ -22,7 +22,7 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
                  data-export-initial-path-value="${INITIAL.file}"
                  data-export-initial-directory-value="${INITIAL.dir}"
                  data-export-csrf-token-value="tk-export"
-                 data-export-run-url-value="/export/run"
+                 data-export-run-url-value="/archive/export"
                  data-export-i18n-value="${attr({ noSource: 'Choose a source', failed: 'Export failed', done: 'Exported to {path}', report: { title: 'Report', empty: 'None', count_one: '{count} reference', count_other: '{count} references', reason: { not_found: 'Not found' } } })}">
             <input type="radio" name="export-kind" value="file" data-export-target="kindFileRadio" data-action="change->export#changeKind">
             <input type="radio" name="export-kind" value="directory" data-export-target="kindDirectoryRadio" data-action="change->export#changeKind">
@@ -56,7 +56,7 @@ describe('the archive modal, with the master', () => {
         $(selector).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     };
     const history = (): string[] => [...document.querySelectorAll<HTMLElement>('.mode-history a')].map((a) => a.dataset.path!);
-    const importRequests = (): unknown[][] => fetchMock.mock.calls.filter(([url]) => url === '/import/run');
+    const importRequests = (): unknown[][] => fetchMock.mock.calls.filter(([url]) => url === '/archive/import');
 
     async function start(mode: EditorState['mode'] = 'single', kind: 'file' | 'directory' = 'file'): Promise<void> {
         sessionStorage.setItem(HISTORY_KEY, JSON.stringify([]));

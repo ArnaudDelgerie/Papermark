@@ -14,7 +14,7 @@ export function masterHtml(state: EditorState = INITIAL, inner = ''): string {
         data-editor-state-urls-value="${attr({
             state: '/editor/state', mode: '/editor/mode', file: '/editor/file', dir: '/editor/dir',
             refreshDir: '/editor/dir/refresh', save: '/document/save', delete: '/document/delete', rename: '/document/rename',
-            setKey: '/settings/provider/__name__/key', deleteKey: '/settings/provider/__name__/key', import: '/import/run',
+            setKey: '/settings/provider/__name__/key', deleteKey: '/settings/provider/__name__/key', import: '/archive/import',
         })}"
         data-editor-state-token-value="tk-app"
         data-editor-state-i18n-value="${attr({ failed: 'Generic failure' })}">${inner}</div>`;

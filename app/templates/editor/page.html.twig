@@ -20,7 +20,7 @@
          rename: path('app_document_rename'),
          setKey: path('app_settings_set_key', {name: '__name__'}),
          deleteKey: path('app_settings_delete_key', {name: '__name__'}),
-         import: path('app_import_run'),
+         import: path('app_archive_import'),
      }|json_encode }}"
      data-editor-state-token-value="{{ csrf_token('papermark_app') }}"
      data-editor-state-i18n-value="{{ { failed: 'components.editor.error.request_failed'|trans({}, 'components') }|json_encode }}">

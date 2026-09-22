@@ -6,23 +6,51 @@ namespace App\Tests\Service\Archive;
 
 use App\Enum\Archive\ArchiveImportRefusalReason;
 use App\Enum\Setting\EditorMode;
+use App\Event\ArchiveImported;
 use App\Service\Archive\ArchiveImporter;
 use App\Exception\Archive\ArchiveImportRefusedException;
 use App\Service\Archive\ImportTargetResolver;
+use App\Service\Path\PathPolicy;
+use App\Service\Path\PathResolver;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Validator\Validation;
 
 final class ArchiveImporterTest extends TestCase
 {
     private string $workDir;
     private string $parentDir;
     private ArchiveImporter $importer;
+    private EventDispatcher $eventDispatcher;
+
+    /** @var object[] */
+    private array $dispatchedEvents = [];
 
     protected function setUp(): void
     {
         $this->workDir = sys_get_temp_dir() . '/archive_importer_test_' . uniqid();
         $this->parentDir = $this->workDir . '/parent';
         mkdir($this->parentDir, 0o777, true);
-        $this->importer = new ArchiveImporter(new ImportTargetResolver());
+
+        $this->eventDispatcher = new EventDispatcher();
+        $this->dispatchedEvents = [];
+        $this->eventDispatcher->addListener(ArchiveImported::class, function (object $event): void {
+            $this->dispatchedEvents[] = $event;
+        });
+
+        $this->importer = $this->makeImporter();
+    }
+
+    private function makeImporter(int $maxTotalEntries = 200_000, int $maxTotalUncompressedBytes = 200 * 1024 * 1024): ArchiveImporter
+    {
+        return new ArchiveImporter(
+            new PathPolicy(new PathResolver(new Filesystem(), Validation::createValidator())),
+            new ImportTargetResolver(),
+            $this->eventDispatcher,
+            $maxTotalEntries,
+            $maxTotalUncompressedBytes,
+        );
     }
 
     protected function tearDown(): void
@@ -41,6 +69,27 @@ final class ArchiveImporterTest extends TestCase
         self::assertSame(EditorMode::Single, $result->openMode);
         self::assertSame($result->destination . '/doc.md', $result->openPath);
         self::assertSame([], $result->ignoredEntries);
+
+        self::assertCount(1, $this->dispatchedEvents);
+        $event = $this->dispatchedEvents[0];
+        self::assertInstanceOf(ArchiveImported::class, $event);
+        self::assertSame($result->destination, $event->destination);
+        self::assertSame($result->openMode, $event->openMode);
+        self::assertSame($result->openPath, $event->openPath);
+    }
+
+    public function testArchiveImportedIsNotDispatchedWhenTheImportIsRefused(): void
+    {
+        $zipPath = $this->makeZip(['../escape.md' => '# Hello']);
+
+        try {
+            $this->importer->import($zipPath, $this->parentDir);
+            self::fail('Expected ArchiveImportRefusedException.');
+        } catch (ArchiveImportRefusedException) {
+            // expected
+        }
+
+        self::assertSame([], $this->dispatchedEvents);
     }
 
     public function testImportsDirectoryArchive(): void
@@ -182,7 +231,7 @@ final class ArchiveImporterTest extends TestCase
 
     public function testRefusesArchiveBeyondEntryCountLimit(): void
     {
-        $importer = new ArchiveImporter(new ImportTargetResolver(), maxTotalEntries: 1);
+        $importer = $this->makeImporter(maxTotalEntries: 1);
         $zipPath = $this->makeZip(['a.md' => 'a', 'b.md' => 'b']);
 
         try {
@@ -195,7 +244,7 @@ final class ArchiveImporterTest extends TestCase
 
     public function testRefusesArchiveBeyondSizeLimit(): void
     {
-        $importer = new ArchiveImporter(new ImportTargetResolver(), maxTotalUncompressedBytes: 5);
+        $importer = $this->makeImporter(maxTotalUncompressedBytes: 5);
         $zipPath = $this->makeZip(['a.md' => 'more than five bytes']);
 
         try {

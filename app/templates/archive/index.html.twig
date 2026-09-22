@@ -9,7 +9,7 @@
          data-export-initial-path-value="{{ initial_path }}"
          data-export-initial-directory-value="{{ initial_directory }}"
          data-export-csrf-token-value="{{ csrf_token('papermark_app') }}"
-         data-export-run-url-value="{{ path('app_export_run') }}"
+         data-export-run-url-value="{{ path('app_archive_export') }}"
          data-export-i18n-value="{{ export_i18n|json_encode }}">
         <h2>{{ 'components.export.title'|trans({}, 'components') }}</h2>
 

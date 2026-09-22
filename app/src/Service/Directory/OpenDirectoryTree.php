@@ -94,6 +94,24 @@ final readonly class OpenDirectoryTree
     }
 
     /**
+     * An import can add many files at once, unlike fileAdded(): the cached
+     * walk is simply forgotten when the new folder lands under the cached
+     * root, so the next build() walks it again.
+     */
+    public function dirAdded(string $path): void
+    {
+        $listing = $this->listing();
+        if ($listing === null) {
+            return;
+        }
+
+        $prefix = rtrim($listing['root'], '/') . '/';
+        if ($path === $listing['root'] || str_starts_with($path, $prefix)) {
+            $this->forget();
+        }
+    }
+
+    /**
      * `$path` is realpath'd by the caller, as is the cached root: a plain
      * prefix tells whether it is in the folder. Nothing to do past the
      * traversal cap, the tree isn't shown.
