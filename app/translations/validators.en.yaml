@@ -2,6 +2,9 @@ provider:
     model:
         too_long: 'The model name is too long (255 characters at most).'
         invalid: 'The model name contains characters that are not allowed.'
+setting:
+    key:
+        blank: 'No API key provided'
 document:
     path:
         blank: 'No file path provided'

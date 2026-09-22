@@ -1,7 +1,6 @@
 exceptions:
-    request:
-        no_key: Aucune clé API fournie
-        request_failed: "L'action a échoué, veuillez réessayer"
+    form:
+        not_submitted: "L'action a échoué, veuillez réessayer"
     path:
         not_found: Chemin introuvable
         is_symlink: Un lien symbolique ne peut pas être modifié

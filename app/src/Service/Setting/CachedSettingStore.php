@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Service\Setting;
 
 use App\Entity\Setting;
 use App\Enum\ProviderName;

@@ -1,7 +1,6 @@
 exceptions:
-    request:
-        no_key: No API key provided
-        request_failed: The action failed, please try again
+    form:
+        not_submitted: The action failed, please try again
     path:
         not_found: Path not found
         is_symlink: A symbolic link cannot be modified

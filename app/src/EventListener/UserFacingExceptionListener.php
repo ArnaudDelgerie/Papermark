@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\EventListener;
 
 use App\Service\Editor\EditorState;
+use App\Exception\FormRefusedException;
 use App\Interface\UserFacingExceptionInterface;
 use App\Response\StateErrorResponse;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -73,6 +74,28 @@ final class UserFacingExceptionListener
             $this->editorState,
             [],
             $mappedErrors,
+            $throwable->getStatusCode(),
+            $throwable->getHeaders(),
+        ));
+    }
+
+    /**
+     * A server-rendered form refused a submission: its messages are already
+     * translated, unlike onUserFacingException's single key.
+     */
+    #[AsEventListener(event: KernelEvents::EXCEPTION, priority: -64)]
+    public function onFormRefused(ExceptionEvent $event): void
+    {
+        $throwable = $event->getThrowable();
+        $exception = $throwable->getPrevious();
+        if (!$throwable instanceof HttpExceptionInterface || !$exception instanceof FormRefusedException) {
+            return;
+        }
+
+        $event->setResponse(new StateErrorResponse(
+            $this->editorState,
+            $exception->genericErrors,
+            $exception->mappedErrors,
             $throwable->getStatusCode(),
             $throwable->getHeaders(),
         ));

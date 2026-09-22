@@ -9,7 +9,7 @@ use App\Enum\ProviderName;
 use App\Enum\Setting\AppLocale;
 use App\Enum\Setting\EditorMode;
 use App\Enum\Setting\ThemeMode;
-use App\Service\CachedSettingStore;
+use App\Service\Setting\CachedSettingStore;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /**

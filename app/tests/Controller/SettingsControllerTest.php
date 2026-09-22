@@ -197,6 +197,9 @@ final class SettingsControllerTest extends WebTestCase
         $this->client->request('POST', '/settings', [], [], ['HTTP_ORIGIN' => 'http://localhost']);
 
         self::assertResponseStatusCodeSame(422);
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame(['The action failed, please try again'], $body['genericErrors']);
+        self::assertSame([], $body['mappedErrors']);
     }
 
     public function testSaveRecomputesAiEnabled(): void
@@ -243,7 +246,10 @@ final class SettingsControllerTest extends WebTestCase
         $this->client->request('POST', '/settings/provider/mistral/key', ['key' => '  '], [], $this->tokenHeader());
         self::assertResponseStatusCodeSame(422);
         $body = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertNotEmpty($body['genericErrors']);
+        self::assertSame([], $body['genericErrors']);
+        self::assertCount(1, $body['mappedErrors']);
+        self::assertSame('key', $body['mappedErrors'][0]['field']);
+        self::assertSame('No API key provided', $body['mappedErrors'][0]['message']);
         self::assertArrayHasKey('state', $body);
 
         $this->client->request('POST', '/settings/provider/mistral/key', ['key' => 'k'], [], ['HTTP_X-CSRF-TOKEN' => 'invalid', 'HTTP_ORIGIN' => 'http://localhost']);
@@ -303,6 +309,13 @@ final class SettingsControllerTest extends WebTestCase
     {
         $this->client->request('POST', '/settings/theme', ['theme' => 'pink'], [], $this->tokenHeader());
         self::assertResponseStatusCodeSame(422);
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('theme', $body['mappedErrors'][0]['field']);
+
+        $this->client->request('POST', '/settings/theme', [], [], $this->tokenHeader());
+        self::assertResponseStatusCodeSame(422);
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('theme', $body['mappedErrors'][0]['field']);
 
         $this->client->request('POST', '/settings/theme', ['theme' => 'light'], [], ['HTTP_X-CSRF-TOKEN' => 'invalid', 'HTTP_ORIGIN' => 'http://localhost']);
         self::assertResponseStatusCodeSame(403);
@@ -321,6 +334,11 @@ final class SettingsControllerTest extends WebTestCase
     public function testLocaleRefusesAnUnknownValueAndAnInvalidToken(): void
     {
         $this->client->request('POST', '/settings/locale', ['locale' => 'xx', '_token' => $this->token()], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        self::assertResponseStatusCodeSame(422);
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('locale', $body['mappedErrors'][0]['field']);
+
+        $this->client->request('POST', '/settings/locale', ['_token' => $this->token()], [], ['HTTP_ORIGIN' => 'http://localhost']);
         self::assertResponseStatusCodeSame(422);
 
         $this->client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => 'invalid'], [], ['HTTP_ORIGIN' => 'http://localhost']);
