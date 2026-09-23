@@ -1335,6 +1335,16 @@ describe('the editor, with the master', () => {
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
         });
 
+        it('Ctrl+S works with Caps Lock on', async () => {
+            await start(current);
+            host.type('# A, edited');
+
+            key('S');
+            await settle();
+
+            expect(calls('POST', '/document/save')).toHaveLength(1);
+        });
+
         it('Ctrl+S with Save disabled does nothing, but is still prevented', async () => {
             await start(current);
 

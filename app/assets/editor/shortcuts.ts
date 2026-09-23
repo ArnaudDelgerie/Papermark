@@ -27,9 +27,11 @@ export default class EditorShortcuts {
             return;
         }
 
-        const button = event.key === 's'
+        // Caps Lock turns the key upper case; Shift is already ruled out.
+        const key = event.key.toLowerCase();
+        const button = key === 's'
             ? this.#buttons.save
-            : event.key === 'n'
+            : key === 'n'
                 ? this.#buttons.newFile
                 : null;
         if (button === null) {
