@@ -81,6 +81,24 @@ function fakeCrepe(config: Record<string, unknown>): FakeCrepe {
         markdown = value;
         listeners.forEach((listener) => listener(null, value));
     };
+    /**
+     * The .milkdown container around .ProseMirror, as the real Crepe mounts
+     * it. `replace` is what a flush does: every plugin view is recreated,
+     * Milkdown's mounting one too, so the container — and whatever wrapped
+     * its .ProseMirror — is replaced by a fresh one.
+     */
+    const mount = (replace = false): void => {
+        const root = config.root as Element;
+        if (replace) {
+            root.querySelectorAll(':scope > .milkdown').forEach((container) => container.remove());
+        }
+        const container = document.createElement('div');
+        container.className = 'milkdown';
+        const prosemirror = document.createElement('div');
+        prosemirror.className = 'ProseMirror';
+        container.append(prosemirror);
+        root.append(container);
+    };
 
     const fake: FakeCrepe = {
         config,
@@ -101,22 +119,20 @@ function fakeCrepe(config: Record<string, unknown>): FakeCrepe {
                 if (typeof command === 'function') {
                     (command as (ctx: unknown) => void)(ctx);
                 } else if ((command as { replaceAll?: string } | undefined)?.replaceAll !== undefined) {
-                    flushes.push((command as { flush?: boolean }).flush ?? false);
+                    const flush = (command as { flush?: boolean }).flush ?? false;
+                    flushes.push(flush);
                     set((command as { replaceAll: string }).replaceAll);
+                    if (flush) {
+                        mount(true);
+                    }
                 }
             },
             config: vi.fn(),
         },
-        // Mounts the same shape as the real Crepe: a .milkdown container
-        // around .ProseMirror, so #wrapScroll() and the cleanup before a
-        // rebuild (":scope > .milkdown") have something real to work on.
+        // A new Crepe adds its own container and leaves any previous one
+        // alone, as the real one does: removing it is the host's job.
         create: vi.fn(async () => {
-            const container = document.createElement('div');
-            container.className = 'milkdown';
-            const prosemirror = document.createElement('div');
-            prosemirror.className = 'ProseMirror';
-            container.append(prosemirror);
-            (config.root as Element).append(container);
+            mount();
 
             return fake.editor;
         }),

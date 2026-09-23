@@ -771,6 +771,26 @@ describe('the editor, with the master', () => {
         });
     });
 
+    describe('a teardown before the state arrives', () => {
+        it('tears the host down without throwing', async () => {
+            const errors: unknown[] = [];
+            // No editor-state controller registered: the outlet never
+            // connects, so connect() is still waiting on the state.
+            application = await mount(masterHtml(current, editorHtml()), { 'editor': EditorController });
+            application.handleError = (error) => errors.push(error);
+            // disconnect() re-initializes the controller, which builds a new
+            // host: the torn-down one is the one held now.
+            const torn = host;
+
+            document.body.innerHTML = '';
+            await settle();
+
+            expect(errors).toEqual([]);
+            expect(torn.destroy).toHaveBeenCalledTimes(1);
+            expect(torn.create).not.toHaveBeenCalled();
+        });
+    });
+
     describe('the leave guard', () => {
         it('lets nothing through while unsaved work is not given up', async () => {
             vi.mocked(confirmDialog).mockResolvedValue(false);

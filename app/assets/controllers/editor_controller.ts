@@ -170,17 +170,9 @@ export default class extends Controller<HTMLElement> {
     initialize(): void {
         this.#crepeReady = new Promise((resolve) => (this.#resolveCrepe = resolve));
         this.#stateReady = new Promise((resolve) => (this.#resolveState = resolve));
-    }
-
-    // FRT-11, lot Front éditeur: Stimulus never awaits connect(); a rejection
-    // leaves the editor empty with no message.
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    async connect(): Promise<void> {
-        this.#isReadonly = this.readonlyValue;
-
-        const { ai_enabled: aiEnabled } = await this.#stateReady;
-        this.#connectAiClient(aiEnabled);
-
+        // Built here, not in connect(): connect() waits for the state before
+        // creating Crepe, and the element can be gone by then — disconnect()
+        // must still have a host to tear down.
         this.#host = new CrepeHost(this.element, this.i18nValue, {
             onInsertImage: () => void this.#insertImageFromPicker(),
             onCopyCode: (text) => void this.#copyCode(text),
@@ -193,6 +185,17 @@ export default class extends Controller<HTMLElement> {
             this.#updateCopyMarkdownButton(markdown);
             this.#updateDirtyIndicator(markdown);
         });
+    }
+
+    // FRT-11, lot Front éditeur: Stimulus never awaits connect(); a rejection
+    // leaves the editor empty with no message.
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    async connect(): Promise<void> {
+        this.#isReadonly = this.readonlyValue;
+
+        const { ai_enabled: aiEnabled } = await this.#stateReady;
+        this.#connectAiClient(aiEnabled);
+
         await this.#host.create({ aiEnabled, aiProvider: this.#aiClient?.createProvider() });
 
         // A new document is clean: capture the empty editor's markdown as the
@@ -347,6 +350,9 @@ export default class extends Controller<HTMLElement> {
 
     /** The AI client, once the hub and topic are known: only with AI on. */
     #connectAiClient(aiEnabled: boolean): void {
+        // A client is kept only while the AI is on: the caller has closed the
+        // previous one, and nothing must be able to reach it afterwards.
+        this.#aiClient = null;
         const { mercureUrl, topic } = this.aiConfigValue;
         if (!aiEnabled || mercureUrl === undefined || topic === undefined) {
             return;

@@ -155,6 +155,10 @@ export default class CrepeHost {
      * in the hub's WebKitGTK (no overflow-anchor), ProseMirror keeps a
      * reference node in place across the replacement and scrolls every
      * parent a few pixels down.
+     *
+     * The flush recreates every plugin view, Milkdown's mounting one too:
+     * .milkdown is rebuilt, the scroll wrapper goes with it, and a new one
+     * starts at the top.
      */
     replace(markdown: string): void {
         if (this.#crepe === null) {
