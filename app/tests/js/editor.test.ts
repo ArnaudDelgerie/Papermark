@@ -750,6 +750,18 @@ describe('the editor, with the master', () => {
             expect((calls('POST', '/document/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
         });
 
+        it('a different revision keeps the stored draft while the dialog waits, so a reload then still finds it', async () => {
+            vi.mocked(draftConflictDialog).mockReturnValue(new Promise(() => {}));
+            const stored = { path: '/notes/a.md', markdown: '# A, edited', revision: 'r_stale' };
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify(stored));
+
+            await start(current);
+
+            expect(draftConflictDialog).toHaveBeenCalled();
+            expect(host.markdown()).toBe('# A');
+            expect(draft()).toEqual(stored);
+        });
+
         it('a different revision, Reprendre la version du disque drops the draft', async () => {
             vi.mocked(draftConflictDialog).mockResolvedValue('use_disk');
             sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r_stale' }));
@@ -759,6 +771,35 @@ describe('the editor, with the master', () => {
             expect(host.markdown()).toBe('# A');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
             expect(draft()).toBeNull();
+        });
+
+        it('keeps the draft through a failed load, and restores it on Retry', async () => {
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r0' }));
+            fetchMock.mockImplementation(async () => jsonResponse({}, 500));
+            await start(current);
+
+            expect(draft()).toEqual({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r0' });
+
+            server();
+            click('[data-action="click->editor#retryLoad"]');
+            await settle();
+
+            expect(host.markdown()).toBe('# A, edited');
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.draftRestored }]);
+        });
+
+        it('leaving after a failed load drops the draft, and the next edits get their own', async () => {
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r0' }));
+            fetchMock.mockImplementation(async () => jsonResponse({}, 500));
+            await start(current);
+
+            emit('editor:nav-new_file-requested', { action: {} });
+
+            expect(draft()).toBeNull();
+
+            host.type('# New');
+
+            expect(draft()).toEqual({ path: null, markdown: '# New', revision: null });
         });
 
         it('restores an untitled draft when there is no current file', async () => {

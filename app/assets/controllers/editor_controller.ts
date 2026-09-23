@@ -467,7 +467,7 @@ export default class extends Controller<HTMLElement> {
      * lands, or until it fails into the explicit error state (FRT-04, lot 03).
      */
     #beginLoad(): void {
-        this.#reset();
+        this.#reset(true);
         this.#loadingFile = true;
         this.#applyEditable();
         void this.#loadCurrentFile();
@@ -493,7 +493,7 @@ export default class extends Controller<HTMLElement> {
             const result = await request<FileResponse>(this.urlsValue.file, { signal: fileRequest.signal });
 
             if (result.status === 404) {
-                this.#reset();
+                this.#reset(true);
                 if (loadingPath !== null) {
                     emit('editor:state-anomaly-reported', { anomaly: { file: loadingPath } });
                 }
@@ -557,14 +557,18 @@ export default class extends Controller<HTMLElement> {
         this.#updatePrintButton(this.#savedRef);
         this.#updateCopyMarkdownButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
-        this.#syncDraft(this.#savedRef);
         this.#updateFilePath();
 
         // A draft for exactly this file, read at startup (lot 04-brouillon.md).
+        // It stays pending, and the stored copy untouched, until
+        // #restoreDraft() has settled: a reload while its dialog is open
+        // must still find it.
         const draft = this.#pendingDraft;
-        this.#pendingDraft = null;
         if (draft !== null && draft.path === path) {
             void this.#restoreDraft(draft);
+        } else {
+            this.#pendingDraft = null;
+            this.#syncDraft(this.#savedRef);
         }
     }
 
@@ -584,8 +588,15 @@ export default class extends Controller<HTMLElement> {
     /**
      * Empties the editor, with no call to the server: the state already has
      * no current file, or is about to.
+     *
+     * Every way out of the document drops the draft read at startup (lot
+     * 04-brouillon.md) — leaving is an intention — except the load of the
+     * file it may belong to ($keepPendingDraft), which it waits for.
      */
-    #reset(): void {
+    #reset(keepPendingDraft = false): void {
+        if (!keepPendingDraft) {
+            this.#pendingDraft = null;
+        }
         // Last action wins: a file still loading must not replace the new one.
         this.#fileRequest?.abort();
         this.#loadingFile = false;
@@ -772,6 +783,12 @@ export default class extends Controller<HTMLElement> {
      * would be written under does.
      */
     #syncDraft(markdown?: string): void {
+        // The draft read at startup owns the stored copy until it is
+        // restored or abandoned: #reset() and the load before it would
+        // otherwise clear it, and a reload in between would lose it.
+        if (this.#pendingDraft !== null) {
+            return;
+        }
         const current = markdown ?? this.#host.markdown();
         if (this.#isDirty(current)) {
             writeDraft({ path: this.#currentPath, markdown: current, revision: this.#revision });
@@ -785,10 +802,12 @@ export default class extends Controller<HTMLElement> {
      * revision restores at once; a different one — the file changed on disk
      * since — asks before the user resumes editing. Keeping the draft adopts
      * the disk's revision, so the next Save has nothing to conflict with;
-     * using the disk drops it, already the clean document just loaded.
+     * using the disk drops it, back to the clean document just loaded. The
+     * stored draft is only rewritten or cleared once the choice is made.
      */
     async #restoreDraft(draft: Draft): Promise<void> {
         if (draft.revision === this.#revision) {
+            this.#pendingDraft = null;
             this.#applyDraftText(draft.markdown);
             showToast('success', this.i18nValue.toast.draftRestored);
 
@@ -801,8 +820,11 @@ export default class extends Controller<HTMLElement> {
             useDiskLabel: this.i18nValue.draftConflict.useDisk,
         });
 
+        this.#pendingDraft = null;
         if (choice === 'keep_draft') {
             this.#applyDraftText(draft.markdown);
+        } else {
+            clearDraft();
         }
     }
 
