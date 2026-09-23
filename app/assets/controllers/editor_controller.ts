@@ -1,12 +1,14 @@
 import { Controller } from '@hotwired/stimulus';
 import AiClient from '../editor/ai-client';
 import CrepeHost, { type CrepeI18n } from '../editor/crepe-host';
+import { type Draft, clearDraft, readDraft, writeDraft } from '../editor/draft';
 import { type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
 import LeaveGuard from '../editor/leave-guard';
 import PrintCopy from '../editor/print-copy';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { saveConflictDialog } from '../utils/conflict-dialog';
+import { draftConflictDialog } from '../utils/draft-conflict-dialog';
 import { request } from '../utils/http';
 import { pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
@@ -53,7 +55,9 @@ export interface I18n extends CrepeI18n {
         currentFileDeleted: string;
         currentFileGone: string;
         fileNotFound: string;
+        draftRestored: string;
     };
+    draftConflict: { question: string; keepDraft: string; useDisk: string };
     ai: CrepeI18n['ai'] & { requestFailed: string };
 }
 
@@ -152,6 +156,11 @@ export default class extends Controller<HTMLElement> {
     // The revision of the loaded file, as GET /editor/file gave it: save()
     // sends it back, and the server refuses a write on a stale one (409).
     #revision: string | null = null;
+    // Read once, in initialize() — before #reset() or anything else can touch
+    // sessionStorage — and consumed at most once, by whichever of startup's
+    // paths turns out to match its path: the load that follows, or directly
+    // here for an untitled one (lot 04-brouillon.md). Never read again after.
+    #pendingDraft: Draft | null = null;
     // From the moment the editor empties for a load until the file lands:
     // the document is not editable meanwhile (FRT-04).
     #loadingFile = false;
@@ -166,6 +175,7 @@ export default class extends Controller<HTMLElement> {
     #print!: PrintCopy;
 
     initialize(): void {
+        this.#pendingDraft = readDraft();
         this.#crepeReady = new Promise((resolve) => (this.#resolveCrepe = resolve));
         this.#stateReady = new Promise((resolve) => (this.#resolveState = resolve));
         // Built here, not in connect(): connect() waits for the state before
@@ -182,6 +192,7 @@ export default class extends Controller<HTMLElement> {
             this.#updatePrintButton(markdown);
             this.#updateCopyMarkdownButton(markdown);
             this.#updateDirtyIndicator(markdown);
+            this.#syncDraft(markdown);
         });
         this.#guard = new LeaveGuard(this.i18nValue.unsaved, {
             shouldConfirm: () => this.#shouldConfirmLeave(),
@@ -245,8 +256,21 @@ export default class extends Controller<HTMLElement> {
         this.#resolveState({ ...state });
         await this.#crepeReady;
         this.#syncDirectory(state);
+
+        // A draft for another path (or an untitled one against a current
+        // file, or the reverse) isn't this document's: abandoned at once
+        // rather than kept for a load it doesn't belong to (lot 04-brouillon.md).
+        if (this.#pendingDraft !== null && this.#pendingDraft.path !== state.file) {
+            clearDraft();
+            this.#pendingDraft = null;
+        }
+
         if (state.file !== null) {
             this.#beginLoad();
+        } else if (this.#pendingDraft !== null) {
+            const draft = this.#pendingDraft;
+            this.#pendingDraft = null;
+            this.#restoreUntitledDraft(draft.markdown);
         }
     }
 
@@ -323,6 +347,7 @@ export default class extends Controller<HTMLElement> {
                 }
                 this.#currentPath = action.newPath;
                 this.#updateSaveButton(this.#host.markdown());
+                this.#syncDraft();
                 this.#updateFilePath();
             }),
 
@@ -398,6 +423,11 @@ export default class extends Controller<HTMLElement> {
         this.#updatePrintButton(this.#host.markdown());
         this.#updateCopyMarkdownButton(this.#host.markdown());
         this.#updateDirtyIndicator();
+        // onChange already ran #syncDraft() once, against #savedRef as it
+        // stood before the adjustment above: redone here against the
+        // corrected one, or a clean document could be left with a stale
+        // draft (lot 04-brouillon.md).
+        this.#syncDraft();
     }
 
     toggleReadonly(): void {
@@ -467,7 +497,17 @@ export default class extends Controller<HTMLElement> {
                 if (loadingPath !== null) {
                     emit('editor:state-anomaly-reported', { anomaly: { file: loadingPath } });
                 }
-                showToast('error', result.data?.genericErrors?.[0] || this.i18nValue.toast.fileNotFound);
+
+                // A draft for this now-gone path returns as an untitled
+                // document, same as any other anomaly (lot 04-brouillon.md);
+                // otherwise the usual "not found" toast.
+                const draft = this.#pendingDraft;
+                this.#pendingDraft = null;
+                if (draft !== null && draft.path === loadingPath) {
+                    this.#restoreUntitledDraft(draft.markdown);
+                } else {
+                    showToast('error', result.data?.genericErrors?.[0] || this.i18nValue.toast.fileNotFound);
+                }
 
                 return;
             }
@@ -517,7 +557,15 @@ export default class extends Controller<HTMLElement> {
         this.#updatePrintButton(this.#savedRef);
         this.#updateCopyMarkdownButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
+        this.#syncDraft(this.#savedRef);
         this.#updateFilePath();
+
+        // A draft for exactly this file, read at startup (lot 04-brouillon.md).
+        const draft = this.#pendingDraft;
+        this.#pendingDraft = null;
+        if (draft !== null && draft.path === path) {
+            void this.#restoreDraft(draft);
+        }
     }
 
     /**
@@ -555,6 +603,7 @@ export default class extends Controller<HTMLElement> {
         this.#updatePrintButton(this.#savedRef);
         this.#updateCopyMarkdownButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
+        this.#syncDraft(this.#savedRef);
         this.#updateFilePath();
     }
 
@@ -627,6 +676,7 @@ export default class extends Controller<HTMLElement> {
         this.#revision = revision;
         this.#updateSaveButton(this.#host.markdown());
         this.#updateDirtyIndicator();
+        this.#syncDraft();
         showToast('success', message);
     }
 
@@ -706,12 +756,78 @@ export default class extends Controller<HTMLElement> {
         this.#savedRef = '';
         this.#updateSaveButton(this.#host.markdown());
         this.#updateDirtyIndicator();
+        this.#syncDraft();
         this.#updateFilePath();
         showToast('error', message);
     }
 
     #fileGoneMessage(template: string, path: string): string {
         return template.replace('{name}', basename(path));
+    }
+
+    /**
+     * The single rule of lot 04-brouillon.md: a modified document keeps a
+     * draft, a clean one doesn't. Called from onChange and from every other
+     * place the modified state changes, or the identity (path, revision) it
+     * would be written under does.
+     */
+    #syncDraft(markdown?: string): void {
+        const current = markdown ?? this.#host.markdown();
+        if (this.#isDirty(current)) {
+            writeDraft({ path: this.#currentPath, markdown: current, revision: this.#revision });
+        } else {
+            clearDraft();
+        }
+    }
+
+    /**
+     * A draft for the file just loaded (lot 04-brouillon.md). The same
+     * revision restores at once; a different one — the file changed on disk
+     * since — asks before the user resumes editing. Keeping the draft adopts
+     * the disk's revision, so the next Save has nothing to conflict with;
+     * using the disk drops it, already the clean document just loaded.
+     */
+    async #restoreDraft(draft: Draft): Promise<void> {
+        if (draft.revision === this.#revision) {
+            this.#applyDraftText(draft.markdown);
+            showToast('success', this.i18nValue.toast.draftRestored);
+
+            return;
+        }
+
+        const choice = await draftConflictDialog({
+            question: this.i18nValue.draftConflict.question,
+            keepDraftLabel: this.i18nValue.draftConflict.keepDraft,
+            useDiskLabel: this.i18nValue.draftConflict.useDisk,
+        });
+
+        if (choice === 'keep_draft') {
+            this.#applyDraftText(draft.markdown);
+        }
+    }
+
+    /**
+     * A draft with no path, or one whose file turned out gone: comes back as
+     * an untitled document, unsaved — same shape as the anomaly of lot 03
+     * (#currentFileGone), the copy on screen is the only one left.
+     */
+    #restoreUntitledDraft(markdown: string): void {
+        this.#currentPath = null;
+        this.#revision = null;
+        this.#savedRef = '';
+        this.#applyDraftText(markdown);
+        this.#updateFilePath();
+        showToast('success', this.i18nValue.toast.draftRestored);
+    }
+
+    #applyDraftText(markdown: string): void {
+        this.#host.replace(markdown);
+        this.#applyEditable();
+        this.#updateSaveButton(markdown);
+        this.#updatePrintButton(markdown);
+        this.#updateCopyMarkdownButton(markdown);
+        this.#updateDirtyIndicator(markdown);
+        this.#syncDraft(markdown);
     }
 
     printFile(): void {

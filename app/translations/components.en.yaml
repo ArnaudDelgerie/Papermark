@@ -62,6 +62,11 @@ components:
             current_file_deleted: '"{name}" has been deleted: its content stays open, unsaved. Save it under another name to keep it.'
             current_file_gone: '"{name}" no longer exists: its content stays open, unsaved. Save it under another name to keep it.'
             file_not_found: File not found
+            draft_restored: Unsaved changes recovered
+        draft_conflict:
+            question: The file was modified on disk since your draft. What should happen to your unsaved changes?
+            keep_draft: Keep my draft
+            use_disk: Use the version on disk
         ai:
             ask_ai: Ask AI
             instruction_placeholder: Tell AI what to do with the selection…

@@ -93,6 +93,12 @@ final class Editor
                 'currentFileDeleted' => $this->trans('toast.current_file_deleted'),
                 'currentFileGone' => $this->trans('toast.current_file_gone'),
                 'fileNotFound' => $this->trans('toast.file_not_found'),
+                'draftRestored' => $this->trans('toast.draft_restored'),
+            ],
+            'draftConflict' => [
+                'question' => $this->trans('draft_conflict.question'),
+                'keepDraft' => $this->trans('draft_conflict.keep_draft'),
+                'useDisk' => $this->trans('draft_conflict.use_disk'),
             ],
             'ai' => [
                 'askAi' => $this->trans('ai.ask_ai'),

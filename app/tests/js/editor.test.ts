@@ -7,6 +7,7 @@ import CrepeHost from '../../assets/editor/crepe-host';
 import { type EditorState, emit, on } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { saveConflictDialog } from '../../assets/utils/conflict-dialog';
+import { draftConflictDialog } from '../../assets/utils/draft-conflict-dialog';
 import { INITIAL, attr, masterHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
 import EDITOR_I18N from '../contract/i18n/editor.json';
@@ -14,6 +15,9 @@ import EDITOR_I18N from '../contract/i18n/editor.json';
 vi.mock('../../assets/editor/crepe-host', () => ({ default: vi.fn() }));
 vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
 vi.mock('../../assets/utils/conflict-dialog', () => ({ saveConflictDialog: vi.fn() }));
+vi.mock('../../assets/utils/draft-conflict-dialog', () => ({ draftConflictDialog: vi.fn() }));
+
+const DRAFT_KEY = 'editor.draft';
 
 // How the next recreate() serializes the markdown it carries over; reset in
 // beforeEach, reassignable per test.
@@ -154,6 +158,11 @@ describe('the editor, with the master', () => {
         $(selector).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     };
     const label = (): string | null => $('[data-editor-target="filePath"]').textContent;
+    const draft = (): unknown => {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+
+        return raw === null ? null : JSON.parse(raw);
+    };
     const saveButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="saveButton"]');
     const saveAsButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="saveAsButton"]');
     const printButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="printButton"]');
@@ -257,6 +266,7 @@ describe('the editor, with the master', () => {
         await unmount(application);
         window.removeEventListener('toast:show', onToast);
         delete window.__TAURI__;
+        sessionStorage.clear();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
@@ -655,6 +665,162 @@ describe('the editor, with the master', () => {
 
             expect(host.markdown()).toBe('');
             expect(label()).toBe('Untitled');
+        });
+    });
+
+    describe('the draft, across a reload (lot 04-brouillon.md)', () => {
+        it('writes the draft as the document changes, and clears it back at the saved text', async () => {
+            await start(current);
+            host.type('# A, edited');
+
+            expect(draft()).toEqual({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r0' });
+
+            host.type('# A');
+
+            expect(draft()).toBeNull();
+        });
+
+        it('a successful save clears the draft', async () => {
+            await start(current);
+            host.type('# A, edited');
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(draft()).toBeNull();
+        });
+
+        it('New clears the draft', async () => {
+            await start(current);
+            host.type('# A, edited');
+
+            emit('editor:nav-new_file-requested', { action: {} });
+
+            expect(draft()).toBeNull();
+        });
+
+        it('reading the file again for a keystroke during an in-flight save keeps the draft, with the new revision', async () => {
+            await start(current);
+            host.type('# A, edited');
+            let answer!: (response: Response) => void;
+            fetchMock.mockImplementation((url: string) => url === '/document/save'
+                ? new Promise((resolve) => { answer = resolve; })
+                : Promise.reject(new Error(`Unexpected ${url}`)));
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+            host.type('# A, edited more');
+
+            answer(jsonResponse({ state: current, action: { path: '/notes/a.md', revision: 'r1' } }));
+            await settle();
+
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+            expect(draft()).toEqual({ path: '/notes/a.md', markdown: '# A, edited more', revision: 'r1' });
+        });
+
+        it('restores a draft of the same revision at once, with a toast', async () => {
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r0' }));
+
+            await start(current);
+
+            expect(host.markdown()).toBe('# A, edited');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+            expect(saveButton().disabled).toBe(false);
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.draftRestored }]);
+        });
+
+        it('a different revision asks first, and Garder mon brouillon adopts the disk revision', async () => {
+            vi.mocked(draftConflictDialog).mockResolvedValue('keep_draft');
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r_stale' }));
+
+            await start(current);
+
+            expect(draftConflictDialog).toHaveBeenCalledWith({
+                question: EDITOR_I18N.draftConflict.question,
+                keepDraftLabel: EDITOR_I18N.draftConflict.keepDraft,
+                useDiskLabel: EDITOR_I18N.draftConflict.useDisk,
+            });
+            expect(host.markdown()).toBe('# A, edited');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+
+            // Kept vs the stale revision, so the next Save conflicts with nothing.
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect((calls('POST', '/document/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
+        });
+
+        it('a different revision, Reprendre la version du disque drops the draft', async () => {
+            vi.mocked(draftConflictDialog).mockResolvedValue('use_disk');
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r_stale' }));
+
+            await start(current);
+
+            expect(host.markdown()).toBe('# A');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+            expect(draft()).toBeNull();
+        });
+
+        it('restores an untitled draft when there is no current file', async () => {
+            current = { ...current, file: null };
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: null, markdown: 'scratch', revision: null }));
+
+            await start(current);
+
+            expect(host.markdown()).toBe('scratch');
+            expect(label()).toBe('Untitled');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.draftRestored }]);
+        });
+
+        it('a draft of a file gone by the first read restores as untitled instead of the not-found toast', async () => {
+            delete files['/notes/a.md'];
+            const resynced = vi.fn();
+            on('editor:state-resynced', resynced);
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: 'lost work', revision: 'r0' }));
+
+            await start(current);
+            await settle();
+
+            expect(host.markdown()).toBe('lost work');
+            expect(label()).toBe('Untitled');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.draftRestored }]);
+            expect(resynced).toHaveBeenCalledWith({ state: { ...INITIAL, file: null }, anomaly: { file: '/notes/a.md' } });
+        });
+
+        it('abandons a draft of another path than the current file', async () => {
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/other.md', markdown: 'x', revision: 'r0' }));
+
+            await start(current);
+
+            expect(host.markdown()).toBe('# A');
+            expect(toasts).toEqual([]);
+            expect(draft()).toBeNull();
+        });
+
+        it('ignores an unreadable draft and loads normally', async () => {
+            sessionStorage.setItem(DRAFT_KEY, '{not json');
+
+            await start(current);
+
+            expect(host.markdown()).toBe('# A');
+            expect(toasts).toEqual([]);
+        });
+
+        it('keeps working when sessionStorage throws', async () => {
+            vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+                throw new Error('unavailable');
+            });
+            vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+                throw new Error('unavailable');
+            });
+
+            await start(current);
+            host.type('# A, edited');
+
+            expect(host.markdown()).toBe('# A, edited');
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(false);
         });
     });
 

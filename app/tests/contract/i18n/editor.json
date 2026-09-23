@@ -36,8 +36,10 @@
         "copyCodeFailed": "Failed to copy code",
         "currentFileDeleted": "\"{name}\" has been deleted: its content stays open, unsaved. Save it under another name to keep it.",
         "currentFileGone": "\"{name}\" no longer exists: its content stays open, unsaved. Save it under another name to keep it.",
-        "fileNotFound": "File not found"
+        "fileNotFound": "File not found",
+        "draftRestored": "Unsaved changes recovered"
     },
+    "draftConflict": { "question": "The file was modified on disk since your draft. What should happen to your unsaved changes?", "keepDraft": "Keep my draft", "useDisk": "Use the version on disk" },
     "ai": {
         "askAi": "Ask AI",
         "instructionPlaceholder": "Tell AI what to do with the selection…",

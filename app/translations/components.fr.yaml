@@ -62,6 +62,11 @@ components:
             current_file_deleted: '« {name} » a été supprimé : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
             current_file_gone: '« {name} » n''existe plus : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
             file_not_found: Fichier introuvable
+            draft_restored: Modifications non enregistrées récupérées
+        draft_conflict:
+            question: Le fichier a été modifié sur le disque depuis votre brouillon. Que faire de vos modifications non enregistrées ?
+            keep_draft: Garder mon brouillon
+            use_disk: Reprendre la version du disque
         ai:
             ask_ai: Demander à l'IA
             instruction_placeholder: Indiquez à l'IA quoi faire avec la sélection…
