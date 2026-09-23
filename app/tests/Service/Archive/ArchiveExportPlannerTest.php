@@ -7,6 +7,8 @@ namespace App\Tests\Service\Archive;
 use App\Enum\Archive\ExportIssueReason;
 use App\Service\Archive\ArchiveExportPlanner;
 use App\Dto\Archive\ExportEntry;
+use App\Service\MarkdownDestinationWriter;
+use App\Service\MarkdownReferenceRewriter;
 use App\Service\MarkdownReferenceScanner;
 use App\Service\Path\PathResolver;
 use PHPUnit\Framework\TestCase;
@@ -106,7 +108,7 @@ final class ArchiveExportPlannerTest extends TestCase
         try {
             $plan = $this->planner()->plan($this->root, false);
 
-            self::assertSame('![alt](ext_img/photo (1).png)', $this->entry($plan, 'doc.md')->content);
+            self::assertSame('![alt](<ext_img/photo (1).png>)', $this->entry($plan, 'doc.md')->content);
             self::assertNotNull($this->findEntry($plan, 'ext_img/photo (1).png'));
         } finally {
             $this->removeDirectory($externalRoot);
@@ -132,7 +134,7 @@ final class ArchiveExportPlannerTest extends TestCase
         $plan = $this->planner()->plan($this->root . '/a/doc.md', false);
 
         self::assertSame(
-            '![a](ext_img/photo.png) ![b](ext_img/photo (1).png)',
+            '![a](ext_img/photo.png) ![b](<ext_img/photo (1).png>)',
             $this->entry($plan, 'doc.md')->content,
         );
     }
@@ -280,6 +282,51 @@ final class ArchiveExportPlannerTest extends TestCase
         self::assertNotNull($this->findEntry($plan, 'img/photo.png'));
     }
 
+    public function testEmbedsAPercentEncodedAndAUnicodeImagePath(): void
+    {
+        $this->write('doc.md', "![a](./img/my%20pic.png) ![b](<./img/Capture d'écran.png>)");
+        $this->write('img/my pic.png', 'A');
+        $this->write("img/Capture d'écran.png", 'B');
+
+        $plan = $this->planner()->plan($this->root . '/doc.md', false);
+
+        self::assertSame([], $plan->issues);
+        self::assertNotNull($this->findEntry($plan, 'ext_img/my pic.png'));
+        self::assertNotNull($this->findEntry($plan, "ext_img/Capture d'écran.png"));
+    }
+
+    /**
+     * The scanner skips fenced code blocks (ARC-10) and every rewrite
+     * happens at the reference's own position, so an identical reference
+     * shown as a code example is neither rewritten nor embarked, even though
+     * its raw text matches the real one exactly.
+     */
+    public function testAReferenceInsideACodeBlockIsNotRewrittenEvenWhenIdenticalToARealOne(): void
+    {
+        $this->write('doc.md', "![alt](./photo.png)\n\n```\n![alt](./photo.png)\n```");
+        $this->write('photo.png', 'PNG');
+
+        $plan = $this->planner()->plan($this->root . '/doc.md', false);
+
+        self::assertSame(
+            "![alt](ext_img/photo.png)\n\n```\n![alt](./photo.png)\n```",
+            $this->entry($plan, 'doc.md')->content,
+        );
+        $imageEntries = array_filter($plan->entries, static fn (ExportEntry $e): bool => str_starts_with($e->archivePath, 'ext_img/'));
+        self::assertCount(1, $imageEntries);
+    }
+
+    /** ARC-11: a roundabout-but-valid relative path is rewritten to the canonical one, not just an absolute one. */
+    public function testDirectoryExportRewritesARoundaboutRelativePathToTheCanonicalOne(): void
+    {
+        $this->write('Notes/doc.md', '![a](../Notes/img/a.png)');
+        $this->write('Notes/img/a.png', 'A');
+
+        $plan = $this->planner()->plan($this->root, false);
+
+        self::assertSame('![a](img/a.png)', $this->entry($plan, 'Notes/doc.md')->content);
+    }
+
     public function testAnchorIsPreservedOnRewrittenLink(): void
     {
         $this->write('doc.md', "[intro]({$this->root}/notes.md#intro)");
@@ -294,6 +341,8 @@ final class ArchiveExportPlannerTest extends TestCase
     {
         return new ArchiveExportPlanner(
             new MarkdownReferenceScanner(),
+            new MarkdownDestinationWriter(),
+            new MarkdownReferenceRewriter(),
             new PathResolver(new Filesystem(), Validation::createValidator()),
             new Filesystem(),
             $maxTotalFiles,

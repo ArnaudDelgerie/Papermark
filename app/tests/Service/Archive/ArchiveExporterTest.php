@@ -10,6 +10,8 @@ use App\Service\Archive\ArchiveExporter;
 use App\Service\Archive\ArchiveExportPlanner;
 use App\Service\Archive\ArchiveTargetResolver;
 use App\Service\Archive\ArchiveWriter;
+use App\Service\MarkdownDestinationWriter;
+use App\Service\MarkdownReferenceRewriter;
 use App\Service\MarkdownReferenceScanner;
 use App\Service\Path\PathPolicy;
 use App\Service\Path\PathResolver;
@@ -31,7 +33,7 @@ final class ArchiveExporterTest extends TestCase
         $this->exporter = new ArchiveExporter(
             new PathPolicy(new PathResolver($filesystem, Validation::createValidator())),
             new ArchiveTargetResolver(),
-            new ArchiveExportPlanner(new MarkdownReferenceScanner(), new PathResolver($filesystem, Validation::createValidator()), $filesystem),
+            new ArchiveExportPlanner(new MarkdownReferenceScanner(), new MarkdownDestinationWriter(), new MarkdownReferenceRewriter(), new PathResolver($filesystem, Validation::createValidator()), $filesystem),
             new ArchiveWriter(),
         );
     }

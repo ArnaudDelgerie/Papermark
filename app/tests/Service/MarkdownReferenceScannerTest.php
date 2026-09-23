@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Enum\MarkdownReferenceType;
 use App\Dto\MarkdownReference;
+use App\Enum\MarkdownReferenceType;
 use App\Service\MarkdownReferenceScanner;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -21,20 +21,26 @@ final class MarkdownReferenceScannerTest extends TestCase
 
     public function testFindsLocalImage(): void
     {
-        $references = $this->scanner->find('Text ![alt](./img/photo.png "A title") more');
+        $markdown = 'Text ![alt](./img/photo.png "A title") more';
+        $offset = strpos($markdown, './img/photo.png');
+
+        $references = $this->scanner->find($markdown);
 
         self::assertEquals(
-            [new MarkdownReference(MarkdownReferenceType::Image, '![alt](./img/photo.png "A title")', './img/photo.png', null)],
+            [new MarkdownReference(MarkdownReferenceType::Image, './img/photo.png', null, $offset, \strlen('./img/photo.png'))],
             $references,
         );
     }
 
     public function testFindsLocalMarkdownLink(): void
     {
-        $references = $this->scanner->find('See [notes](./notes.md) for details');
+        $markdown = 'See [notes](./notes.md) for details';
+        $offset = strpos($markdown, './notes.md');
+
+        $references = $this->scanner->find($markdown);
 
         self::assertEquals(
-            [new MarkdownReference(MarkdownReferenceType::Link, '[notes](./notes.md)', './notes.md', null)],
+            [new MarkdownReference(MarkdownReferenceType::Link, './notes.md', null, $offset, \strlen('./notes.md'))],
             $references,
         );
     }
@@ -114,5 +120,137 @@ final class MarkdownReferenceScannerTest extends TestCase
         self::assertCount(2, $references);
         self::assertSame(MarkdownReferenceType::Image, $references[0]->type);
         self::assertSame(MarkdownReferenceType::Link, $references[1]->type);
+    }
+
+    public function testFindsTheSameReferenceTwiceAtDistinctPositions(): void
+    {
+        $markdown = '![a](./photo.png) ![b](./photo.png)';
+
+        $references = $this->scanner->find($markdown);
+
+        self::assertCount(2, $references);
+        self::assertSame('./photo.png', $references[0]->path);
+        self::assertSame('./photo.png', $references[1]->path);
+        self::assertNotSame($references[0]->destinationOffset, $references[1]->destinationOffset);
+        self::assertSame('./photo.png', substr($markdown, $references[0]->destinationOffset, $references[0]->destinationLength));
+        self::assertSame('./photo.png', substr($markdown, $references[1]->destinationOffset, $references[1]->destinationLength));
+    }
+
+    public function testDestinationOffsetExcludesAltAndTitle(): void
+    {
+        $markdown = '![some alt text](./photo.png "a title")';
+
+        $references = $this->scanner->find($markdown);
+
+        self::assertSame('./photo.png', substr($markdown, $references[0]->destinationOffset, $references[0]->destinationLength));
+    }
+
+    public function testReadsARawSpaceInsideAngleBrackets(): void
+    {
+        $references = $this->scanner->find('![alt](<./my photo.png>)');
+
+        self::assertSame('./my photo.png', $references[0]->path);
+    }
+
+    public function testAngleBracketsDestinationIncludesTheBracketsInItsSpan(): void
+    {
+        $markdown = '![alt](<./my photo.png>)';
+
+        $references = $this->scanner->find($markdown);
+
+        self::assertSame('<./my photo.png>', substr($markdown, $references[0]->destinationOffset, $references[0]->destinationLength));
+    }
+
+    public function testReadsBalancedParenthesesInABareDestination(): void
+    {
+        $references = $this->scanner->find('![alt](./a(b).png)');
+
+        self::assertSame('./a(b).png', $references[0]->path);
+    }
+
+    public function testReadsBackslashEscapedParenthesesInABareDestination(): void
+    {
+        $references = $this->scanner->find('![alt](./a\\(b\\).png)');
+
+        self::assertSame('./a(b).png', $references[0]->path);
+    }
+
+    public function testDecodesPercentEncodedCharacters(): void
+    {
+        $references = $this->scanner->find('![alt](./my%20pic.png)');
+
+        self::assertSame('./my pic.png', $references[0]->path);
+    }
+
+    public function testReadsAUnicodePath(): void
+    {
+        $references = $this->scanner->find('![alt](./café.png)');
+
+        self::assertSame('./café.png', $references[0]->path);
+    }
+
+    public function testReadsAUnicodePathWithASpaceInsideAngleBrackets(): void
+    {
+        $references = $this->scanner->find("![alt](<./Capture d'écran.png>)");
+
+        self::assertSame("./Capture d'écran.png", $references[0]->path);
+    }
+
+    #[DataProvider('provideTitleForms')]
+    public function testReadsEachTitleForm(string $title): void
+    {
+        $references = $this->scanner->find("![alt](./photo.png {$title})");
+
+        self::assertCount(1, $references);
+        self::assertSame('./photo.png', $references[0]->path);
+    }
+
+    /** @return iterable<array{0: string}> */
+    public static function provideTitleForms(): iterable
+    {
+        yield ['"a title"'];
+        yield ["'a title'"];
+        yield ['(a title)'];
+    }
+
+    public function testIgnoresAReferenceInsideAFencedCodeBlock(): void
+    {
+        $markdown = "Before\n```\n![alt](./photo.png)\n```\nAfter";
+
+        self::assertSame([], $this->scanner->find($markdown));
+    }
+
+    public function testIgnoresAReferenceInsideATildeFencedCodeBlock(): void
+    {
+        $markdown = "Before\n~~~\n![alt](./photo.png)\n~~~\nAfter";
+
+        self::assertSame([], $this->scanner->find($markdown));
+    }
+
+    public function testIgnoresAReferenceInsideAnIndentedCodeBlock(): void
+    {
+        $markdown = "Paragraph.\n\n    ![alt](./photo.png)\n\nAfter.";
+
+        self::assertSame([], $this->scanner->find($markdown));
+    }
+
+    public function testIgnoresAReferenceInsideSingleBacktickInlineCode(): void
+    {
+        self::assertSame([], $this->scanner->find('Text `![alt](./photo.png)` more'));
+    }
+
+    public function testIgnoresAReferenceInsideDoubleBacktickInlineCode(): void
+    {
+        self::assertSame([], $this->scanner->find('Text ``![alt](./photo.png)`` more'));
+    }
+
+    public function testStillFindsAReferenceOutsideACodeBlock(): void
+    {
+        $markdown = "```\nignored\n```\n![alt](./photo.png)";
+
+        $references = $this->scanner->find($markdown);
+
+        self::assertCount(1, $references);
+        self::assertSame('./photo.png', $references[0]->path);
     }
 }

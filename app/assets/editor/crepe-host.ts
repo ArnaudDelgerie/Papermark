@@ -4,7 +4,7 @@ import type { AIProvider } from '@milkdown/crepe/feature/ai';
 import { EditorStatus, commandsCtx, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
 import { imageBlockSchema } from '@milkdown/kit/component/image-block';
 import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
-import { addBlockTypeCommand, clearTextInCurrentBlockCommand } from '@milkdown/kit/preset/commonmark';
+import { addBlockTypeCommand, clearTextInCurrentBlockCommand, remarkPreserveEmptyLinePlugin } from '@milkdown/kit/preset/commonmark';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { trailing } from '@milkdown/plugin-trailing';
@@ -395,6 +395,10 @@ export default class CrepeHost {
         });
 
         crepe.addFeature((editor) => {
+            // FIL-01: without this, a <br> the user actually wrote survives
+            // open/save intact instead of being read back as an extra blank
+            // paragraph and re-serialized as <br /> on the next save.
+            void editor.remove(remarkPreserveEmptyLinePlugin);
             editor.use(trailing);
             // Syntax colors on the plain <pre> code blocks, as decorations
             // (colors only, no layout change), see editor.css.

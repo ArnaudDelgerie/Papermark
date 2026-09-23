@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Service\Document;
 
+use App\Enum\MarkdownReferenceType;
+use App\Service\MarkdownDestinationWriter;
+use App\Service\MarkdownReferenceRewriter;
 use App\Service\MarkdownReferenceScanner;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * The transformations between a document as the editor holds it and as it
- * sits on disk (lot 03-services-document.md):
+ * sits on disk (lot 03-services-document.md, image handling revised by lot
+ * 05-markdown.md):
  *
- * - toDisk(): the `<br>`s the editor's Markdown output leaves behind are
- *   stripped, image URLs go back to their raw path, then the file's own
+ * - toDisk(): image URLs go back to their raw path, then the file's own
  *   byte-level shape (BOM, dominant line endings) is reapplied — skipped for
  *   a new file, which has no shape to copy (FIL-11): the editor serializes
  *   LF and strips the BOM, and a Windows file must stay a Windows file.
@@ -23,8 +26,9 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
  *
  * Only local-looking image paths are touched: a scheme (http:, data:, …)
  * means an external image, which this app doesn't manage — left untouched.
- * The image pattern itself lives in MarkdownReferenceScanner, reused here
- * rather than duplicated.
+ * Finding a reference's destination is MarkdownReferenceScanner's job, not
+ * duplicated here; both directions rewrite at the destination's exact
+ * position (MarkdownReferenceRewriter), never by searching the text.
  */
 final class DocumentCodec
 {
@@ -32,6 +36,9 @@ final class DocumentCodec
 
     public function __construct(
         private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly MarkdownReferenceScanner $referenceScanner,
+        private readonly MarkdownDestinationWriter $destinationWriter,
+        private readonly MarkdownReferenceRewriter $rewriter,
     ) {
     }
 
@@ -42,7 +49,6 @@ final class DocumentCodec
      */
     public function toDisk(string $content, ?string $diskBytes): string
     {
-        $content = $this->stripLineBreaks($content);
         $content = $this->toRawPaths($content);
 
         return $diskBytes === null ? $content : $this->applyDiskFormat($content, $diskBytes);
@@ -58,54 +64,57 @@ final class DocumentCodec
         return hash('xxh128', $bytes);
     }
 
-    private function stripLineBreaks(string $content): string
-    {
-        return preg_replace('/<br\s*\/?>\n?/i', '', $content) ?? $content;
-    }
-
     private function toServiceUrls(string $markdown): string
     {
-        return preg_replace_callback(
-            MarkdownReferenceScanner::IMAGE_PATTERN,
-            function (array $match): string {
-                [, $alt, $path, $title] = $match + [2 => '', 3 => ''];
+        $edits = [];
 
-                if (!$this->isLocalPath($path)) {
-                    return $match[0];
-                }
+        foreach ($this->referenceScanner->find($markdown) as $reference) {
+            if (MarkdownReferenceType::Image !== $reference->type) {
+                continue;
+            }
 
-                // The URL carries the path alone: the anchor that resolves a
-                // relative one lives in the session, not in the markdown
-                // (lot 02-chemins.md, SEC-04).
-                $url = $this->urlGenerator->generate('app_document_image', ['path' => $path]);
+            // The URL carries the path alone: the anchor that resolves a
+            // relative one lives in the session, not in the markdown
+            // (lot 02-chemins.md, SEC-04).
+            $url = $this->urlGenerator->generate('app_document_image', ['path' => $reference->path]);
+            $edits[] = [$reference->destinationOffset, $reference->destinationLength, $url . ($reference->fragment ?? '')];
+        }
 
-                return "![{$alt}]({$url}{$title})";
-            },
-            $markdown,
-        ) ?? $markdown;
+        return $this->rewriter->apply($markdown, $edits);
     }
 
     private function toRawPaths(string $markdown): string
     {
-        return preg_replace_callback(
-            MarkdownReferenceScanner::IMAGE_PATTERN,
-            function (array $match): string {
-                [, $alt, $url, $title] = $match + [2 => '', 3 => ''];
+        $edits = [];
 
-                $path = $this->extractPath($url);
-                if ($path === null) {
-                    return $match[0];
-                }
+        foreach ($this->referenceScanner->find($markdown) as $reference) {
+            if (MarkdownReferenceType::Image !== $reference->type) {
+                continue;
+            }
 
-                return "![{$alt}]({$path}{$title})";
-            },
-            $markdown,
-        ) ?? $markdown;
+            $written = substr($markdown, $reference->destinationOffset, $reference->destinationLength);
+            $path = $this->extractPath($this->stripAngleBrackets($written));
+            if (null === $path) {
+                continue;
+            }
+
+            $edits[] = [
+                $reference->destinationOffset,
+                $reference->destinationLength,
+                $this->destinationWriter->write($path) . ($reference->fragment ?? ''),
+            ];
+        }
+
+        return $this->rewriter->apply($markdown, $edits);
     }
 
-    private function isLocalPath(string $path): bool
+    private function stripAngleBrackets(string $destination): string
     {
-        return preg_match('/^[a-zA-Z][a-zA-Z0-9+.\-]*:/', $path) !== 1;
+        if (str_starts_with($destination, '<') && str_ends_with($destination, '>')) {
+            return substr($destination, 1, -1);
+        }
+
+        return $destination;
     }
 
     private function extractPath(string $url): ?string

@@ -12,6 +12,8 @@ use App\Enum\Archive\ExportIssueReason;
 use App\Enum\DocumentExtension;
 use App\Enum\MarkdownReferenceType;
 use App\Exception\Archive\ArchiveExportRefusedException;
+use App\Service\MarkdownDestinationWriter;
+use App\Service\MarkdownReferenceRewriter;
 use App\Service\MarkdownReferenceScanner;
 use App\Service\Path\PathResolver;
 use Symfony\Component\Filesystem\Filesystem;
@@ -33,6 +35,8 @@ final class ArchiveExportPlanner
 
     public function __construct(
         private readonly MarkdownReferenceScanner $referenceScanner,
+        private readonly MarkdownDestinationWriter $destinationWriter,
+        private readonly MarkdownReferenceRewriter $rewriter,
         private readonly PathResolver $pathResolver,
         private readonly Filesystem $filesystem,
         private readonly int $maxTotalFiles = 500,
@@ -141,24 +145,25 @@ final class ArchiveExportPlanner
                 continue;
             }
 
-            $content = $raw;
+            $edits = [];
 
             foreach ($this->referenceScanner->find($raw) as $reference) {
-                $rewritten = $this->resolveReference($state, $item, $reference, $includeExternalMarkdown, $queue);
-                if ($rewritten !== null) {
-                    $content = str_replace($reference->raw, $rewritten, $content);
+                $newDestination = $this->resolveReference($state, $item, $reference, $includeExternalMarkdown, $queue);
+                if ($newDestination !== null) {
+                    $edits[] = [$reference->destinationOffset, $reference->destinationLength, $newDestination];
                 }
             }
 
-            $state->setContent($item->archivePath, $content);
+            $state->setContent($item->archivePath, $this->rewriter->apply($raw, $edits));
         }
     }
 
     /**
      * @param ExportQueueItem[] &$queue
      *
-     * @return string|null the raw markdown to substitute in place of
-     *                      $reference->raw, or null to leave it untouched
+     * @return string|null the new destination text to substitute at
+     *                      $reference->destinationOffset, or null to leave
+     *                      it untouched
      */
     private function resolveReference(
         ExportPlanBuilder $state,
@@ -219,14 +224,18 @@ final class ArchiveExportPlanner
             }
         }
 
-        $bothInternal = $state->isInternal($item->realPath) && $state->isInternal($targetReal);
-        if ($bothInternal && !$this->filesystem->isAbsolutePath($reference->path)) {
+        $newRelativePath = $this->relativePath($item->archivePath, $archivePath);
+
+        // ARC-11: a reference already written the canonical way (its only
+        // allowed slack is a redundant leading './') is left untouched, form
+        // and all — anything else, absolute or a roundabout relative path
+        // alike, is rewritten to it.
+        $canonicalReferencePath = str_starts_with($reference->path, './') ? substr($reference->path, 2) : $reference->path;
+        if ($canonicalReferencePath === $newRelativePath) {
             return null;
         }
 
-        $newTarget = $this->relativePath($item->archivePath, $archivePath) . ($reference->fragment ?? '');
-
-        return $this->rewriteRaw($reference, $newTarget);
+        return $this->destinationWriter->write($newRelativePath) . ($reference->fragment ?? '');
     }
 
     private function isAnalyzable(string $realPath): bool
@@ -254,17 +263,5 @@ final class ArchiveExportPlanner
         ];
 
         return implode('/', $segments);
-    }
-
-    private function rewriteRaw(MarkdownReference $reference, string $newTarget): string
-    {
-        $originalTarget = $reference->path . ($reference->fragment ?? '');
-        $pos = strpos($reference->raw, '(' . $originalTarget);
-
-        if (false === $pos) {
-            return $reference->raw;
-        }
-
-        return substr_replace($reference->raw, $newTarget, $pos + 1, \strlen($originalTarget));
     }
 }

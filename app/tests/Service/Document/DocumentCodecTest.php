@@ -10,8 +10,12 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * The transformations between a document as the editor holds it and as it
- * sits on disk (lot 03-services-document.md): <br> stripped, image paths
- * converted, the file's own byte shape (BOM, line endings) reapplied.
+ * sits on disk (lot 03-services-document.md, image handling revised by lot
+ * 05-markdown.md): image paths converted, the file's own byte shape (BOM,
+ * line endings) reapplied. <br> is no longer touched here — removing
+ * remarkPreserveEmptyLinePlugin (FIL-01) means the editor doesn't produce it
+ * for an empty paragraph any more, so a <br> found in the text is always one
+ * the user actually wrote.
  */
 final class DocumentCodecTest extends KernelTestCase
 {
@@ -20,23 +24,24 @@ final class DocumentCodecTest extends KernelTestCase
     protected function setUp(): void
     {
         self::bootKernel();
-        $this->codec = new DocumentCodec(self::getContainer()->get(UrlGeneratorInterface::class));
+        $this->codec = self::getContainer()->get(DocumentCodec::class);
     }
 
-    /** The <br> and the newline right after it are stripped together. */
-    public function testToDiskStripsBrTagsAndTheFollowingNewline(): void
+    public function testToDiskLeavesABrTagInPlainTextIntact(): void
     {
-        self::assertSame('AB', $this->codec->toDisk("A<br>\nB", null));
+        self::assertSame('a<br>b', $this->codec->toDisk('a<br>b', null));
     }
 
-    public function testToDiskStripsBrTagsWithoutATrailingNewline(): void
+    public function testToDiskLeavesABrTagInsideInlineCodeIntact(): void
     {
-        self::assertSame('AB', $this->codec->toDisk('A<br>B', null));
+        self::assertSame('`<br>`', $this->codec->toDisk('`<br>`', null));
     }
 
-    public function testToDiskStripsASelfClosingBrTag(): void
+    public function testToDiskLeavesABrTagInsideAFencedCodeBlockIntact(): void
     {
-        self::assertSame('AB', $this->codec->toDisk('A<br/>B', null));
+        $markdown = "```html\n<br>\n```";
+
+        self::assertSame($markdown, $this->codec->toDisk($markdown, null));
     }
 
     public function testToDiskConvertsServiceUrlsBackToRawPaths(): void
@@ -69,11 +74,13 @@ final class DocumentCodecTest extends KernelTestCase
      * link/image destination — CommonMark's rule for punctuation it finds
      * unsafe there — before this markdown ever reaches PHP. Without
      * unescaping first, parse_str() splits on the literal '&' and leaves a
-     * stray '\' stuck on the recovered path, corrupting it on save.
+     * stray '\' stuck on the recovered path, corrupting it on save. The
+     * second query param's value ends in .png too, only so the whole
+     * destination still has a recognised image extension.
      */
     public function testToDiskUnescapesBackslashEscapedAmpersand(): void
     {
-        $markdown = '![alt](/document/image?path=/home/user/photo.png\&anchor=/home/user/doc.md)';
+        $markdown = '![alt](/document/image?path=/home/user/photo.png\&x=other.png)';
 
         self::assertSame('![alt](/home/user/photo.png)', $this->codec->toDisk($markdown, null));
     }
@@ -144,8 +151,56 @@ final class DocumentCodecTest extends KernelTestCase
         self::assertSame($original, $this->codec->toDisk($editorContent, null));
     }
 
+    /** FIL-08: a raw path already written with a space inside <…> stays that way end to end. */
+    public function testRoundTripsAPathWithASpaceAlreadyInAngleBrackets(): void
+    {
+        $original = '![alt](<./mon image.png>)';
+
+        $editorContent = $this->codec->toEditor($original);
+
+        self::assertSame('./mon image.png', $this->extractServiceUrlPath($editorContent));
+        self::assertSame($original, $this->codec->toDisk($editorContent, null));
+    }
+
+    /** FIL-08/ARC-04: a bare path with parentheses is written back wrapped in <…>. */
+    public function testSavingAPathWithParenthesesWrapsItInAngleBrackets(): void
+    {
+        $original = '![alt](./a(b).png)';
+
+        $editorContent = $this->codec->toEditor($original);
+
+        self::assertSame('./a(b).png', $this->extractServiceUrlPath($editorContent));
+        self::assertSame('![alt](<./a(b).png>)', $this->codec->toDisk($editorContent, null));
+    }
+
+    /** ARC-05: %20 is decoded on open, and written back as a literal space inside <…>. */
+    public function testAPercentEncodedSpaceIsDecodedThenWrittenAsALiteralSpace(): void
+    {
+        $original = '![alt](my%20pic.png)';
+
+        $editorContent = $this->codec->toEditor($original);
+
+        self::assertSame('my pic.png', $this->extractServiceUrlPath($editorContent));
+        self::assertSame('![alt](<my pic.png>)', $this->codec->toDisk($editorContent, null));
+    }
+
+    /** A service URL whose path has a space comes back wrapped in <…>, not with a raw space. */
+    public function testAServiceUrlWithASpacedPathComesBackWrappedInAngleBrackets(): void
+    {
+        $markdown = '![alt](/document/image?path=my%20pic.png)';
+
+        self::assertSame('![alt](<my pic.png>)', $this->codec->toDisk($markdown, null));
+    }
+
     public function testRevisionIsTheXxh128OfTheBytes(): void
     {
         self::assertSame(hash('xxh128', "# Hello\n"), $this->codec->revision("# Hello\n"));
+    }
+
+    private function extractServiceUrlPath(string $editorContent): ?string
+    {
+        preg_match('/\?path=([^)"\s]+)/', $editorContent, $match);
+
+        return isset($match[1]) ? rawurldecode($match[1]) : null;
     }
 }

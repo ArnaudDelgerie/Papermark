@@ -15,6 +15,9 @@ use App\Exception\Path\PathNotFoundException;
 use App\Exception\Path\PathNotWritableException;
 use App\Service\Document\DocumentCodec;
 use App\Service\Document\DocumentStore;
+use App\Service\MarkdownDestinationWriter;
+use App\Service\MarkdownReferenceRewriter;
+use App\Service\MarkdownReferenceScanner;
 use App\Service\Path\PathPolicy;
 use App\Service\Path\PathResolver;
 use App\Service\SafeFilesystem;
@@ -57,7 +60,7 @@ final class DocumentStoreTest extends TestCase
 
         $this->store = new DocumentStore(
             new PathPolicy(new PathResolver(new Filesystem(), Validation::createValidator())),
-            new DocumentCodec($urlGenerator),
+            new DocumentCodec($urlGenerator, new MarkdownReferenceScanner(), new MarkdownDestinationWriter(), new MarkdownReferenceRewriter()),
             new SafeFilesystem(),
             $this->eventDispatcher,
         );
