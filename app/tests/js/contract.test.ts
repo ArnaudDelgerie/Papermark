@@ -8,6 +8,9 @@ import type { StateResponse } from '../../assets/controllers/editor_state_contro
 import type { FileResponse, I18n as EditorI18n } from '../../assets/controllers/editor_controller';
 import type { ExportResponse, I18n as ExportI18n } from '../../assets/controllers/export_controller';
 import type { I18n as ImportI18n } from '../../assets/controllers/import_controller';
+import type { ModeSingleI18n } from '../../assets/controllers/mode_single_controller';
+import type { ModeDirI18n } from '../../assets/controllers/mode_dir_controller';
+import type { CurrentDirectoryI18n } from '../../assets/controllers/current_directory_controller';
 import type { I18n as ThemeSwitchI18n } from '../../assets/controllers/theme_switch_controller';
 import type { EditorState } from '../../assets/editor/events';
 import type { FileEntryI18n } from '../../assets/editor/file-entries';
@@ -23,6 +26,9 @@ import themeSwitchI18nExample from '../contract/i18n/theme-switch.json';
 import fileEntriesI18nExample from '../contract/i18n/file-entries.json';
 import exportI18nExample from '../contract/i18n/export.json';
 import importI18nExample from '../contract/i18n/import.json';
+import modeSingleI18nExample from '../contract/i18n/mode-single.json';
+import modeDirI18nExample from '../contract/i18n/mode-dir.json';
+import currentDirectoryI18nExample from '../contract/i18n/current-directory.json';
 
 /**
  * Only the key shape of T matters here (PHPUnit's ContractAssertions checks
@@ -46,6 +52,9 @@ describe('the contract examples satisfy their TS type', () => {
         const fileEntriesI18n: Shape<FileEntryI18n> = fileEntriesI18nExample;
         const exportI18n: Shape<ExportI18n> = exportI18nExample;
         const importI18n: Shape<ImportI18n> = importI18nExample;
+        const modeSingleI18n: Shape<ModeSingleI18n> = modeSingleI18nExample;
+        const modeDirI18n: Shape<ModeDirI18n> = modeDirI18nExample;
+        const currentDirectoryI18n: Shape<CurrentDirectoryI18n> = currentDirectoryI18nExample;
 
         expect([
             editorState,
@@ -60,6 +69,9 @@ describe('the contract examples satisfy their TS type', () => {
             fileEntriesI18n,
             exportI18n,
             importI18n,
-        ]).toHaveLength(12);
+            modeSingleI18n,
+            modeDirI18n,
+            currentDirectoryI18n,
+        ]).toHaveLength(15);
     });
 });

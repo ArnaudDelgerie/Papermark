@@ -39,7 +39,18 @@ final class ModeDir
     }
 
     /**
-     * @return array<string, string>
+     * The folder whose tree the column starts with, so the front can tell a
+     * failed change of folder (the state's dir differs from the shown one)
+     * from the one it already shows (FRT-03, lot 08).
+     */
+    #[ExposeInTemplate(name: 'dir')]
+    public function getDir(): ?string
+    {
+        return $this->editorState->getDir();
+    }
+
+    /**
+     * @return array<string, string|array<string, string>>
      */
     #[ExposeInTemplate(name: 'i18n')]
     public function getI18n(): array
@@ -53,6 +64,17 @@ final class ModeDir
             'deleteConfirmQuestion' => $this->trans('delete_confirm_question'),
             'deleted' => $this->trans('deleted'),
             'renamed' => $this->trans('renamed'),
+            // HUB-06, lot 08: pickers of the file entries.
+            'ipc' => [
+                'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),
+                'rejected' => $this->translator->trans('components.ipc.rejected', [], self::TRANSLATION_DOMAIN),
+            ],
+            // FRT-06, lot 08: the front-rendered error zone when the tree
+            // frame could not be fetched at all.
+            'tree' => [
+                'loadFailed' => $this->translator->trans('components.mode.tree.load_failed', [], self::TRANSLATION_DOMAIN),
+                'retry' => $this->translator->trans('components.mode.tree.retry', [], self::TRANSLATION_DOMAIN),
+            ],
         ];
     }
 

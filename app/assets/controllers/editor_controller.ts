@@ -1,16 +1,17 @@
 import { Controller } from '@hotwired/stimulus';
 import AiClient from '../editor/ai-client';
-import CrepeHost, { type CrepeI18n } from '../editor/crepe-host';
+import CrepeHost, { type CrepeI18n, type ImageOrigin } from '../editor/crepe-host';
 import { type Draft, clearDraft, readDraft, writeDraft } from '../editor/draft';
 import { type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
 import LeaveGuard from '../editor/leave-guard';
 import PrintCopy from '../editor/print-copy';
+import EditorShortcuts from '../editor/shortcuts';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { saveConflictDialog } from '../utils/conflict-dialog';
 import { draftConflictDialog } from '../utils/draft-conflict-dialog';
 import { request } from '../utils/http';
-import { pickPath, savePath } from '../utils/tauri';
+import { type IpcI18n, pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 import type EditorStateController from './editor_state_controller';
 
@@ -45,6 +46,11 @@ export interface I18n extends CrepeI18n {
     unsaved: { confirm: string; cancel: string; continue: string };
     conflict: { question: string; cancel: string; saveAs: string; overwrite: string };
     loadError: string;
+    /** FRT-11, lot 08: the editor could not be created at all. */
+    initFailed: string;
+    ipc: IpcI18n;
+    /** FRT-08, lot 08: the picked file is not an image the app can serve. */
+    imageInvalid: string;
     toast: {
         saved: string;
         savedAs: string;
@@ -110,7 +116,7 @@ export default class extends Controller<HTMLElement> {
         i18n: Object,
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
+    static targets = ['saveButton', 'saveAsButton', 'newButton', 'printButton', 'copyMarkdownButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
 
     static outlets = ['editor-state'];
 
@@ -125,6 +131,8 @@ export default class extends Controller<HTMLElement> {
     declare readonly saveButtonTarget: HTMLButtonElement;
     declare readonly hasSaveAsButtonTarget: boolean;
     declare readonly saveAsButtonTarget: HTMLButtonElement;
+    declare readonly hasNewButtonTarget: boolean;
+    declare readonly newButtonTarget: HTMLButtonElement;
     declare readonly hasPrintButtonTarget: boolean;
     declare readonly printButtonTarget: HTMLButtonElement;
     declare readonly hasCopyMarkdownButtonTarget: boolean;
@@ -173,6 +181,10 @@ export default class extends Controller<HTMLElement> {
     #unsubscribers: Array<() => void> = [];
     #guard!: LeaveGuard;
     #print!: PrintCopy;
+    #shortcuts!: EditorShortcuts;
+    // Bumped by disconnect(): a connect() that was still waiting on an await
+    // when the teardown came stops there, and poses no listener (FRT-11).
+    #generation = 0;
 
     initialize(): void {
         this.#pendingDraft = readDraft();
@@ -182,7 +194,7 @@ export default class extends Controller<HTMLElement> {
         // creating Crepe, and the element can be gone by then — disconnect()
         // must still have a host to tear down.
         this.#host = new CrepeHost(this.element, this.i18nValue, {
-            onInsertImage: () => void this.#insertImageFromPicker(),
+            onInsertImage: (origin) => void this.#insertImageFromPicker(origin),
             onCopyCode: (text) => void this.#copyCode(text),
             // Crepe prefixes the message ("AI provider error: ..."); show the original one.
             onAiError: (error) => showToast('error', (error.cause as Error | undefined)?.message ?? error.message),
@@ -200,45 +212,74 @@ export default class extends Controller<HTMLElement> {
             onStay: () => this.#host.focus(),
         });
         this.#print = new PrintCopy(() => this.#host.printCopy());
+        // FRT-10 + UX-03, lot 08: the buttons do the work — disabled and
+        // leave guard included.
+        this.#shortcuts = new EditorShortcuts({
+            save: () => (this.hasSaveButtonTarget ? this.saveButtonTarget : null),
+            newFile: () => (this.hasNewButtonTarget ? this.newButtonTarget : null),
+        });
     }
 
-    // FRT-11, lot Front éditeur: Stimulus never awaits connect(); a rejection
-    // leaves the editor empty with no message.
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    async connect(): Promise<void> {
+    connect(): void {
+        void this.#connect();
+    }
+
+    /**
+     * FRT-11, lot 08: Stimulus never awaits connect(), so a rejection of the
+     * state or of Crepe's creation is caught here — the editor shows the
+     * error toast instead of staying empty without a word. And after each
+     * await, a teardown that came first stops the whole thing: no listener,
+     * no guard, nothing is posed on a controller that is already gone.
+     */
+    async #connect(): Promise<void> {
+        const generation = this.#generation;
         this.#isReadonly = this.readonlyValue;
 
-        const { ai_enabled: aiEnabled } = await this.#stateReady;
-        this.#connectAiClient(aiEnabled);
+        try {
+            const { ai_enabled: aiEnabled } = await this.#stateReady;
+            if (this.#generation !== generation) {
+                return;
+            }
+            this.#connectAiClient(aiEnabled);
 
-        await this.#host.create({ aiEnabled, aiProvider: this.#aiClient?.createProvider() });
+            await this.#host.create({ aiEnabled, aiProvider: this.#aiClient?.createProvider() });
+            if (this.#generation !== generation) {
+                return;
+            }
 
-        // A new document is clean: capture the empty editor's markdown as the
-        // reference so the indicator doesn't fire on the initial content.
-        this.#savedRef = this.#host.markdown();
+            // A new document is clean: capture the empty editor's markdown as the
+            // reference so the indicator doesn't fire on the initial content.
+            this.#savedRef = this.#host.markdown();
 
-        this.#print.listen();
-        // Capture phase, on window: covers the sidebar (mode-single / mode-dir),
-        // not just this element, since navigation there also drops unsaved work.
-        this.#guard.listen();
-        this.#listen();
+            this.#print.listen();
+            // Capture phase, on window: covers the sidebar (mode-single / mode-dir),
+            // not just this element, since navigation there also drops unsaved work.
+            this.#guard.listen();
+            this.#shortcuts.listen();
+            this.#listen();
 
-        if (this.#isReadonly) {
-            this.#applyReadonlyState();
+            if (this.#isReadonly) {
+                this.#applyReadonlyState();
+            }
+
+            this.#updateSaveButton('');
+            this.#updatePrintButton('');
+            this.#updateCopyMarkdownButton('');
+            this.#updateDirtyIndicator(this.#savedRef);
+            this.#updateFilePath();
+
+            this.#resolveCrepe();
+        } catch (error) {
+            console.error('The editor could not be created:', error);
+            showToast('error', this.i18nValue.initFailed);
         }
-
-        this.#updateSaveButton('');
-        this.#updatePrintButton('');
-        this.#updateCopyMarkdownButton('');
-        this.#updateDirtyIndicator(this.#savedRef);
-        this.#updateFilePath();
-
-        this.#resolveCrepe();
     }
 
     disconnect(): void {
+        this.#generation++;
         this.#print.stop();
         this.#guard.stop();
+        this.#shortcuts.stop();
         this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
         this.#unsubscribers = [];
         this.#fileRequest?.abort();
@@ -290,12 +331,17 @@ export default class extends Controller<HTMLElement> {
             // The file asked for may be gone: the state then has none. Asking
             // again for the current file and finding it gone is an anomaly —
             // the text stays, only the path falls (lot 03); any other file
-            // was an intention to leave, leave guard included.
+            // was an intention to leave, leave guard included. A failure can
+            // also carry the file a request abandoned before it applied
+            // (FRT-03, lot 08): the state is the truth, the editor follows.
             on('editor:nav-change_file-failed', ({ state, action }) => {
                 if (action.path === this.#currentPath && state.file === null) {
                     this.#currentFileGone(this.#fileGoneMessage(this.i18nValue.toast.currentFileGone, action.path));
                 } else if (state.file === null && this.#currentPath !== null) {
                     this.#resetTo(state);
+                } else if (state.file !== null && state.file !== this.#currentPath) {
+                    this.#syncDirectory(state);
+                    this.#beginLoad();
                 }
             }),
 
@@ -396,7 +442,8 @@ export default class extends Controller<HTMLElement> {
      * If the state's `ai_enabled` is no longer what Crepe was created with,
      * recreates it around the same markdown. Nothing is lost, so no leave
      * guard. The file, the read-only mode and the "unsaved" state stay; the
-     * undo history starts over, as when a file is opened.
+     * selection and the focus come back (FRT-05, lot 08); the undo history
+     * starts over, as when a file is opened.
      */
     async #followAi(state: EditorState): Promise<void> {
         const markdown = await this.#host.recreate(state.ai_enabled, () => {
@@ -642,9 +689,19 @@ export default class extends Controller<HTMLElement> {
         }
 
         const defaultName = this.#currentPath !== null ? basename(this.#currentPath) : 'untitled.md';
-        // In dir mode, the save dialog opens in the current directory without
-        // constraining where the file actually gets saved (see EDITOR_FOLDER_MODE.md).
-        const path = await savePath(defaultName, this.#directory);
+        // The button stays down from the picker to the answer: whatever
+        // happens to the invoke, it comes back (FRT-07, lot 08).
+        if (this.hasSaveAsButtonTarget) {
+            this.saveAsButtonTarget.disabled = true;
+        }
+        let path: string | null;
+        try {
+            // In dir mode, the save dialog opens in the current directory without
+            // constraining where the file actually gets saved (see EDITOR_FOLDER_MODE.md).
+            path = await savePath(this.i18nValue.ipc, defaultName, this.#directory, undefined);
+        } finally {
+            this.#updateSaveButton(this.#host.markdown());
+        }
         // The picker can outlast a change of mind: everything is re-read after.
         if (path === null || !this.#host.created || this.#isReadonly || this.#inFlightSave !== null) {
             return;
@@ -889,14 +946,50 @@ export default class extends Controller<HTMLElement> {
     /**
      * Picked paths are always absolute and never rewritten to relative,
      * whether the document is new or already open — see EDITOR_IMAGES.md.
+     *
+     * FRT-02, lot 08: the two origins do not insert the same way — the
+     * slash menu clears its `/image` command block, the top bar adds the
+     * node at the selection and lets the text be. FRT-08, lot 08: the
+     * service URL is checked first; a 404 (session, path, type, size — the
+     * picker filters nothing) or a network error inserts nothing, the
+     * selection is kept and a toast says why.
      */
-    async #insertImageFromPicker(): Promise<void> {
-        const path = await pickPath('file');
+    async #insertImageFromPicker(origin: ImageOrigin): Promise<void> {
+        const path = await pickPath('file', this.i18nValue.ipc);
         if (path === null) {
             return;
         }
 
-        this.#host.insertImage(`${this.urlsValue.image}?path=${encodeURIComponent(path)}`);
+        const src = `${this.urlsValue.image}?path=${encodeURIComponent(path)}`;
+        if (!(await this.#imageUsable(src))) {
+            showToast('error', this.i18nValue.imageInvalid);
+
+            return;
+        }
+
+        if (origin === 'slash-menu') {
+            this.#host.insertImageFromSlashMenu(src);
+
+            return;
+        }
+        this.#host.insertImage(src);
+    }
+
+    /**
+     * A HEAD against the image route: 2xx says the server can serve it, 404
+     * says it refuses (the route's answer for every refusal), a network
+     * error says the answer never came. None of the body is downloaded.
+     */
+    async #imageUsable(src: string): Promise<boolean> {
+        try {
+            const response = await fetch(src, { method: 'HEAD' });
+
+            return response.ok;
+        } catch (error) {
+            console.error('The image could not be checked:', error);
+
+            return false;
+        }
     }
 
     /**

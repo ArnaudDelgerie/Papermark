@@ -30,7 +30,7 @@ final class ModeSingle
 
 
     /**
-     * @return array<string, string>
+     * @return array<string, string|array<string, string>>
      */
     #[ExposeInTemplate(name: 'i18n')]
     public function getI18n(): array
@@ -44,6 +44,11 @@ final class ModeSingle
             'deleteConfirmQuestion' => $this->trans('delete_confirm_question'),
             'deleted' => $this->trans('deleted'),
             'renamed' => $this->trans('renamed'),
+            // HUB-06, lot 08: the Open file picker.
+            'ipc' => [
+                'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),
+                'rejected' => $this->translator->trans('components.ipc.rejected', [], self::TRANSLATION_DOMAIN),
+            ],
         ];
     }
 

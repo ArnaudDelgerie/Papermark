@@ -24,6 +24,10 @@ components:
             overwrite: Overwrite
         load_error: The file could not be loaded
         load_error_retry: Retry
+        init_failed: The editor could not be opened
+        image_invalid: This file is not a usable image
+        save_title: 'Save (Ctrl+S)'
+        new_title: 'New (Ctrl+N)'
         toggle:
             edit: Edit
             readonly: Read only
@@ -84,6 +88,9 @@ components:
             ai_empty_response: The model returned no text
             request_failed: The action failed, please try again
             update_check_failed: Could not check for updates
+    ipc:
+        unavailable: This action requires the Hub
+        rejected: The file picker failed
     mode:
         single: Single file
         dir: Folder
@@ -97,6 +104,8 @@ components:
             too_large: This folder is too large to display
             no_markdown: No Markdown files in this folder
             refresh: Refresh the tree
+            load_failed: The tree could not be loaded
+            retry: Retry
         file:
             rename: Rename
             symlink: 'Symbolic link: rename and delete are disabled'

@@ -9,6 +9,7 @@
     "noSource": "Choose a source first",
     "done": "Exported to {path}",
     "failed": "Export failed",
+    "ipc": { "unavailable": "This action requires the Hub", "rejected": "The file picker failed" },
     "unsaved": {
         "confirm": "The archive will contain the last saved version.",
         "cancel": "Cancel",

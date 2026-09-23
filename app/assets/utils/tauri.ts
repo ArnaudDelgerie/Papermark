@@ -1,13 +1,21 @@
+import { showToast } from './toast';
+
 export type PickKind = 'file' | 'directory';
 
-export function pickPath(kind: PickKind): Promise<string | null> {
-    const tauri = window.__TAURI__;
-    if (!tauri?.core?.invoke) {
-        console.warn('Tauri IPC is not available — file picker requires the TFSApp hub.');
-        return Promise.resolve(null);
-    }
+/**
+ * The two labels of a picker failure (HUB-06 + FRT-07, lot 08), shown as
+ * toasts by the wrapper itself so no call site can forget them. A
+ * cancellation (the user closed the picker) shows nothing.
+ */
+export interface IpcI18n {
+    /** No IPC at all: the action needs the hub. */
+    unavailable: string;
+    /** The invoke itself failed. */
+    rejected: string;
+}
 
-    return tauri.core.invoke<string | null>('pick_path', { kind });
+export function pickPath(kind: PickKind, i18n: IpcI18n): Promise<string | null> {
+    return invokePathPicker('pick_path', { kind }, i18n);
 }
 
 export interface SaveFilter {
@@ -21,21 +29,41 @@ const DEFAULT_SAVE_FILTERS: SaveFilter[] = [
 ];
 
 export function savePath(
+    i18n: IpcI18n,
     fileName = 'untitled.md',
     directory?: string | null,
     filters: SaveFilter[] = DEFAULT_SAVE_FILTERS,
 ): Promise<string | null> {
-    const tauri = window.__TAURI__;
-    if (!tauri?.core?.invoke) {
-        console.warn('Tauri IPC is not available — save dialog requires the TFSApp hub.');
-        return Promise.resolve(null);
+    return invokePathPicker('save_path', { filters, fileName, ...(directory ? { directory } : {}) }, i18n);
+}
+
+/**
+ * The three outcomes of a native picker, kept apart (HUB-06): **cancelled**
+ * — the invoke answered `null`, the user closed the dialog, nothing happens;
+ * **unavailable** — no IPC, the action cannot run outside the hub: toast;
+ * **rejected** — the invoke failed: toast, the detail in the console.
+ */
+async function invokePathPicker(
+    command: 'pick_path' | 'save_path',
+    args: Record<string, unknown>,
+    i18n: IpcI18n,
+): Promise<string | null> {
+    const core = window.__TAURI__?.core;
+    if (!core?.invoke) {
+        console.warn(`Tauri IPC is not available — ${command} requires the TFSApp hub.`);
+        showToast('error', i18n.unavailable);
+
+        return null;
     }
 
-    return tauri.core.invoke<string | null>('save_path', {
-        filters,
-        fileName,
-        ...(directory ? { directory } : {}),
-    });
+    try {
+        return await core.invoke<string | null>(command, args);
+    } catch (error) {
+        console.error(`${command} failed:`, error);
+        showToast('error', i18n.rejected);
+
+        return null;
+    }
 }
 
 /**

@@ -1,6 +1,11 @@
 import { Controller } from '@hotwired/stimulus';
 import { emit, on } from '../editor/events';
-import { pickPath } from '../utils/tauri';
+import { type IpcI18n, pickPath } from '../utils/tauri';
+
+/** The component's own texts. */
+export interface CurrentDirectoryI18n {
+    ipc: IpcI18n;
+}
 
 /**
  * Open folder, and the current folder's path. It picks a folder and asks the
@@ -9,9 +14,11 @@ import { pickPath } from '../utils/tauri';
  */
 export default class extends Controller {
     static targets = ['openButton', 'path'];
+    static values = { i18n: Object };
 
     declare readonly openButtonTarget: HTMLButtonElement;
     declare readonly pathTarget: HTMLElement;
+    declare readonly i18nValue: CurrentDirectoryI18n;
 
     #unsubscribers: Array<() => void> = [];
 
@@ -40,8 +47,14 @@ export default class extends Controller {
     }
 
     async change(): Promise<void> {
-        const path = await pickPath('directory');
+        // Down from the picker to the change's answer: #busy() covers the
+        // request on its own, the picker part ends here (FRT-07, lot 08) —
+        // the wrapper never throws, cancelled or failed alike.
+        this.#busy(true);
+        const path = await pickPath('directory', this.i18nValue.ipc);
         if (path === null) {
+            this.#busy(false);
+
             return;
         }
 

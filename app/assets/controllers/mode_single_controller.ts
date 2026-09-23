@@ -2,9 +2,14 @@ import { Controller } from '@hotwired/stimulus';
 import { on } from '../editor/events';
 import { FileEntries, type FileEntryI18n, basename, entryPath } from '../editor/file-entries';
 import { onModeShown } from '../editor/mode-shown';
-import { pickPath } from '../utils/tauri';
+import { type IpcI18n, pickPath } from '../utils/tauri';
 
 const STORAGE_KEY = 'editor.single.history';
+
+/** The column's own texts, beyond what its file entries show. */
+export interface ModeSingleI18n extends FileEntryI18n {
+    ipc: IpcI18n;
+}
 
 /**
  * History of files opened in single mode: sessionStorage only (lost on app
@@ -16,10 +21,11 @@ const STORAGE_KEY = 'editor.single.history';
  */
 export default class extends Controller<HTMLElement> {
     static values = { maxEntries: { type: Number, default: 50 }, i18n: Object };
-    static targets = ['list', 'empty', 'loading'];
+    static targets = ['openButton', 'list', 'empty', 'loading'];
 
     declare readonly maxEntriesValue: number;
-    declare readonly i18nValue: FileEntryI18n;
+    declare readonly i18nValue: ModeSingleI18n;
+    declare readonly openButtonTarget: HTMLButtonElement;
     declare readonly listTarget: HTMLElement;
     declare readonly emptyTarget: HTMLElement;
     declare readonly loadingTarget: HTMLElement;
@@ -64,7 +70,15 @@ export default class extends Controller<HTMLElement> {
     }
 
     async openFile(): Promise<void> {
-        const path = await pickPath('file');
+        // The button stays down until the picker answers, whatever the
+        // invoke does with it (FRT-07, lot 08).
+        this.openButtonTarget.disabled = true;
+        let path: string | null;
+        try {
+            path = await pickPath('file', this.i18nValue.ipc);
+        } finally {
+            this.openButtonTarget.disabled = false;
+        }
         if (path === null) {
             return;
         }

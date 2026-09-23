@@ -59,6 +59,15 @@ final class Editor
                 'overwrite' => $this->trans('conflict.overwrite'),
             ],
             'loadError' => $this->trans('load_error'),
+            // FRT-11, lot 08: the editor could not be created at all.
+            'initFailed' => $this->trans('init_failed'),
+            // HUB-06, lot 08: the file pickers, shared with every caller.
+            'ipc' => [
+                'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),
+                'rejected' => $this->translator->trans('components.ipc.rejected', [], self::TRANSLATION_DOMAIN),
+            ],
+            // FRT-08, lot 08: the picked file is not an image the app can serve.
+            'imageInvalid' => $this->trans('image_invalid'),
             'slashMenu' => [
                 'text' => $this->trans('slash_menu.text'),
                 'paragraph' => $this->trans('slash_menu.paragraph'),

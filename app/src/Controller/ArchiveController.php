@@ -72,6 +72,11 @@ final class ArchiveController extends AbstractController
             'noSource' => $trans('no_source'),
             'done' => $trans('done'),
             'failed' => $trans('failed'),
+            // HUB-06, lot 08: the source and target pickers.
+            'ipc' => [
+                'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),
+                'rejected' => $this->translator->trans('components.ipc.rejected', [], self::TRANSLATION_DOMAIN),
+            ],
             'unsaved' => [
                 'confirm' => $trans('unsaved.confirm'),
                 'cancel' => $trans('unsaved.cancel'),
@@ -103,6 +108,11 @@ final class ArchiveController extends AbstractController
             'importButton' => $trans('import_button'),
             'noSource' => $trans('no_source'),
             'done' => $trans('done'),
+            // HUB-06, lot 08: the archive and parent folder pickers.
+            'ipc' => [
+                'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),
+                'rejected' => $this->translator->trans('components.ipc.rejected', [], self::TRANSLATION_DOMAIN),
+            ],
             'report' => [
                 'title' => $trans('report.title'),
                 'empty' => $trans('report.empty'),

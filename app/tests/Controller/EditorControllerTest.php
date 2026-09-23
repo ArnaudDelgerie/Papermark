@@ -97,9 +97,10 @@ final class EditorControllerTest extends WebTestCase
     }
 
     /**
-     * The three i18n objects Twig renders inline (not through a component's
-     * getI18n()): the master's, the theme button's, and the shared one both
-     * mode-single and mode-dir render for their file entries.
+     * The i18n objects Twig renders inline (not through a component's
+     * getI18n()): the master's, the theme button's, and the ones the sidebar
+     * controllers carry — mode-single and mode-dir on top of the file entries
+     * they share, current-directory for its picker.
      */
     public function testInlineI18nAttributesMatchTheirContracts(): void
     {
@@ -113,8 +114,9 @@ final class EditorControllerTest extends WebTestCase
         $theme = $crawler->filter('button[data-controller="theme-switch"]');
         $this->assertMatchesContract('i18n/theme-switch', json_decode((string) $theme->attr('data-theme-switch-i18n-value'), true));
 
-        $this->assertMatchesContract('i18n/file-entries', json_decode((string) $crawler->filter('div[data-controller="mode-single"]')->attr('data-mode-single-i18n-value'), true));
-        $this->assertMatchesContract('i18n/file-entries', json_decode((string) $crawler->filter('div[data-controller="mode-dir"]')->attr('data-mode-dir-i18n-value'), true));
+        $this->assertMatchesContract('i18n/mode-single', json_decode((string) $crawler->filter('div[data-controller="mode-single"]')->attr('data-mode-single-i18n-value'), true));
+        $this->assertMatchesContract('i18n/mode-dir', json_decode((string) $crawler->filter('div[data-controller="mode-dir"]')->attr('data-mode-dir-i18n-value'), true));
+        $this->assertMatchesContract('i18n/current-directory', json_decode((string) $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-i18n-value'), true));
     }
 
     public function testGetStateReturnsTheSessionState(): void

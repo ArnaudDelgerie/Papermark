@@ -6,6 +6,9 @@
     "unsaved": { "confirm": "Continue and lose unsaved changes?", "cancel": "Cancel", "continue": "Continue" },
     "conflict": { "question": "What should happen to your changes?", "cancel": "Cancel", "saveAs": "Save as…", "overwrite": "Overwrite" },
     "loadError": "The file could not be loaded",
+    "initFailed": "The editor could not be opened",
+    "ipc": { "unavailable": "This action requires the Hub", "rejected": "The file picker failed" },
+    "imageInvalid": "This file is not a usable image",
     "slashMenu": {
         "text": "Text",
         "paragraph": "Text",

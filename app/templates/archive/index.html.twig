@@ -28,7 +28,7 @@
 
             <div class="export-source-row">
                 <span class="export-source-path" data-export-target="sourcePath"></span>
-                <button type="button" class="export-browse-btn" data-action="click->export#browse">{{ 'components.export.browse'|trans({}, 'components') }}</button>
+                <button type="button" class="export-browse-btn" data-export-target="browseButton" data-action="click->export#browse">{{ 'components.export.browse'|trans({}, 'components') }}</button>
             </div>
         </fieldset>
 
@@ -54,7 +54,7 @@
 
             <div class="export-source-row">
                 <span class="export-source-path" data-import-target="archivePath"></span>
-                <button type="button" class="export-browse-btn" data-action="click->import#browseArchive">{{ 'components.import.browse'|trans({}, 'components') }}</button>
+                <button type="button" class="export-browse-btn" data-import-target="archiveBrowseButton" data-action="click->import#browseArchive">{{ 'components.import.browse'|trans({}, 'components') }}</button>
             </div>
         </fieldset>
 
@@ -63,7 +63,7 @@
 
             <div class="export-source-row">
                 <span class="export-source-path" data-import-target="parentPath"></span>
-                <button type="button" class="export-browse-btn" data-action="click->import#browseParent">{{ 'components.import.browse'|trans({}, 'components') }}</button>
+                <button type="button" class="export-browse-btn" data-import-target="parentBrowseButton" data-action="click->import#browseParent">{{ 'components.import.browse'|trans({}, 'components') }}</button>
             </div>
         </fieldset>
 

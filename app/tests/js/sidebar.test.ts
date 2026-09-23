@@ -8,7 +8,7 @@ import ModeSwitchController from '../../assets/controllers/mode_switch_controlle
 import { emit } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { renameDialog } from '../../assets/utils/rename-dialog';
-import { INITIAL, masterHtml, sidebarHtml } from './fixtures';
+import { CURRENT_DIRECTORY_I18N, INITIAL, MODE_DIR_I18N, MODE_SINGLE_I18N, masterHtml, sidebarHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
 import EDITOR_STATE_I18N from '../contract/i18n/editor-state.json';
 
@@ -170,7 +170,7 @@ describe('the left column, with the master', () => {
 
         it('shows the refresh button only once a folder is open', async () => {
             invoke.mockResolvedValue('/notes');
-            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: { path: '/notes' } }));
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true }, action: { path: '/notes' } }));
             // Rendered without a folder: the server hides it.
             sessionStorage.setItem(HISTORY_KEY, '[]');
             application = await mount(masterHtml({ ...INITIAL, mode: 'dir', dir: null }, sidebarHtml('dir', null)), {
@@ -459,5 +459,110 @@ describe('the left column, with the master', () => {
 
         emit('editor:state-resynced', { state: { ...INITIAL, file: null }, anomaly: { file: '/notes/a.md' } });
         expect(history()).toEqual(['/notes/new.md']);
+    });
+
+    describe('the pickers (HUB-06, lot 08)', () => {
+        it('Open says the hub is required without IPC, and the button comes back', async () => {
+            delete window.__TAURI__;
+            await start(['/notes/a.md']);
+
+            click('[data-action="click->mode-single#openFile"]');
+            await settle();
+
+            expect(fetchMock).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: MODE_SINGLE_I18N.ipc.unavailable }]);
+            expect($<HTMLButtonElement>('[data-mode-single-target="openButton"]').disabled).toBe(false);
+        });
+
+        it('Open folder says the hub is required without IPC, and the button comes back', async () => {
+            delete window.__TAURI__;
+            await start([], 'dir');
+
+            click('[data-action="click->current-directory#change"]');
+            await settle();
+
+            expect(fetchMock).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: CURRENT_DIRECTORY_I18N.ipc.unavailable }]);
+            expect($<HTMLButtonElement>('[data-current-directory-target="openButton"]').disabled).toBe(false);
+        });
+
+        it('a rejected invoke toasts the failure, not the cancellation, and the button comes back', async () => {
+            await start([], 'dir');
+
+            invoke.mockRejectedValue(new Error('no window'));
+            click('[data-action="click->current-directory#change"]');
+            await settle();
+
+            expect(toasts).toEqual([{ type: 'error', message: CURRENT_DIRECTORY_I18N.ipc.rejected }]);
+            expect($<HTMLButtonElement>('[data-current-directory-target="openButton"]').disabled).toBe(false);
+
+            toasts.length = 0;
+            invoke.mockResolvedValue(null);
+            click('[data-action="click->current-directory#change"]');
+            await settle();
+
+            expect(toasts).toEqual([]);
+            expect(fetchMock).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('a failed change of folder (FRT-03, lot 08)', () => {
+        it('reloads the tree on the folder the failure left the state in', async () => {
+            await start([], 'dir');
+
+            emit('editor:nav-change_dir-failed', { state: { mode: 'dir', file: null, dir: '/other', readonly: false, ai_enabled: true }, action: { path: '/other' } });
+            await settle();
+
+            expect($('turbo-frame').childElementCount).toBe(0);
+            expect(reload).toHaveBeenCalledTimes(1);
+        });
+
+        it('leaves the tree alone when the state still shows the folder it displays', async () => {
+            await start([], 'dir');
+
+            emit('editor:nav-change_dir-failed', { state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true }, action: { path: '/notes' } });
+            await settle();
+
+            expect($('turbo-frame .mode-tree')).not.toBeNull();
+            expect(reload).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('a tree that could not be fetched (FRT-06, lot 08)', () => {
+        const refreshButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-mode-dir-target="refreshButton"]');
+
+        it('a fetch request error empties the frame into an error zone with Retry, and stops the spinner', async () => {
+            await start([], 'dir');
+
+            $('turbo-frame').dispatchEvent(new Event('turbo:fetch-request-error'));
+
+            const error = $('turbo-frame .mode-tree-error');
+            expect(error.textContent).toBe(MODE_DIR_I18N.tree.loadFailed);
+            const retry = $<HTMLButtonElement>('turbo-frame .mode-tree-retry');
+            expect(retry.textContent).toBe(MODE_DIR_I18N.tree.retry);
+            expect(retry.dataset.action).toBe('click->mode-dir#retryLoad');
+            expect(toasts).toEqual([{ type: 'error', message: MODE_DIR_I18N.tree.loadFailed }]);
+            expect(refreshButton().disabled).toBe(false);
+            expect(refreshButton().classList.contains('is-refreshing')).toBe(false);
+
+            // The Retry is a fresh element: Stimulus only binds its
+            // data-action once its mutation observer has run.
+            await settle();
+            click('turbo-frame .mode-tree-retry');
+            await settle();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+        });
+
+        it('a missing frame is kept from throwing, and ends in the same error zone', async () => {
+            await start([], 'dir');
+
+            const event = new Event('turbo:frame-missing', { cancelable: true });
+            $('turbo-frame').dispatchEvent(event);
+
+            expect(event.defaultPrevented).toBe(true);
+            expect($('turbo-frame .mode-tree-error').textContent).toBe(MODE_DIR_I18N.tree.loadFailed);
+            expect(toasts).toEqual([{ type: 'error', message: MODE_DIR_I18N.tree.loadFailed }]);
+        });
     });
 });

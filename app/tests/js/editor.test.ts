@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import EditorController from '../../assets/controllers/editor_controller';
 import EditorStateController from '../../assets/controllers/editor_state_controller';
 import ModeSwitchController from '../../assets/controllers/mode_switch_controller';
-import CrepeHost from '../../assets/editor/crepe-host';
+import CrepeHost, { type ImageOrigin } from '../../assets/editor/crepe-host';
 import { type EditorState, emit, on } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { saveConflictDialog } from '../../assets/utils/conflict-dialog';
@@ -51,6 +51,7 @@ function fakeHost(): {
     isAiBusy: ReturnType<typeof vi.fn>;
     discardAi: ReturnType<typeof vi.fn>;
     insertImage: ReturnType<typeof vi.fn>;
+    insertImageFromSlashMenu: ReturnType<typeof vi.fn>;
     printCopy: ReturnType<typeof vi.fn>;
     readonly created: boolean;
     readonly aiEnabled: boolean;
@@ -106,6 +107,7 @@ function fakeHost(): {
         isAiBusy: vi.fn(() => false),
         discardAi: vi.fn(),
         insertImage: vi.fn(),
+        insertImageFromSlashMenu: vi.fn(),
         printCopy: vi.fn(() => null),
         get created(): boolean {
             return createdFlag;
@@ -130,7 +132,7 @@ function editorHtml(): string {
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
          data-editor-urls-value="${attr({ file: '/document', copy: '/document/copy', image: '/document/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
          data-editor-i18n-value="${attr(EDITOR_I18N)}">
-        <button type="button" data-action="click->editor#newFile" data-editor-leave-guard>New</button>
+        <button type="button" data-editor-target="newButton" data-action="click->editor#newFile" data-editor-leave-guard>New</button>
         <button type="button" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>Save</button>
         <button type="button" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>Save as</button>
         <button type="button" data-editor-target="printButton" data-action="click->editor#printFile" disabled>Print</button>
@@ -147,6 +149,8 @@ function editorHtml(): string {
 describe('the editor, with the master', () => {
     let application: Application;
     let host: ReturnType<typeof fakeHost>;
+    /** The callbacks of the host the controller currently holds (FRT-02/08). */
+    let hostCallbacks: { onInsertImage: (origin: ImageOrigin) => void } | null = null;
     let fetchMock: ReturnType<typeof vi.fn>;
     let invoke: ReturnType<typeof vi.fn>;
     const files: Record<string, string> = {};
@@ -183,6 +187,9 @@ describe('the editor, with the master', () => {
     let saveCount = 0;
     // Whether the next save answers 409, as a modified file would.
     let conflictNextSave = false;
+    // What /document/image answers to a HEAD (FRT-08, lot 08): refused by
+    // default, so no test inserts by accident.
+    let imageAnswer: 'ok' | 'refused' | 'network' = 'refused';
 
     /** The server: the session's current file, and each route's answer. */
     let current: EditorState;
@@ -191,6 +198,14 @@ describe('the editor, with the master', () => {
             const method = init?.method ?? 'GET';
             const body = init?.body as FormData | undefined;
             const reply = (action: object): Response => jsonResponse({ state: current, action });
+            // The image route is asked with its path in the query (FRT-08).
+            if (method === 'HEAD' && url.startsWith('/document/image')) {
+                if (imageAnswer === 'network') {
+                    throw new TypeError('network down');
+                }
+
+                return new Response(null, { status: imageAnswer === 'ok' ? 200 : 404 });
+            }
             switch (`${method} ${url}`) {
                 case 'GET /document':
                     if (current.file === null) {
@@ -238,9 +253,9 @@ describe('the editor, with the master', () => {
         serialize = (markdown) => markdown;
         // A regular function, not an arrow one: `new CrepeHost(...)` needs a
         // constructable implementation.
-        vi.mocked(CrepeHost).mockImplementation(function () {
+        vi.mocked(CrepeHost).mockImplementation(function (_root, _i18n, callbacks) {
             host = fakeHost();
-
+            hostCallbacks = callbacks;
             return host as never;
         });
         fetchMock = vi.fn();
@@ -259,6 +274,7 @@ describe('the editor, with the master', () => {
         current = { ...INITIAL, file: '/notes/a.md' };
         saveCount = 0;
         conflictNextSave = false;
+        imageAnswer = 'refused';
         server();
     });
 
@@ -1109,6 +1125,264 @@ describe('the editor, with the master', () => {
 
             expect(confirmDialog).not.toHaveBeenCalled();
             expect(calls('POST', '/editor/mode')).toHaveLength(1);
+        });
+    });
+
+    describe('an image picked (FRT-02 + FRT-08 + HUB-06, lot 08)', () => {
+        /** What Crepe's Image entries run: the controller's picker. */
+        const insertImage = (origin: 'slash-menu' | 'top-bar'): void => hostCallbacks!.onInsertImage(origin);
+
+        it('lands from the top bar without clearing, once the route agrees', async () => {
+            imageAnswer = 'ok';
+            invoke.mockResolvedValue('/img/pic.png');
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(fetchMock.mock.calls.some(([url, init]) => url === '/document/image?path=%2Fimg%2Fpic.png' && init?.method === 'HEAD')).toBe(true);
+            expect(host.insertImage).toHaveBeenCalledWith('/document/image?path=%2Fimg%2Fpic.png');
+            expect(host.insertImageFromSlashMenu).not.toHaveBeenCalled();
+        });
+
+        it('lands from the slash menu through the command-clearing path', async () => {
+            imageAnswer = 'ok';
+            invoke.mockResolvedValue('/img/pic.png');
+            await start(current);
+
+            insertImage('slash-menu');
+            await settle();
+
+            expect(host.insertImageFromSlashMenu).toHaveBeenCalledWith('/document/image?path=%2Fimg%2Fpic.png');
+            expect(host.insertImage).not.toHaveBeenCalled();
+        });
+
+        it('a refusal of the route inserts nothing and says why', async () => {
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(host.insertImage).not.toHaveBeenCalled();
+            expect(host.insertImageFromSlashMenu).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.imageInvalid }]);
+        });
+
+        it('a network error inserts nothing and says why', async () => {
+            imageAnswer = 'network';
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(host.insertImage).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.imageInvalid }]);
+        });
+
+        it('a cancelled picker inserts nothing, toasts nothing', async () => {
+            invoke.mockResolvedValue(null);
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(fetchMock.mock.calls.some(([url, init]) => url.startsWith('/document/image') && init?.method === 'HEAD')).toBe(false);
+            expect(host.insertImage).not.toHaveBeenCalled();
+            expect(toasts).toEqual([]);
+        });
+
+        it('without IPC, says the hub is required and inserts nothing', async () => {
+            delete window.__TAURI__;
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(host.insertImage).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.ipc.unavailable }]);
+        });
+
+        it('a rejected invoke says the picker failed', async () => {
+            invoke.mockRejectedValue(new Error('no window'));
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(host.insertImage).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.ipc.rejected }]);
+        });
+    });
+
+    describe('Save as through the picker (HUB-06, lot 08)', () => {
+        it('without IPC, says the hub is required, the button comes back, nothing is saved', async () => {
+            delete window.__TAURI__;
+            await start(current);
+
+            click('[data-editor-target="saveAsButton"]');
+            await settle();
+
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.ipc.unavailable }]);
+            expect(saveAsButton().disabled).toBe(false);
+            expect(calls('POST', '/document/save')).toHaveLength(0);
+        });
+
+        it('a rejected invoke says the picker failed, the button comes back', async () => {
+            invoke.mockRejectedValue(new Error('no window'));
+            await start(current);
+
+            click('[data-editor-target="saveAsButton"]');
+            await settle();
+
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.ipc.rejected }]);
+            expect(saveAsButton().disabled).toBe(false);
+            expect(calls('POST', '/document/save')).toHaveLength(0);
+        });
+
+        it('a cancelled picker saves nothing, toasts nothing', async () => {
+            invoke.mockResolvedValue(null);
+            await start(current);
+
+            click('[data-editor-target="saveAsButton"]');
+            await settle();
+
+            expect(toasts).toEqual([]);
+            expect(calls('POST', '/document/save')).toHaveLength(0);
+        });
+    });
+
+    describe('a creation of Crepe that fails (FRT-11, lot 08)', () => {
+        it('shows the error toast instead of an empty editor, and poses no listener', async () => {
+            vi.mocked(CrepeHost).mockImplementation(function () {
+                host = fakeHost();
+                host.create.mockRejectedValue(new Error('no engine'));
+                hostCallbacks = null;
+
+                return host as never;
+            });
+
+            await start(current);
+
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.initFailed }]);
+            // Not a single window listener: Ctrl+S goes nowhere.
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true }));
+            await settle();
+
+            expect(calls('POST', '/document/save')).toHaveLength(0);
+        });
+
+        it('a teardown while Crepe is being created stops there: nothing is posed after', async () => {
+            let resolveCreate: (() => void) | null = null;
+            vi.mocked(CrepeHost).mockImplementation(function () {
+                host = fakeHost();
+                // Only the first build waits: the re-initialization after the
+                // teardown would otherwise swallow the resolver.
+                if (resolveCreate === null) {
+                    host.create.mockReturnValue(new Promise<void>((resolve) => (resolveCreate = resolve)));
+                }
+                hostCallbacks = null;
+
+                return host as never;
+            });
+
+            await start(current);
+            document.body.innerHTML = '';
+            await settle();
+            resolveCreate!();
+            await settle();
+
+            expect(toasts).toEqual([]);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true }));
+            await settle();
+
+            expect(calls('POST', '/document/save')).toHaveLength(0);
+        });
+    });
+
+    describe('a failed change of file (FRT-03, lot 08)', () => {
+        it('loads the file the failure left the state in', async () => {
+            await start(current);
+            expect(host.markdown()).toBe('# A');
+
+            // The master merges the failed change's state: the server's
+            // session answers the reload with that file.
+            files['/notes/b.md'] = '# B';
+            current = { ...current, file: '/notes/b.md' };
+            emit('editor:nav-change_file-failed', { state: current, action: { path: '/notes/b.md' } });
+            await settle();
+
+            expect(host.markdown()).toBe('# B');
+            expect(label()).toBe('/notes/b.md');
+        });
+    });
+
+    describe('the Ctrl+S and Ctrl+N shortcuts (FRT-10 + UX-03, lot 08)', () => {
+        const key = (k: string): KeyboardEvent => {
+            const event = new KeyboardEvent('keydown', { key: k, ctrlKey: true, cancelable: true });
+            window.dispatchEvent(event);
+
+            return event;
+        };
+
+        it('Ctrl+S on a dirty document asks for a save', async () => {
+            await start(current);
+            host.type('# A, edited');
+
+            key('s');
+            await settle();
+
+            expect(calls('POST', '/document/save')).toHaveLength(1);
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+        });
+
+        it('Ctrl+S with Save disabled does nothing, but is still prevented', async () => {
+            await start(current);
+
+            const event = key('s');
+            await settle();
+
+            expect(event.defaultPrevented).toBe(true);
+            expect(calls('POST', '/document/save')).toHaveLength(0);
+        });
+
+        it('Ctrl+N on a dirty document goes through the leave guard', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(current);
+            host.type('# A, edited');
+
+            key('n');
+            await settle();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+            expect(calls('DELETE', '/editor/file')).toHaveLength(0);
+        });
+
+        it('nothing happens while a dialog is open, but the combination is still prevented', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(current);
+            host.type('# A, edited');
+            const dialog = document.createElement('dialog');
+            dialog.open = true;
+            document.body.append(dialog);
+
+            const event = key('n');
+            await settle();
+
+            expect(event.defaultPrevented).toBe(true);
+            expect(confirmDialog).not.toHaveBeenCalled();
+            expect(calls('DELETE', '/editor/file')).toHaveLength(0);
+        });
+
+        it('the listener is gone once the editor is disconnected', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(current);
+            host.type('# A, edited');
+            await unmount(application);
+
+            key('n');
+            await settle();
+
+            expect(confirmDialog).not.toHaveBeenCalled();
         });
     });
 });

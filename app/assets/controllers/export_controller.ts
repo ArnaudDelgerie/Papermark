@@ -3,7 +3,7 @@ import { type EditorState, emit, on } from '../editor/events';
 import { confirmDialog } from '../utils/confirm-dialog';
 import { request } from '../utils/http';
 import { renderReportHeader } from '../utils/report-header';
-import { type SaveFilter, pickPath, savePath } from '../utils/tauri';
+import { type IpcI18n, type SaveFilter, pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
 const ZIP_FILTERS: SaveFilter[] = [{ name: 'Zip', extensions: ['zip'] }];
@@ -21,6 +21,7 @@ export interface I18n {
     noSource: string;
     failed: string;
     done: string;
+    ipc: IpcI18n;
     unsaved: { confirm: string; cancel: string; continue: string };
     report: { title: string; empty: string; count_one: string; count_other: string; clear: string; reason: Record<string, string> };
 }
@@ -53,7 +54,7 @@ function basename(path: string): string {
  * references left at their original path.
  */
 export default class extends Controller {
-    static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'includeExternalMarkdown', 'exportButton', 'report'];
+    static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'browseButton', 'includeExternalMarkdown', 'exportButton', 'report'];
 
     static values = {
         // At load: 'file' in single mode, 'directory' in dir mode (see
@@ -68,6 +69,7 @@ export default class extends Controller {
     declare readonly kindFileRadioTarget: HTMLInputElement;
     declare readonly kindDirectoryRadioTarget: HTMLInputElement;
     declare readonly sourcePathTarget: HTMLElement;
+    declare readonly browseButtonTarget: HTMLButtonElement;
     declare readonly includeExternalMarkdownTarget: HTMLInputElement;
     declare readonly exportButtonTarget: HTMLButtonElement;
     declare readonly reportTarget: HTMLElement;
@@ -132,7 +134,15 @@ export default class extends Controller {
     }
 
     async browse(): Promise<void> {
-        const path = await pickPath(this.#kind);
+        // The button stays down until the picker answers, whatever the
+        // invoke does with it (FRT-07, lot 08).
+        this.browseButtonTarget.disabled = true;
+        let path: string | null;
+        try {
+            path = await pickPath(this.#kind, this.i18nValue.ipc);
+        } finally {
+            this.browseButtonTarget.disabled = false;
+        }
         if (path === null) {
             return;
         }
@@ -160,7 +170,15 @@ export default class extends Controller {
         const name = basename(sourcePath);
         const defaultName = this.#kind === 'file' ? name.replace(/\.[^./]+$/, '') : name;
 
-        const target = await savePath(`${defaultName}.zip`, dirname(sourcePath), ZIP_FILTERS);
+        // The button stays down until the picker answers, whatever the
+        // invoke does with it (FRT-07, lot 08).
+        this.exportButtonTarget.disabled = true;
+        let target: string | null;
+        try {
+            target = await savePath(this.i18nValue.ipc, `${defaultName}.zip`, dirname(sourcePath), ZIP_FILTERS);
+        } finally {
+            this.exportButtonTarget.disabled = false;
+        }
         if (target === null) {
             return;
         }

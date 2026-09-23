@@ -1,12 +1,13 @@
 import { Controller } from '@hotwired/stimulus';
 import { emit, on } from '../editor/events';
 import { renderReportHeader } from '../utils/report-header';
-import { pickPath } from '../utils/tauri';
+import { type IpcI18n, pickPath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
 export interface I18n {
     noSource: string;
     done: string;
+    ipc: IpcI18n;
     report: { title: string; empty: string; count_one: string; count_other: string; clear: string };
 }
 
@@ -26,10 +27,12 @@ function dirname(path: string): string {
  * asked about unsaved work when the click gets here.
  */
 export default class extends Controller {
-    static targets = ['archivePath', 'parentPath', 'importButton', 'report'];
+    static targets = ['archiveBrowseButton', 'parentBrowseButton', 'archivePath', 'parentPath', 'importButton', 'report'];
 
     static values = { i18n: Object };
 
+    declare readonly archiveBrowseButtonTarget: HTMLButtonElement;
+    declare readonly parentBrowseButtonTarget: HTMLButtonElement;
     declare readonly archivePathTarget: HTMLElement;
     declare readonly parentPathTarget: HTMLElement;
     declare readonly importButtonTarget: HTMLButtonElement;
@@ -68,7 +71,7 @@ export default class extends Controller {
     }
 
     async browseArchive(): Promise<void> {
-        const path = await pickPath('file');
+        const path = await this.#pick(this.archiveBrowseButtonTarget, 'file');
         if (path === null) {
             return;
         }
@@ -86,13 +89,26 @@ export default class extends Controller {
     }
 
     async browseParent(): Promise<void> {
-        const path = await pickPath('directory');
+        const path = await this.#pick(this.parentBrowseButtonTarget, 'directory');
         if (path === null) {
             return;
         }
 
         this.#parentPath = path;
         this.parentPathTarget.textContent = path;
+    }
+
+    /**
+     * The Browse button stays down until the picker answers, whatever the
+     * invoke does with it (FRT-07, lot 08).
+     */
+    async #pick(button: HTMLButtonElement, kind: 'file' | 'directory'): Promise<string | null> {
+        button.disabled = true;
+        try {
+            return await pickPath(kind, this.i18nValue.ipc);
+        } finally {
+            button.disabled = false;
+        }
     }
 
     run(): void {

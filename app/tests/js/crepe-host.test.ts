@@ -224,7 +224,7 @@ describe('CrepeHost', () => {
         expect(crepes[1].addFeature).toHaveBeenCalledWith(ai, expect.objectContaining({ provider }));
     });
 
-    it('the slash menu\'s "Image" action calls onInsertImage', async () => {
+    it('the slash menu\'s "Image" action calls onInsertImage with its origin (FRT-02)', async () => {
         const onInsertImage = vi.fn();
         const host = new CrepeHost(document.createElement('div'), I18N, callbacks({ onInsertImage }));
         await host.create({ aiEnabled: false, aiProvider: undefined });
@@ -234,10 +234,13 @@ describe('CrepeHost', () => {
 
         featureConfigs[Crepe.Feature.BlockEdit].buildMenu(builder);
 
-        expect(builder.getGroup('advanced').group.items.find((item) => item.key === 'image')?.onRun).toBe(onInsertImage);
+        const onRun = builder.getGroup('advanced').group.items.find((item) => item.key === 'image')?.onRun as () => void;
+        expect(onRun).toBeDefined();
+        onRun();
+        expect(onInsertImage).toHaveBeenCalledWith('slash-menu');
     });
 
-    it('the top bar\'s "Image" action calls onInsertImage, and its "more" group gets an AI entry only with AI', async () => {
+    it('the top bar\'s "Image" action calls onInsertImage with its own origin (FRT-02), and its "more" group gets an AI entry only with AI', async () => {
         const onInsertImage = vi.fn();
         const menu = (): Record<string, FakeMenuItem[]> => ({
             insert: [{ key: 'image', onRun: vi.fn() }],
@@ -252,7 +255,10 @@ describe('CrepeHost', () => {
         const builderWithoutAi = fakeGroupBuilder(menu());
         topBarWithoutAi.buildTopBar(builderWithoutAi);
 
-        expect(builderWithoutAi.getGroup('insert').group.items.find((item) => item.key === 'image')?.onRun).toBe(onInsertImage);
+        const onRun = builderWithoutAi.getGroup('insert').group.items.find((item) => item.key === 'image')?.onRun as () => void;
+        expect(onRun).toBeDefined();
+        onRun();
+        expect(onInsertImage).toHaveBeenCalledWith('top-bar');
         expect(builderWithoutAi.getGroup('more').group.items).toHaveLength(0);
 
         const withAi = new CrepeHost(document.createElement('div'), I18N, callbacks());
@@ -422,12 +428,26 @@ describe('CrepeHost', () => {
     });
 
     describe('insertImage()', () => {
-        it('empties the block and adds an image block with src', async () => {
+        it('adds the image block at the selection, without clearing the block (FRT-02, top bar)', async () => {
             const host = new CrepeHost(document.createElement('div'), I18N, callbacks());
             await host.create({ aiEnabled: false, aiProvider: undefined });
             const crepe = crepes[0];
 
             host.insertImage('/document/image?path=%2Ffoo.png');
+
+            expect(crepe.commands.call).not.toHaveBeenCalledWith(clearTextInCurrentBlockCommand.key);
+            expect(crepe.commands.call).toHaveBeenCalledWith(addBlockTypeCommand.key, {
+                nodeType: 'IMAGE_NODE_TYPE',
+                attrs: { src: '/document/image?path=%2Ffoo.png' },
+            });
+        });
+
+        it('insertImageFromSlashMenu() clears the /image command block first (FRT-02, slash menu)', async () => {
+            const host = new CrepeHost(document.createElement('div'), I18N, callbacks());
+            await host.create({ aiEnabled: false, aiProvider: undefined });
+            const crepe = crepes[0];
+
+            host.insertImageFromSlashMenu('/document/image?path=%2Ffoo.png');
 
             expect(crepe.commands.call).toHaveBeenCalledWith(clearTextInCurrentBlockCommand.key);
             expect(crepe.commands.call).toHaveBeenCalledWith(addBlockTypeCommand.key, {
@@ -440,6 +460,7 @@ describe('CrepeHost', () => {
             const host = new CrepeHost(document.createElement('div'), I18N, callbacks());
 
             host.insertImage('/x.png');
+            host.insertImageFromSlashMenu('/x.png');
 
             expect(crepes).toHaveLength(0);
         });

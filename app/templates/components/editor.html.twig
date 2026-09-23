@@ -17,11 +17,11 @@
      style="height: {{ css_height }};">
     <div class="editor-file-bar">
         {# The file #}        <div class="editor-filebar-actions">
-            <button type="button" class="editor-filebar-btn" data-action="click->editor#newFile" data-editor-leave-guard title="{{ 'components.editor.new'|trans({}, 'components') }}">
+            <button type="button" class="editor-filebar-btn" data-editor-target="newButton" data-action="click->editor#newFile" data-editor-leave-guard title="{{ 'components.editor.new_title'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--new" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.new'|trans({}, 'components') }}</span>
             </button>
-            <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled title="{{ 'components.editor.save'|trans({}, 'components') }}">
+            <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled title="{{ 'components.editor.save_title'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--save" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.save'|trans({}, 'components') }}</span>
             </button>

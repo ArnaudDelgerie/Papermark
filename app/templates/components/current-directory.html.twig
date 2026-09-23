@@ -1,4 +1,5 @@
-<div class="current-directory" data-controller="current-directory">
+<div class="current-directory" data-controller="current-directory"
+     data-current-directory-i18n-value="{{ i18n|json_encode }}">
     <button type="button" class="editor-sidebar-btn" data-current-directory-target="openButton"
             data-action="click->current-directory#change" data-editor-leave-guard>
         <span class="mode-dir-open-label">{{ 'components.mode.open_directory'|trans({}, 'components') }}</span>

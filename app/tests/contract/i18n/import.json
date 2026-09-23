@@ -3,6 +3,7 @@
     "importButton": "Import",
     "noSource": "Choose an archive and a destination",
     "done": "Imported into {path}",
+    "ipc": { "unavailable": "This action requires the Hub", "rejected": "The file picker failed" },
     "report": {
         "title": "Ignored entries",
         "empty": "Nothing was ignored",

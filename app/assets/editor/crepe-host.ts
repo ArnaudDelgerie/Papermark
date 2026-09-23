@@ -7,6 +7,7 @@ import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
 import { addBlockTypeCommand, clearTextInCurrentBlockCommand, remarkPreserveEmptyLinePlugin } from '@milkdown/kit/preset/commonmark';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
+import { TextSelection } from '@milkdown/kit/prose/state';
 import { trailing } from '@milkdown/plugin-trailing';
 import { prism } from '@milkdown/plugin-prism';
 import { replaceAll } from '@milkdown/utils';
@@ -53,8 +54,11 @@ export interface CrepeI18n {
     };
 }
 
+/** Where an image insertion was asked from: each has its own behaviour (FRT-02, lot 08). */
+export type ImageOrigin = 'slash-menu' | 'top-bar';
+
 interface CrepeHostCallbacks {
-    onInsertImage: () => void;
+    onInsertImage: (origin: ImageOrigin) => void;
     onCopyCode: (text: string) => void;
     onAiError: (error: Error) => void;
 }
@@ -137,12 +141,16 @@ export default class CrepeHost {
         await this.#recreation;
     }
 
-    // FRT-11, lot Front éditeur: destroy() is not awaited; the host can be
-    // torn down while it is still cleaning up.
     destroy(): void {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        this.#crepe?.destroy();
+        const crepe = this.#crepe;
         this.#crepe = null;
+        if (crepe !== null) {
+            // FRT-11, lot Front éditeur: a teardown that fails is logged, not
+            // left as an unhandled rejection — nothing can be done about it.
+            crepe.destroy().catch((error) => {
+                console.error('Crepe teardown failed:', error);
+            });
+        }
     }
 
     markdown(): string {
@@ -228,15 +236,36 @@ export default class CrepeHost {
     /**
      * Picked paths are always absolute and never rewritten to relative,
      * whether the document is new or already open — see EDITOR_IMAGES.md.
+     *
+     * From the top bar (FRT-02, lot 08): Crepe's own action, exactly — the
+     * image node is added at the selection, and the block it lands in keeps
+     * its text.
      */
     insertImage(src: string): void {
+        this.#addImageBlock(src);
+    }
+
+    /**
+     * From the slash menu (FRT-02, lot 08): the `/image` command text is
+     * still in its block, and has to go before the image takes its place.
+     */
+    insertImageFromSlashMenu(src: string): void {
+        if (this.#crepe === null) {
+            return;
+        }
+        this.#crepe.editor.action((ctx) => {
+            ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+        });
+        this.#addImageBlock(src);
+    }
+
+    #addImageBlock(src: string): void {
         if (this.#crepe === null) {
             return;
         }
         this.#crepe.editor.action((ctx) => {
             const commands = ctx.get(commandsCtx);
             const imageBlock = imageBlockSchema.type(ctx);
-            commands.call(clearTextInCurrentBlockCommand.key);
             commands.call(addBlockTypeCommand.key, {
                 nodeType: imageBlock,
                 attrs: { src },
@@ -271,6 +300,11 @@ export default class CrepeHost {
         // A generation in progress dies with the Crepe it runs in.
         this.discardAi();
 
+        // FRT-05, lot Front éditeur: the selection and the focus survive the
+        // rebuild (the undo history does not, accepted — see #recreate()'s
+        // comment in editor_controller.ts).
+        const carried = this.#captureSelection(previous);
+
         this.#crepe = null;
         await previous.destroy();
         // Crepe leaves its empty container behind; the next one makes its own.
@@ -281,7 +315,45 @@ export default class CrepeHost {
         this.#aiEnabled = aiEnabled;
         this.#crepe = await this.#build(markdown, aiEnabled, aiProvider);
 
+        this.#restoreSelection(carried);
+
         return markdown;
+    }
+
+    /** What #recreateNow() carries from the old Crepe to the new one (FRT-05). */
+    #captureSelection(crepe: Crepe): { from: number; to: number; focused: boolean } | null {
+        if (crepe.editor.status !== EditorStatus.Created) {
+            return null;
+        }
+
+        const view = crepe.editor.ctx.get(editorViewCtx);
+        const { selection } = view.state;
+        if (selection === undefined) {
+            return null;
+        }
+
+        return { from: selection.from, to: selection.to, focused: this.#root.contains(document.activeElement) };
+    }
+
+    /**
+     * The selection, bounded to the new document — a shorter one truncates
+     * it — and the focus, if the editor had it. `between` falls back to the
+     * nearest text position when the clamped one is not one.
+     */
+    #restoreSelection(carried: { from: number; to: number; focused: boolean } | null): void {
+        const editor = this.#crepe?.editor;
+        if (carried === null || !editor || editor.status !== EditorStatus.Created) {
+            return;
+        }
+
+        const view = editor.ctx.get(editorViewCtx);
+        const { doc } = view.state;
+        const size = doc.content.size;
+        const selection = TextSelection.between(doc.resolve(Math.min(carried.from, size)), doc.resolve(Math.min(carried.to, size)));
+        view.dispatch(view.state.tr.setSelection(selection));
+        if (carried.focused) {
+            view.focus();
+        }
     }
 
     async #build(markdown: string, aiEnabled: boolean, aiProvider?: AIProvider): Promise<Crepe> {
@@ -344,18 +416,20 @@ export default class CrepeHost {
                         const advanced = builder.getGroup('advanced');
                         const imageItem = advanced.group.items.find((item) => item.key === 'image');
                         if (imageItem) {
-                            imageItem.onRun = onInsertImage;
+                            imageItem.onRun = () => onInsertImage('slash-menu');
                         }
                     },
                 },
                 [Crepe.Feature.TopBar]: {
                     buildTopBar: (builder) => {
                         // Same replacement as the slash menu's "Image" entry: the hub's
-                        // file picker instead of Crepe's own upload/placeholder UI.
+                        // file picker instead of Crepe's own upload/placeholder UI. The
+                        // top bar's callback is its own, though (FRT-02, lot 08): it
+                        // must not clear the block the selection sits in.
                         const insert = builder.getGroup('insert');
                         const imageItem = insert.group.items.find((item) => item.key === 'image');
                         if (imageItem) {
-                            imageItem.onRun = onInsertImage;
+                            imageItem.onRun = () => onInsertImage('top-bar');
                         }
 
                         const formatting = builder.getGroup('formatting');

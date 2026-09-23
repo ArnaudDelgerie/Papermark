@@ -24,6 +24,10 @@ components:
             overwrite: Écraser
         load_error: Impossible de charger le fichier
         load_error_retry: Réessayer
+        init_failed: Impossible d'ouvrir l'éditeur
+        image_invalid: Ce fichier n'est pas une image utilisable
+        save_title: 'Enregistrer (Ctrl+S)'
+        new_title: 'Nouveau (Ctrl+N)'
         toggle:
             edit: Modifier
             readonly: Lecture seule
@@ -84,6 +88,9 @@ components:
             ai_empty_response: Le modèle n'a renvoyé aucun texte
             request_failed: "L'action a échoué, veuillez réessayer"
             update_check_failed: Impossible de vérifier les mises à jour
+    ipc:
+        unavailable: Cette action demande le Hub
+        rejected: Le sélecteur de fichiers a échoué
     mode:
         single: Fichier unique
         dir: Dossier
@@ -97,6 +104,8 @@ components:
             too_large: Ce dossier est trop volumineux pour être affiché
             no_markdown: Aucun fichier Markdown dans ce dossier
             refresh: Rafraîchir l'arborescence
+            load_failed: Impossible de charger l'arborescence
+            retry: Réessayer
         file:
             rename: Renommer
             symlink: 'Lien symbolique : renommer et supprimer sont désactivés'

@@ -31,6 +31,7 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
             <input type="radio" name="export-kind" value="file" data-export-target="kindFileRadio" data-action="change->export#changeKind">
             <input type="radio" name="export-kind" value="directory" data-export-target="kindDirectoryRadio" data-action="change->export#changeKind">
             <span class="source" data-export-target="sourcePath"></span>
+            <button type="button" class="browse" data-export-target="browseButton" data-action="click->export#browse">Browse</button>
             <input type="checkbox" data-export-target="includeExternalMarkdown">
             <button type="button" data-export-target="exportButton" data-action="click->export#run">Export</button>
             <div data-export-target="report" hidden></div>
@@ -38,9 +39,9 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
         <section data-controller="import"
                  data-import-i18n-value="${attr(IMPORT_I18N)}">
             <span data-import-target="archivePath"></span>
-            <button type="button" class="browse-archive" data-action="click->import#browseArchive">Browse</button>
+            <button type="button" class="browse-archive" data-import-target="archiveBrowseButton" data-action="click->import#browseArchive">Browse</button>
             <span data-import-target="parentPath"></span>
-            <button type="button" class="browse-parent" data-action="click->import#browseParent">Browse</button>
+            <button type="button" class="browse-parent" data-import-target="parentBrowseButton" data-action="click->import#browseParent">Browse</button>
             <button type="button" class="import" data-import-target="importButton" data-action="click->import#run" data-editor-leave-guard>Import</button>
             <div class="report" data-import-target="report" hidden></div>
         </section>
@@ -493,6 +494,67 @@ describe('the archive modal, with the master', () => {
             emit('editor:nav-change_file-failed', { state: INITIAL, action: { path: '/x.md' } });
 
             expect(kind()).toBe('directory');
+        });
+    });
+
+    describe('the pickers (HUB-06, lot 08)', () => {
+        it('Browse says the hub is required without IPC, and the button comes back', async () => {
+            delete window.__TAURI__;
+            await start();
+
+            click('[data-export-target="browseButton"]');
+            await settle();
+
+            expect(fetchMock.mock.calls.filter(([url]) => url === '/archive/export')).toHaveLength(0);
+            expect(toasts).toEqual([{ type: 'error', message: EXPORT_I18N.ipc.unavailable }]);
+            expect($<HTMLButtonElement>('[data-export-target="browseButton"]').disabled).toBe(false);
+            expect($('[data-export-target="sourcePath"]').textContent).toBe(INITIAL.file);
+        });
+
+        it('a rejected invoke toasts the picker failure, and the button comes back', async () => {
+            await start();
+
+            invoke.mockRejectedValue(new Error('no window'));
+            click('[data-export-target="browseButton"]');
+            await settle();
+
+            expect(toasts).toEqual([{ type: 'error', message: EXPORT_I18N.ipc.rejected }]);
+            expect($<HTMLButtonElement>('[data-export-target="browseButton"]').disabled).toBe(false);
+
+            toasts.length = 0;
+            invoke.mockResolvedValue(null);
+            click('[data-export-target="browseButton"]');
+            await settle();
+
+            expect(toasts).toEqual([]);
+        });
+
+        it('the import pickers say the hub is required too, each with its button back', async () => {
+            delete window.__TAURI__;
+            await start();
+
+            click('.browse-archive');
+            await settle();
+            expect(toasts).toEqual([{ type: 'error', message: IMPORT_I18N.ipc.unavailable }]);
+            expect($<HTMLButtonElement>('[data-import-target="archiveBrowseButton"]').disabled).toBe(false);
+
+            toasts.length = 0;
+            click('.browse-parent');
+            await settle();
+            expect(toasts).toEqual([{ type: 'error', message: IMPORT_I18N.ipc.unavailable }]);
+            expect($<HTMLButtonElement>('[data-import-target="parentBrowseButton"]').disabled).toBe(false);
+        });
+
+        it('an export whose save dialog could not open saves nothing, and the button comes back', async () => {
+            delete window.__TAURI__;
+            await start();
+
+            click('[data-export-target="exportButton"]');
+            await settle();
+
+            expect(fetchMock.mock.calls.filter(([url]) => url === '/archive/export')).toHaveLength(0);
+            expect(toasts).toEqual([{ type: 'error', message: EXPORT_I18N.ipc.unavailable }]);
+            expect($<HTMLButtonElement>('[data-export-target="exportButton"]').disabled).toBe(false);
         });
     });
 });
