@@ -10,13 +10,17 @@ use App\Repository\SettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\ErrorHandler\BufferingLogger;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Flash\FlashBagInterface;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Core\Exception\InvalidCsrfTokenException;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * SET-03, lot 09: a page navigation (the language form post, the webview's
@@ -64,19 +68,16 @@ final class NavigationExceptionListenerTest extends WebTestCase
     }
 
     /**
-     * WebKitGTK sends no Sec-Fetch-Mode at all: the fallback criterion is
-     * the absence of X-CSRF-TOKEN, which every fetch of utils/http.ts
-     * carries (tranché à l'implémentation, lot 09).
+     * Only `Sec-Fetch-Mode: navigate` makes a navigation, which the hub's
+     * WebKitGTK sends: a request with no fetch marker at all (no
+     * X-CSRF-TOKEN either, like the image check's HEAD) keeps its 404 —
+     * a redirect would be followed to a 200 and pass for a usable image.
      */
-    public function testARequestWithNoFetchMarkersAtAllIsANavigation(): void
+    public function testARequestWithoutSecFetchModeIsNotANavigation(): void
     {
-        $this->client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => 'invalid'], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        $this->client->request('HEAD', '/document/image', ['path' => 'nope.png']);
 
-        self::assertResponseRedirects('/');
-        self::assertSame(
-            ['Invalid security token, please reload the page'],
-            $this->errorFlashes($this->client->getRequest()),
-        );
+        self::assertResponseStatusCodeSame(404);
     }
 
     /** An `<img>` load is not a navigation: its 404 stays a 404. */
@@ -114,6 +115,31 @@ final class NavigationExceptionListenerTest extends WebTestCase
     }
 
     /**
+     * The redirect stops the propagation, so the framework never logs the
+     * exception: the listener logs the unexpected ones itself, and only
+     * those — a refused token or a refused field is the user's, not a bug.
+     */
+    public function testOnlyAnUnexpectedExceptionIsLogged(): void
+    {
+        $logger = new BufferingLogger();
+        $listener = new NavigationExceptionListener(
+            static::getContainer()->get(TranslatorInterface::class),
+            static::getContainer()->get(UrlGeneratorInterface::class),
+            $logger,
+        );
+
+        $listener->onKernelException($this->exceptionEvent('app_settings_locale', new InvalidCsrfTokenException()));
+        $logs = $logger->cleanLogs();
+        self::assertSame([], $logs);
+
+        $listener->onKernelException($this->exceptionEvent('app_settings_locale'));
+        $logs = $logger->cleanLogs();
+        self::assertCount(1, $logs);
+        self::assertSame('error', $logs[0][0]);
+        self::assertSame('the app is down', $logs[0][2]['exception']->getMessage());
+    }
+
+    /**
      * The error flashes of a request, read through the session interface
      * (the same way the listener writes them).
      *
@@ -143,7 +169,7 @@ final class NavigationExceptionListenerTest extends WebTestCase
         return ['HTTP_X_CSRF_TOKEN' => $this->token(), 'HTTP_ORIGIN' => 'http://localhost'];
     }
 
-    private function exceptionEvent(string $route): ExceptionEvent
+    private function exceptionEvent(string $route, ?\Throwable $throwable = null): ExceptionEvent
     {
         $request = Request::create('http://localhost/');
         $request->attributes->set('_route', $route);
@@ -154,7 +180,7 @@ final class NavigationExceptionListenerTest extends WebTestCase
             static::getContainer()->get('kernel'),
             $request,
             HttpKernelInterface::MAIN_REQUEST,
-            new \RuntimeException('the app is down'),
+            $throwable ?? new \RuntimeException('the app is down'),
         );
     }
 

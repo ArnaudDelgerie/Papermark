@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\EventListener;
 
 use App\Interface\UserFacingExceptionInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,13 +32,16 @@ final class NavigationExceptionListener
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
     /**
      * Runs before UserFacingExceptionListener's CSRF handler (2) and the
-     * firewall (1), and stops the propagation: a navigation's answer is the
-     * redirect, whatever the lower-priority JSON builders would say.
+     * firewall (1): setResponse() stops the propagation, so a navigation's
+     * answer is the redirect, whatever the lower-priority JSON builders
+     * would say. It also skips the framework's own logging (0), hence
+     * #message() logs the unexpected exceptions itself.
      */
     #[AsEventListener(event: KernelEvents::EXCEPTION, priority: 4)]
     public function onKernelException(ExceptionEvent $event): void
@@ -62,25 +66,22 @@ final class NavigationExceptionListener
         }
 
         $event->setResponse(new RedirectResponse($this->urlGenerator->generate('app_home')));
-        $event->stopPropagation();
     }
 
     /**
-     * A navigation carries `Sec-Fetch-Mode: navigate`. WebKitGTK sends no
-     * Sec-Fetch-Mode header at all: there, the criterion is the absence of
-     * `X-CSRF-TOKEN`, which every fetch of utils/http.ts carries (tranché à
-     * l'implémentation, lot 09).
+     * A navigation carries `Sec-Fetch-Mode: navigate`. The hub's WebKitGTK
+     * sends the header (checked in the hub, lot 09): an `<img>`, a fetch or
+     * a Turbo frame load never counts as a navigation.
      */
     private function isNavigation(Request $request): bool
     {
-        $mode = $request->headers->get('sec-fetch-mode');
-
-        return $mode === 'navigate' || ($mode === null && !$request->headers->has('x-csrf-token'));
+        return $request->headers->get('sec-fetch-mode') === 'navigate';
     }
 
     /**
      * The exception's own message when it has one for the user, else a
-     * generic one. Unwrapped and HttpException-wrapped alike: this runs
+     * generic one — and then the exception is logged, since the framework
+     * never will. Unwrapped and HttpException-wrapped alike: this runs
      * before the framework's ErrorListener does the wrapping.
      */
     private function message(\Throwable $throwable): string
@@ -97,6 +98,11 @@ final class NavigationExceptionListener
         if ($exception instanceof InvalidCsrfTokenException) {
             return $this->translator->trans('exceptions.security.csrf_invalid', domain: 'exceptions');
         }
+
+        $this->logger->error('Uncaught exception on a page navigation: {message}', [
+            'message' => $throwable->getMessage(),
+            'exception' => $throwable,
+        ]);
 
         return $this->translator->trans('exceptions.unexpected', domain: 'exceptions');
     }

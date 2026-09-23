@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Crepe } from '@milkdown/crepe';
 import { abortAICmd, ai } from '@milkdown/crepe/feature/ai';
-import type { AIProvider } from '@milkdown/crepe/feature/ai';
+import type { AIProvider, AISubmenuBuilder, AISubmenuDef, AISuggestionItem, AISuggestionsBuilder } from '@milkdown/crepe/feature/ai';
 import { EditorStatus, commandsCtx } from '@milkdown/kit/core';
 import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
@@ -509,5 +509,113 @@ describe('CrepeHost', () => {
 
             expect(host.printCopy()).toBeNull();
         });
+    });
+});
+
+/**
+ * A stand-in for Crepe's AISuggestionsBuilder, which the package exports as
+ * a type only. Seeded with Crepe's own defaults (7.22.1): English labels and
+ * prompts, the two submenus with their items.
+ */
+function defaultSuggestionsBuilder(): AISuggestionsBuilder {
+    type Entry = { item?: AISuggestionItem; def?: AISubmenuDef; items?: Map<string, AISuggestionItem> };
+    const entries = new Map<string, Entry>();
+    const submenu = (items: Map<string, AISuggestionItem>): AISubmenuBuilder => {
+        const sub: AISubmenuBuilder = {
+            addItem: (id, item) => (items.set(id, item), sub),
+            removeItem: (id) => (items.delete(id), sub),
+            getItem: (id) => items.get(id),
+            clear: () => (items.clear(), sub),
+        };
+
+        return sub;
+    };
+    const builder = {
+        addItem: (id: string, item: AISuggestionItem) => (entries.set(id, { item }), builder),
+        addSubmenu: (id: string, def: AISubmenuDef, build?: (sub: AISubmenuBuilder) => void) => {
+            const items = new Map<string, AISuggestionItem>();
+            build?.(submenu(items));
+            entries.set(id, { def, items });
+
+            return builder;
+        },
+        removeItem: (id: string) => (entries.delete(id), builder),
+        getItem: (id: string) => entries.get(id)?.item,
+        getSubmenu: (id: string) => {
+            const items = entries.get(id)?.items;
+
+            return items === undefined ? undefined : submenu(items);
+        },
+        clear: () => (entries.clear(), builder),
+        build: () => ({
+            main: [...entries].map(([id, entry]) => (entry.def !== undefined
+                ? { kind: 'submenu' as const, id, def: entry.def }
+                : { kind: 'item' as const, id, item: entry.item! })),
+            submenus: Object.fromEntries([...entries].filter(([, entry]) => entry.def !== undefined).map(([id, entry]) => [
+                id,
+                { def: entry.def!, items: [...entry.items!].map(([itemId, item]) => ({ id: itemId, item })) },
+            ])),
+        }),
+    };
+    for (const [id, label, streamingLabel, prompt] of [
+        ['improve', 'Improve writing', 'Improving writing', 'Improve the writing while preserving the original meaning.'],
+        ['grammar', 'Fix grammar & spelling', 'Fixing grammar & spelling', 'Fix any grammar and spelling errors without changing the meaning.'],
+        ['shorter', 'Make shorter', 'Making shorter', 'Make this shorter while preserving the key information.'],
+        ['longer', 'Make longer', 'Expanding', 'Expand this with more detail and examples.'],
+    ]) {
+        builder.addItem(id, { icon: 'edit', label, streamingLabel, prompt });
+    }
+    builder.addSubmenu('tone', { icon: 'edit', label: 'Change tone…', title: 'Change tone', searchPlaceholder: 'Search tones…' }, (sub) => {
+        for (const label of ['Professional', 'Casual', 'Confident', 'Friendly', 'Direct', 'Formal']) {
+            sub.addItem(label.toLowerCase(), { icon: 'edit', label, streamingLabel: 'Adjusting tone', prompt: `Rewrite this in a ${label.toLowerCase()} tone.` });
+        }
+    });
+    builder.addSubmenu('translate', { icon: 'globe', label: 'Translate…', title: 'Translate', searchPlaceholder: 'Search languages…' }, (sub) => {
+        for (const [label, promptName] of [['English', 'English'], ['Chinese', 'Chinese (Simplified)'], ['Japanese', 'Japanese'], ['Korean', 'Korean'], ['Spanish', 'Spanish'], ['French', 'French'], ['German', 'German']]) {
+            sub.addItem(label.toLowerCase(), { icon: 'globe', label, streamingLabel: `Translating to ${label}`, prompt: `Translate this to ${promptName}.` });
+        }
+    });
+
+    return builder as unknown as AISuggestionsBuilder;
+}
+
+/** Every string of the suggestions' i18n, marked, `{language}` kept. */
+function marked<T>(value: T): T {
+    if (typeof value === 'string') {
+        return `T:${value}` as T;
+    }
+
+    return Object.fromEntries(Object.entries(value as object).map(([key, entry]) => [key, marked(entry)])) as T;
+}
+
+describe('CrepeHost AI suggestions (SET-04, lot 09)', () => {
+    it('every label the user reads is the server\'s, every prompt stays Crepe\'s English one', async () => {
+        const i18n: CrepeI18n = { ...I18N, ai: { ...I18N.ai, suggestions: marked(I18N.ai.suggestions) } };
+        const host = new CrepeHost(document.createElement('div'), i18n, callbacks());
+        await host.create({ aiEnabled: true, aiProvider: undefined });
+        const config = crepes[0].addFeature.mock.calls.find(([feature]) => feature === ai)![1] as {
+            buildAISuggestions: (builder: AISuggestionsBuilder) => void;
+        };
+
+        const builder = defaultSuggestionsBuilder();
+        const prompts = JSON.stringify(builder.build()).match(/"prompt":"[^"]*"/g);
+        config.buildAISuggestions(builder);
+        const built = builder.build();
+
+        const items = [
+            ...built.main.flatMap((entry) => (entry.kind === 'item' ? [entry.item] : [])),
+            ...Object.values(built.submenus).flatMap((submenu) => submenu.items.map(({ item }) => item)),
+        ];
+        expect(items).toHaveLength(4 + 6 + 7);
+        for (const item of items) {
+            expect(item.label).toMatch(/^T:/);
+            expect(item.streamingLabel).toMatch(/^T:/);
+        }
+        for (const { def } of Object.values(built.submenus)) {
+            expect([def.label, def.title, def.searchPlaceholder]).toEqual([expect.stringMatching(/^T:/), expect.stringMatching(/^T:/), expect.stringMatching(/^T:/)]);
+        }
+        expect(built.submenus.translate.items[5].item.streamingLabel).toBe('T:Translating to T:French');
+        expect(JSON.stringify(built).match(/"prompt":"[^"]*"/g)).toEqual(prompts);
+        expect(built.main.map((entry) => entry.id)).toEqual(['improve', 'grammar', 'shorter', 'longer', 'tone', 'translate']);
     });
 });
