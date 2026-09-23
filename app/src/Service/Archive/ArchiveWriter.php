@@ -17,14 +17,24 @@ use App\Exception\Filesystem\WriteFailedException;
 final class ArchiveWriter
 {
     /**
+     * Written to a temporary file beside $path, renamed onto it only once
+     * the zip is complete (ARC-02): an existing archive at $path stays as it
+     * was if anything fails — ZipArchive::OVERWRITE on $path itself would
+     * replace it with a partial zip as soon as close() succeeds.
+     *
      * @throws WriteFailedException
      */
     public function write(ExportPlan $plan, string $path): void
     {
-        $zip = new \ZipArchive();
-        $result = $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $temp = @tempnam(\dirname($path), '.papermark-export-');
+        if (false === $temp) {
+            throw new WriteFailedException($path);
+        }
 
-        if (true !== $result) {
+        $zip = new \ZipArchive();
+        if (true !== $zip->open($temp, \ZipArchive::CREATE | \ZipArchive::OVERWRITE)) {
+            @unlink($temp);
+
             throw new WriteFailedException($path);
         }
 
@@ -38,8 +48,8 @@ final class ArchiveWriter
 
         $closed = @$zip->close();
 
-        if (!$allAdded || !$closed || !is_file($path)) {
-            @unlink($path);
+        if (!$allAdded || !$closed || !is_file($temp) || !@rename($temp, $path)) {
+            @unlink($temp);
 
             throw new WriteFailedException($path);
         }

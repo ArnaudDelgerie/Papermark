@@ -8,6 +8,7 @@ use App\Service\Archive\ArchiveWriter;
 use App\Dto\Archive\ExportEntry;
 use App\Dto\Archive\ExportPlan;
 use App\Exception\Filesystem\WriteFailedException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ArchiveWriterTest extends TestCase
@@ -101,6 +102,45 @@ final class ArchiveWriterTest extends TestCase
         } finally {
             self::assertFileDoesNotExist($this->zipPath);
         }
+    }
+
+    /** ARC-02: a failed write leaves an archive already at the target as it was, and no temporary file behind. */
+    #[DataProvider('provideFailingSources')]
+    public function testAFailedWriteKeepsTheExistingArchive(bool $sourceExists): void
+    {
+        file_put_contents($this->zipPath, 'OLD-ARCHIVE');
+        $source = $this->workDir . '/photo.png';
+        if ($sourceExists) {
+            // Found by addFile(), unreadable once close() actually reads it.
+            file_put_contents($source, 'PNG-BYTES');
+            chmod($source, 0o000);
+        }
+
+        $plan = new ExportPlan(
+            [
+                new ExportEntry('doc.md', $this->workDir . '/doc.md', 'content'),
+                new ExportEntry('ext_img/photo.png', $source, null),
+            ],
+            [],
+        );
+
+        try {
+            (new ArchiveWriter())->write($plan, $this->zipPath);
+            self::fail('Expected WriteFailedException.');
+        } catch (WriteFailedException) {
+        } finally {
+            @chmod($source, 0o644);
+        }
+
+        self::assertSame('OLD-ARCHIVE', file_get_contents($this->zipPath));
+        self::assertSame(['.', '..', 'out.zip'], array_values(array_diff(scandir($this->workDir), ['photo.png'])));
+    }
+
+    /** @return iterable<string, array{0: bool}> */
+    public static function provideFailingSources(): iterable
+    {
+        yield 'source gone (addFile fails)' => [false];
+        yield 'source unreadable (close fails)' => [true];
     }
 
     private function removeDirectory(string $dir): void
