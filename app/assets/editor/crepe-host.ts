@@ -304,6 +304,11 @@ export default class CrepeHost {
         // rebuild (the undo history does not, accepted — see #recreate()'s
         // comment in editor_controller.ts).
         const carried = this.#captureSelection(previous);
+        // The reading position too: .editor-content dies with the Crepe it
+        // wraps, the page gets shorter for a moment, and the browser clamps
+        // the scrollTop to the top of the shrunk content instead of
+        // scrolling back on its own.
+        const carriedScroll = this.#captureScroll();
 
         this.#crepe = null;
         await previous.destroy();
@@ -315,6 +320,7 @@ export default class CrepeHost {
         this.#aiEnabled = aiEnabled;
         this.#crepe = await this.#build(markdown, aiEnabled, aiProvider);
 
+        this.#restoreScroll(carriedScroll);
         this.#restoreSelection(carried);
 
         return markdown;
@@ -353,6 +359,36 @@ export default class CrepeHost {
         view.dispatch(view.state.tr.setSelection(selection));
         if (carried.focused) {
             view.focus();
+        }
+    }
+
+    /** What #recreateNow() carries from the old scroll to the new one (FRT-05). */
+    #captureScroll(): { wrapper: number; ancestors: Array<[Element, number]> } {
+        const ancestors: Array<[Element, number]> = [];
+        for (let element = this.#root.parentElement; element !== null; element = element.parentElement) {
+            if (element.scrollTop > 0) {
+                ancestors.push([element, element.scrollTop]);
+            }
+        }
+
+        return { wrapper: this.#root.querySelector('.editor-content')?.scrollTop ?? 0, ancestors };
+    }
+
+    /**
+     * The reading position, back where it was. The ancestors are the same
+     * elements as before the rebuild; only the wrapper is fresh — #wrapScroll()
+     * made it around the new .ProseMirror — so it gets the old wrapper's
+     * scrollTop by query, not by reference.
+     */
+    #restoreScroll(carried: { wrapper: number; ancestors: Array<[Element, number]> }): void {
+        if (carried.wrapper > 0) {
+            const wrapper = this.#root.querySelector('.editor-content');
+            if (wrapper !== null) {
+                wrapper.scrollTop = carried.wrapper;
+            }
+        }
+        for (const [element, scrollTop] of carried.ancestors) {
+            element.scrollTop = scrollTop;
         }
     }
 

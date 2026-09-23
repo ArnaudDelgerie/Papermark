@@ -358,6 +358,22 @@ describe('CrepeHost', () => {
             // The initial create(), then one real rebuild per call — neither skipped.
             expect(crepes).toHaveLength(3);
         });
+
+        it('keeps the reading position: the .editor-content wrapper, and any ancestor that scrolled (FRT-05)', async () => {
+            const shell = document.createElement('div');
+            const root = document.createElement('div');
+            shell.append(root);
+            document.body.append(shell);
+            const host = new CrepeHost(root, I18N, callbacks());
+            await host.create({ markdown: '# A', aiEnabled: false, aiProvider: undefined });
+            root.querySelector('.editor-content')!.scrollTop = 240;
+            shell.scrollTop = 60;
+
+            await host.recreate(true, () => undefined);
+
+            expect(root.querySelector('.editor-content')!.scrollTop).toBe(240);
+            expect(shell.scrollTop).toBe(60);
+        });
     });
 
     it('whenIdle() waits for the recreation in progress', async () => {
