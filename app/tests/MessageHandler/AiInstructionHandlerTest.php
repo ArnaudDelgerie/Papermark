@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace App\Tests\MessageHandler;
 
-use App\Service\Ai\AiAbortRegistry;
-use App\MessageHandler\AiInstructionHandler;
+use App\Entity\AiRequest;
+use App\Entity\Provider;
+use App\Enum\AiRequestStatus;
+use App\Enum\ProviderName;
+use App\Enum\Setting\AppLocale;
 use App\Message\AiInstructionMessage;
+use App\MessageHandler\AiInstructionHandler;
+use App\Repository\AiRequestRepository;
+use App\Repository\SettingRepository;
 use App\Service\Ai\AiPlatformFactory;
 use App\Service\Ai\ApiKeyResolver;
-use App\Entity\Provider;
-use App\Enum\ProviderName;
-use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\ErrorHandler\BufferingLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\JsonMockResponse;
@@ -24,6 +26,7 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\Mercure\Jwt\StaticTokenProvider;
 use Symfony\Component\Mercure\MockHub;
 use Symfony\Component\Mercure\Update;
+use Symfony\Component\Translation\LocaleSwitcher;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AiInstructionHandlerTest extends KernelTestCase
@@ -35,48 +38,63 @@ final class AiInstructionHandlerTest extends KernelTestCase
 
     private BufferingLogger $logger;
 
-    private AiAbortRegistry $abortRegistry;
-
     protected function setUp(): void
     {
         self::bootKernel();
         $this->logger = new BufferingLogger();
-        $this->abortRegistry = new AiAbortRegistry(new ArrayAdapter());
     }
 
     public function testNoSelectedProviderPublishesTranslatedError(): void
     {
         $this->seedProviders(selected: null);
+        $this->seedRequest();
 
         $this->handle(new MockHttpClient(), ['anthropic' => 'key']);
 
         self::assertSame([$this->event(['type' => 'error', 'error' => 'No AI provider selected, choose one in the settings'])], $this->published);
-        self::assertCount(1, $this->logger->cleanLogs());
+        $this->assertRefusalLogged('components.editor.error.provider_not_selected');
+        $this->assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
     }
 
     public function testMissingModelPublishesTranslatedError(): void
     {
         $this->seedProviders(selected: ProviderName::Anthropic, model: null);
+        $this->seedRequest();
 
         $this->handle(new MockHttpClient(), ['anthropic' => 'key']);
 
         self::assertSame([$this->event(['type' => 'error', 'error' => 'No model set for the selected AI provider'])], $this->published);
-        self::assertCount(1, $this->logger->cleanLogs());
+        $this->assertRefusalLogged('components.editor.error.model_missing');
+        $this->assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
     }
 
     public function testMissingApiKeyPublishesTranslatedError(): void
     {
         $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
 
         $this->handle(new MockHttpClient(), []);
 
         self::assertSame([$this->event(['type' => 'error', 'error' => 'No API key set for the selected AI provider'])], $this->published);
-        self::assertCount(1, $this->logger->cleanLogs());
+        $this->assertRefusalLogged('components.editor.error.api_key_missing');
+        $this->assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
     }
 
-    public function testStreamPublishesChunksThenDone(): void
+    public function testFrenchSettingsMakeTheWorkerPublishFrenchErrors(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic, model: null);
+        $this->seedRequest();
+        self::getContainer()->get(SettingRepository::class)->getOrCreate()->setLocale(AppLocale::Fr);
+
+        $this->handle(new MockHttpClient(), ['anthropic' => 'key']);
+
+        self::assertSame([$this->event(['type' => 'error', 'error' => 'Aucun modèle défini pour le fournisseur IA sélectionné'])], $this->published);
+    }
+
+    public function testStreamPublishesChunksThenDoneAndRecordsTheRun(): void
     {
         $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
 
         $this->handle(new MockHttpClient($this->streamResponse(['Hel', 'lo'])), ['anthropic' => 'key']);
 
@@ -85,34 +103,139 @@ final class AiInstructionHandlerTest extends KernelTestCase
             $this->event(['type' => 'chunk', 'content' => 'lo']),
             $this->event(['type' => 'done']),
         ], $this->published);
+
+        $row = $this->requestRow();
+        self::assertSame(AiRequestStatus::Done, $row->getStatus());
+        self::assertSame(ProviderName::Anthropic, $row->getProvider());
+        self::assertSame('claude-test', $row->getModel());
+        self::assertSame(12, $row->getPromptTokens());
+        self::assertSame(7, $row->getCompletionTokens());
     }
 
-    public function testAbortedRequestPublishesNothingMore(): void
+    public function testAbortedBeforeTakeMakesNoProviderCall(): void
     {
         $this->seedProviders(selected: ProviderName::Anthropic);
-        $this->abortRegistry->abort(self::REQUEST_ID);
+        $this->seedRequest();
+        self::getContainer()->get(AiRequestRepository::class)->abort(self::REQUEST_ID);
 
-        $this->handle(new MockHttpClient($this->streamResponse(['Hel', 'lo'])), ['anthropic' => 'key']);
+        $httpClient = $this->handle(new MockHttpClient($this->streamResponse(['Hel', 'lo'])), ['anthropic' => 'key']);
 
         self::assertSame([], $this->published);
+        self::assertSame(0, $httpClient->getRequestsCount());
+        self::assertSame(AiRequestStatus::Aborted, $this->requestRow()->getStatus());
     }
 
-    public function testPlatformExceptionPublishesProviderMessage(): void
+    public function testUnknownRequestMakesNoProviderCall(): void
     {
         $this->seedProviders(selected: ProviderName::Anthropic);
 
-        $this->handle(
-            new MockHttpClient(new JsonMockResponse(['error' => ['message' => 'invalid x-api-key']], ['http_code' => 401])),
+        $httpClient = $this->handle(new MockHttpClient($this->streamResponse(['Hel', 'lo'])), ['anthropic' => 'key']);
+
+        self::assertSame([], $this->published);
+        self::assertSame(0, $httpClient->getRequestsCount());
+    }
+
+    public function testStaleRequestIsExpiredAtTakeWithoutProviderCall(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest(createdAt: new \DateTimeImmutable('-10 minutes'));
+
+        $httpClient = $this->handle(new MockHttpClient($this->streamResponse(['Hel', 'lo'])), ['anthropic' => 'key']);
+
+        self::assertSame([], $this->published);
+        self::assertSame(0, $httpClient->getRequestsCount());
+        self::assertSame(AiRequestStatus::Expired, $this->requestRow()->getStatus());
+    }
+
+    public function testAbortDuringStreamStopsTheCall(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+        $requests = self::getContainer()->get(AiRequestRepository::class);
+
+        $body = (function () use ($requests): \Generator {
+            yield $this->sse(['type' => 'content_block_delta', 'delta' => ['type' => 'text_delta', 'text' => 'Hel']]);
+            $requests->abort(self::REQUEST_ID);
+            yield $this->sse(['type' => 'content_block_delta', 'delta' => ['type' => 'text_delta', 'text' => 'lo']]);
+            yield $this->sse(['type' => 'content_block_delta', 'delta' => ['type' => 'text_delta', 'text' => '!']]);
+        })();
+
+        $httpClient = $this->handle(
+            new MockHttpClient(new MockResponse($body, ['response_headers' => ['content-type' => 'text/event-stream']])),
             ['anthropic' => 'key'],
         );
 
-        self::assertSame([$this->event(['type' => 'error', 'error' => 'invalid x-api-key'])], $this->published);
-        $this->assertExceptionLogged();
+        // The abort lands while the worker is in the delta loop: the check
+        // after the first chunk sees it, the rest of the stream is dropped,
+        // and no done or error is ever published.
+        self::assertSame([
+            $this->event(['type' => 'chunk', 'content' => 'Hel']),
+        ], $this->published);
+        self::assertSame(1, $httpClient->getRequestsCount());
+        self::assertSame(AiRequestStatus::Aborted, $this->requestRow()->getStatus());
     }
 
-    public function testOtherExceptionPublishesGenericMessage(): void
+    public function testEmptyStreamPublishesNoTextError(): void
     {
         $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient($this->streamResponse([])), ['anthropic' => 'key']);
+
+        self::assertSame([$this->event(['type' => 'error', 'error' => 'The model returned no text'])], $this->published);
+
+        $row = $this->requestRow();
+        self::assertSame(AiRequestStatus::Failed, $row->getStatus());
+        self::assertSame(12, $row->getPromptTokens());
+        self::assertSame(7, $row->getCompletionTokens());
+    }
+
+    public function testInvalidOpenAiKeyFormatPublishesErrorWithDetail(): void
+    {
+        $this->seedProviders(selected: ProviderName::OpenAi, model: 'gpt-test');
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient(), ['openai' => 'not-an-openai-key']);
+
+        self::assertSame([$this->event(['type' => 'error', 'error' => 'The AI request failed: The API key must start with "sk-".'])], $this->published);
+        $this->assertExceptionLogged();
+        self::assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
+    }
+
+    public function testProviderErrorPublishesGenericMessageCitingTheProvider(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(
+            new MockHttpClient(new JsonMockResponse(['error' => ['message' => 'model not found']], ['http_code' => 404])),
+            ['anthropic' => 'key'],
+        );
+
+        // The provider's own message, no raw JSON body.
+        self::assertSame([$this->event(['type' => 'error', 'error' => 'The AI request failed: model not found'])], $this->published);
+        $this->assertExceptionLogged();
+        self::assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
+    }
+
+    public function testFrenchSettingsTranslateTheProviderDetailToo(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+        self::getContainer()->get(SettingRepository::class)->getOrCreate()->setLocale(AppLocale::Fr);
+
+        $this->handle(
+            new MockHttpClient(new JsonMockResponse(['error' => ['message' => 'model not found']], ['http_code' => 404])),
+            ['anthropic' => 'key'],
+        );
+
+        self::assertSame([$this->event(['type' => 'error', 'error' => "L'appel à l'IA a échoué : model not found"])], $this->published);
+    }
+
+    public function testOtherExceptionPublishesGenericMessageWithoutDetail(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
 
         $this->handle(
             new MockHttpClient(static fn () => throw new \LogicException('internal detail')),
@@ -120,7 +243,31 @@ final class AiInstructionHandlerTest extends KernelTestCase
         );
 
         self::assertSame([$this->event(['type' => 'error', 'error' => 'The AI request failed'])], $this->published);
+        self::assertStringNotContainsString('internal detail', $this->published[0]['error'] ?? '');
         $this->assertExceptionLogged();
+        self::assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
+    }
+
+    public function testHubFailureIsLoggedAndSwallowed(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(
+            new MockHttpClient($this->streamResponse(['Hel', 'lo'])),
+            ['anthropic' => 'key'],
+            static function (Update $update): string {
+                throw new \RuntimeException('Mercure is down');
+            },
+        );
+
+        // The handler does not raise: the chunk publish failure is caught, and
+        // the best-effort final publish failure is logged, not rethrown.
+        $logs = $this->logger->cleanLogs();
+        self::assertCount(2, $logs);
+        self::assertSame('AI instruction failed: {message}', $logs[0][1]);
+        self::assertSame('Could not publish the final AI event: {message}', $logs[1][1]);
+        self::assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
     }
 
     private function seedProviders(?ProviderName $selected, ?string $model = 'claude-test'): void
@@ -141,31 +288,56 @@ final class AiInstructionHandlerTest extends KernelTestCase
         $entityManager->flush();
     }
 
+    private function seedRequest(?\DateTimeImmutable $createdAt = null): void
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        $entityManager->persist(new AiRequest(self::REQUEST_ID, $createdAt));
+        $entityManager->flush();
+    }
+
+    /**
+     * Reads the row back from the database: the worker's own copy is not
+     * updated by the conditional status updates, which is the point.
+     */
+    private function requestRow(): AiRequest
+    {
+        self::getContainer()->get(EntityManagerInterface::class)->clear();
+
+        return self::getContainer()->get(AiRequestRepository::class)->find(self::REQUEST_ID);
+    }
+
     /**
      * @param list<string> $texts
      */
     private function streamResponse(array $texts): MockResponse
     {
-        $body = array_map(
-            static fn (string $text): string => "event: content_block_delta\ndata: " . json_encode([
-                'type' => 'content_block_delta',
-                'delta' => ['type' => 'text_delta', 'text' => $text],
-            ]) . "\n\n",
-            $texts,
-        );
+        $events = [$this->sse(['type' => 'message_start', 'message' => ['usage' => ['input_tokens' => 12]]])];
+        foreach ($texts as $text) {
+            $events[] = $this->sse(['type' => 'content_block_delta', 'delta' => ['type' => 'text_delta', 'text' => $text]]);
+        }
+        $events[] = $this->sse(['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['output_tokens' => 7]]);
+        $events[] = $this->sse(['type' => 'message_stop']);
 
-        return new MockResponse($body, ['response_headers' => ['content-type' => 'text/event-stream']]);
+        return new MockResponse(implode('', $events), ['response_headers' => ['content-type' => 'text/event-stream']]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function sse(array $data): string
+    {
+        return 'event: stream' . "\n" . 'data: ' . json_encode($data) . "\n\n";
     }
 
     /**
      * @param array<string, string> $secrets
      */
-    private function handle(MockHttpClient $httpClient, array $secrets): void
+    private function handle(MockHttpClient $httpClient, array $secrets, ?\Closure $publisher = null): MockHttpClient
     {
         $container = self::getContainer();
         $container->set(SecretStoreInterface::class, new InMemorySecretStore($secrets));
 
-        $hub = new MockHub('http://localhost/.well-known/mercure', new StaticTokenProvider('token'), function (Update $update): string {
+        $hub = new MockHub('http://localhost/.well-known/mercure', new StaticTokenProvider('token'), $publisher ?? function (Update $update): string {
             $this->published[] = json_decode($update->getData(), true);
 
             return 'id';
@@ -175,13 +347,18 @@ final class AiInstructionHandlerTest extends KernelTestCase
             new AiPlatformFactory($httpClient),
             $container->get(ApiKeyResolver::class),
             $container->get(SettingRepository::class),
+            $container->get(AiRequestRepository::class),
             $hub,
             $container->get(TranslatorInterface::class),
             $this->logger,
-            $this->abortRegistry,
+            $container->get(LocaleSwitcher::class),
+            // The abort status is checked on every stream update, not throttled.
+            0.0,
         );
 
         $handler(new AiInstructionMessage('topic', self::REQUEST_ID, 'Improve writing', 'Hello', ''));
+
+        return $httpClient;
     }
 
     /**
@@ -200,5 +377,14 @@ final class AiInstructionHandlerTest extends KernelTestCase
         self::assertCount(1, $logs);
         self::assertSame('error', $logs[0][0]);
         self::assertInstanceOf(\Throwable::class, $logs[0][2]['exception']);
+    }
+
+    private function assertRefusalLogged(string $key): void
+    {
+        $logs = $this->logger->cleanLogs();
+        self::assertCount(1, $logs);
+        self::assertSame('warning', $logs[0][0]);
+        self::assertSame('AI instruction refused: {key}', $logs[0][1]);
+        self::assertSame(['key' => $key], $logs[0][2]);
     }
 }

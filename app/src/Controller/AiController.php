@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Service\Ai\AiAbortRegistry;
+use App\Repository\AiRequestRepository;
 use App\Dto\Ai\AiAbortRequest;
 use App\Message\AiInstructionMessage;
 use App\Dto\Ai\AiInstructRequest;
@@ -35,7 +35,7 @@ final class AiController extends AbstractController
     public function __construct(
         private readonly MessageBusInterface $bus,
         private readonly AiTopicResolver $topicResolver,
-        private readonly AiAbortRegistry $abortRegistry,
+        private readonly AiRequestRepository $requests,
     ) {
     }
 
@@ -65,6 +65,10 @@ final class AiController extends AbstractController
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function instruct(Request $request, #[MapRequestPayload] AiInstructRequest $payload): Response
     {
+        // The durable line exists before the message is queued, so an abort can
+        // land at any point of the request's life, worker running or not.
+        $this->requests->createPending($payload->id);
+
         $this->bus->dispatch(new AiInstructionMessage(
             topic: $this->topicResolver->resolve($request),
             requestId: $payload->id,
@@ -78,9 +82,10 @@ final class AiController extends AbstractController
 
     #[Route('/ai/abort', name: 'app_ai_abort', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
-    public function abort(Request $request, #[MapRequestPayload] AiAbortRequest $payload): Response
+    public function abort(#[MapRequestPayload] AiAbortRequest $payload): Response
     {
-        $this->abortRegistry->abort($payload->id);
+        // A no-op on an unknown or already finished request.
+        $this->requests->abort($payload->id);
 
         return new Response(null, Response::HTTP_NO_CONTENT);
     }

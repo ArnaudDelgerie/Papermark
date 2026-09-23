@@ -80,6 +80,8 @@ components:
             model_missing: No model set for the selected AI provider
             api_key_missing: No API key set for the selected AI provider
             ai_failed: The AI request failed
+            ai_failed_with_message: "The AI request failed: {message}"
+            ai_empty_response: The model returned no text
             request_failed: The action failed, please try again
             update_check_failed: Could not check for updates
     mode:

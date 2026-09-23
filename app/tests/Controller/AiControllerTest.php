@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Service\Ai\AiAbortRegistry;
+use App\Entity\AiRequest;
+use App\Enum\AiRequestStatus;
 use App\Message\AiInstructionMessage;
+use App\Repository\AiRequestRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
@@ -117,6 +120,11 @@ final class AiControllerTest extends WebTestCase
         self::assertSame('Improve writing', $first->instruction);
         self::assertSame('Hello world', $first->document);
         self::assertSame('Hello', $first->selection);
+
+        // Each instruction leaves a durable pending row, keyed by the request id.
+        foreach ($ids as $id) {
+            self::assertSame(AiRequestStatus::Pending, $this->requestRow($client, $id)->getStatus());
+        }
     }
 
     public function testSubscribeRejectsInvalidCsrf(): void
@@ -166,16 +174,47 @@ final class AiControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(403);
     }
 
-    public function testAbortFlagsRequest(): void
+    public function testAbortMarksPendingRequestAborted(): void
     {
         [$client, $csrfToken] = $this->createClientWithCsrf();
         $id = Uuid::v4()->toRfc4122();
 
+        $this->post($client, '/ai/instruct', $csrfToken, [
+            'id' => $id,
+            'instruction' => 'Improve writing',
+            'document' => 'Hello',
+        ]);
+        self::assertSame(AiRequestStatus::Pending, $this->requestRow($client, $id)->getStatus());
+
         $this->post($client, '/ai/abort', $csrfToken, ['id' => $id]);
 
         self::assertResponseStatusCodeSame(204);
-        $registry = static::getContainer()->get(AiAbortRegistry::class);
-        self::assertTrue($registry->isAborted($id));
-        self::assertFalse($registry->isAborted(Uuid::v4()->toRfc4122()));
+        self::assertSame(AiRequestStatus::Aborted, $this->requestRow($client, $id)->getStatus());
+    }
+
+    public function testAbortOfUnknownRequestIsAcceptedAndCreatesNothing(): void
+    {
+        [$client, $csrfToken] = $this->createClientWithCsrf();
+
+        $this->post($client, '/ai/abort', $csrfToken, ['id' => Uuid::v4()->toRfc4122()]);
+
+        self::assertResponseStatusCodeSame(204);
+        self::assertSame([], $this->requestRepository($client)->findAll());
+    }
+
+    /**
+     * Reads the row back from the database, not from the identity map the
+     * request just wrote through.
+     */
+    private function requestRow(KernelBrowser $client, string $id): AiRequest
+    {
+        $client->getContainer()->get(EntityManagerInterface::class)->clear();
+
+        return $this->requestRepository($client)->find($id);
+    }
+
+    private function requestRepository(KernelBrowser $client): AiRequestRepository
+    {
+        return $client->getContainer()->get(AiRequestRepository::class);
     }
 }

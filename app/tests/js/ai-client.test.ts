@@ -155,6 +155,34 @@ describe('AiClient', () => {
         await expect(iterator.next()).rejects.toThrow('Not allowed');
     });
 
+    it('an abort during ensureSubscription skips the instruction and sends nothing to abort', async () => {
+        // The subscribe POST resolves only once we let it: the abort lands while
+        // the client is still inside #ensureSubscription().
+        let resolveSubscribe: (value: Response) => void = () => {};
+        const subscribe = new Promise<Response>((resolve) => {
+            resolveSubscribe = resolve;
+        });
+        fetchMock.mockImplementation(async (url: string) =>
+            url === OPTIONS.urls.subscribe ? subscribe : jsonResponse({}),
+        );
+
+        const provider = new AiClient(OPTIONS).createProvider();
+        const controller = new AbortController();
+        const iterator = provider(CONTEXT, controller.signal)[Symbol.asyncIterator]();
+        const first = iterator.next();
+        await settle();
+
+        controller.abort();
+        resolveSubscribe(jsonResponse({}));
+        await settle();
+        FakeEventSource.instances.at(-1)!.open();
+        await settle();
+
+        await expect(first).resolves.toEqual({ value: undefined, done: true });
+        expect(callsTo(OPTIONS.urls.instruct)).toHaveLength(0);
+        expect(callsTo(OPTIONS.urls.abort)).toHaveLength(0);
+    });
+
     it('a refused /ai/instruct without a body falls back to requestFailedMessage', async () => {
         fetchMock.mockImplementation(async (url: string) =>
             url === OPTIONS.urls.instruct ? new Response('', { status: 500 }) : jsonResponse({}),

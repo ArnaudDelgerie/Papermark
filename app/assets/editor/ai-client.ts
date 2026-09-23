@@ -67,6 +67,12 @@ export default class AiClient {
         try {
             await this.#ensureSubscription();
 
+            // Cancelled while subscribing: no instruction is sent, and there is
+            // no id yet, so finally sends no abort either.
+            if (signal.aborted) {
+                return;
+            }
+
             id = window.crypto.randomUUID();
             const pending = this.#createRequest(id);
 
