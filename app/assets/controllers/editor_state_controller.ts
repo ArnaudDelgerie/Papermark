@@ -249,7 +249,7 @@ function toFormData(action: object): FormData {
 function withoutSecrets<A extends ActionName>(action: RequestOf<A>): Omit<FailureOf<A>, 'errors'> {
     const copy: Record<string, unknown> = { ...action };
     delete copy.content;
-    delete copy.key;
+    delete copy._password;
 
     return copy as Omit<FailureOf<A>, 'errors'>;
 }

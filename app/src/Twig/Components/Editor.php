@@ -47,6 +47,13 @@ final class Editor
                 'readonly' => $this->trans('toggle.readonly'),
             ],
             'untitled' => $this->trans('untitled'),
+            // SET-09, lot 09: the name a new file is proposed under, translated.
+            'untitledFileName' => $this->trans('untitled_file_name'),
+            // SET-09, lot 09: the native save dialog's filters, translated.
+            'saveFilters' => [
+                'markdown' => $this->trans('save_filter.markdown'),
+                'text' => $this->trans('save_filter.text'),
+            ],
             'unsaved' => [
                 'confirm' => $this->trans('unsaved.confirm'),
                 'cancel' => $this->trans('unsaved.cancel'),
@@ -92,6 +99,13 @@ final class Editor
                 'noLanguage' => $this->trans('code_block.no_language'),
                 'copy' => $this->trans('code_block.copy'),
             ],
+            // SET-04, lot 09: the image block's own texts (caption, upload).
+            'imageBlock' => [
+                'captionPlaceholder' => $this->trans('image_block.caption_placeholder'),
+                'uploadButton' => $this->trans('image_block.upload_button'),
+                'uploadPlaceholder' => $this->trans('image_block.upload_placeholder'),
+                'confirmButton' => $this->trans('image_block.confirm_button'),
+            ],
             'toast' => [
                 'saved' => $this->trans('toast.saved'),
                 'savedAs' => $this->trans('toast.saved_as'),
@@ -118,6 +132,45 @@ final class Editor
                 'submitButton' => $this->trans('ai.submit_button'),
                 'listbox' => $this->trans('ai.listbox'),
                 'requestFailed' => $this->trans('error.ai_failed'),
+                // SET-04, lot 09: the suggestions menu, translated — the
+                // prompts sent to the model stay in English (crepe-host.ts).
+                'suggestions' => [
+                    'improve' => $this->trans('ai.suggestions.improve'),
+                    'improveStreaming' => $this->trans('ai.suggestions.improve_streaming'),
+                    'grammar' => $this->trans('ai.suggestions.grammar'),
+                    'grammarStreaming' => $this->trans('ai.suggestions.grammar_streaming'),
+                    'shorter' => $this->trans('ai.suggestions.shorter'),
+                    'shorterStreaming' => $this->trans('ai.suggestions.shorter_streaming'),
+                    'longer' => $this->trans('ai.suggestions.longer'),
+                    'longerStreaming' => $this->trans('ai.suggestions.longer_streaming'),
+                    'streamingFallback' => $this->trans('ai.suggestions.streaming_fallback'),
+                    'streamingCancel' => $this->trans('ai.suggestions.streaming_cancel'),
+                    'tone' => [
+                        'label' => $this->trans('ai.suggestions.tone.label'),
+                        'title' => $this->trans('ai.suggestions.tone.title'),
+                        'search' => $this->trans('ai.suggestions.tone.search'),
+                        'streaming' => $this->trans('ai.suggestions.tone.streaming'),
+                        'professional' => $this->trans('ai.suggestions.tone.professional'),
+                        'casual' => $this->trans('ai.suggestions.tone.casual'),
+                        'confident' => $this->trans('ai.suggestions.tone.confident'),
+                        'friendly' => $this->trans('ai.suggestions.tone.friendly'),
+                        'direct' => $this->trans('ai.suggestions.tone.direct'),
+                        'formal' => $this->trans('ai.suggestions.tone.formal'),
+                    ],
+                    'translate' => [
+                        'label' => $this->trans('ai.suggestions.translate.label'),
+                        'title' => $this->trans('ai.suggestions.translate.title'),
+                        'search' => $this->trans('ai.suggestions.translate.search'),
+                        'streaming' => $this->trans('ai.suggestions.translate.streaming'),
+                        'english' => $this->trans('ai.suggestions.translate.english'),
+                        'chinese' => $this->trans('ai.suggestions.translate.chinese'),
+                        'japanese' => $this->trans('ai.suggestions.translate.japanese'),
+                        'korean' => $this->trans('ai.suggestions.translate.korean'),
+                        'spanish' => $this->trans('ai.suggestions.translate.spanish'),
+                        'french' => $this->trans('ai.suggestions.translate.french'),
+                        'german' => $this->trans('ai.suggestions.translate.german'),
+                    ],
+                ],
             ],
         ];
     }

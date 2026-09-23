@@ -1,4 +1,5 @@
 exceptions:
+    unexpected: Une erreur inattendue est survenue
     form:
         not_submitted: "L'action a échoué, veuillez réessayer"
     path:

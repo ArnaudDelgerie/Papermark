@@ -10,9 +10,11 @@ interface Toast {
 }
 
 export default class extends Controller<HTMLElement> {
-    static values = { messages: Array };
+    static values = { messages: Array, closeLabel: String };
 
     declare readonly messagesValue: Toast[];
+    // The toast's close button label — always the server's (SET-05, lot 09).
+    declare readonly closeLabelValue: string;
 
     #onShow = (event: Event): void => this.#render((event as CustomEvent<Toast>).detail);
 
@@ -40,7 +42,7 @@ export default class extends Controller<HTMLElement> {
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'toast-close';
-        close.setAttribute('aria-label', 'Close');
+        close.setAttribute('aria-label', this.closeLabelValue);
         close.textContent = '\u00d7';
         close.addEventListener('click', () => this.#dismiss(toast));
 

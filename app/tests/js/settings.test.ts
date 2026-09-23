@@ -10,7 +10,8 @@ vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }))
 
 /** The frame's form as templates/settings/index.html.twig renders it: two providers, the first with a key. */
 const FORM = `
-<form class="settings-form" action="/settings" data-controller="settings" data-action="submit->settings#submit" data-settings-delay-value="300">
+<form class="settings-form" action="/settings" data-controller="settings" data-action="submit->settings#submit" data-settings-delay-value="300"
+      data-settings-delete-label-value="Delete key" data-settings-cancel-label-value="Cancel">
     <div data-settings-target="activity" hidden></div>
     <div data-settings-target="errors" hidden><ul data-settings-target="errorList"></ul></div>
 
@@ -54,7 +55,7 @@ describe('the settings form', () => {
     let application: Application;
     let saves: FormData[];
     let saveUrls: string[];
-    let keyRequests: Array<{ name: string; key: string }>;
+    let keyRequests: Array<{ name: string; _password: string }>;
     let deletions: string[];
     const unsubscribers: Array<() => void> = [];
 
@@ -231,7 +232,7 @@ describe('the settings form', () => {
 
             click('.settings-key[data-name="mistral"] [data-settings-target="keySave"]');
 
-            expect(keyRequests).toEqual([{ name: 'mistral', key: 'sk-mistral' }]);
+            expect(keyRequests).toEqual([{ name: 'mistral', _password: 'sk-mistral' }]);
             // Not clicked twice while waiting.
             expect($<HTMLButtonElement>('.settings-key[data-name="mistral"] [data-settings-target="keySave"]').disabled).toBe(true);
 
@@ -251,7 +252,7 @@ describe('the settings form', () => {
             input.value = 'sk-enter';
             input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
 
-            expect(keyRequests).toEqual([{ name: 'mistral', key: 'sk-enter' }]);
+            expect(keyRequests).toEqual([{ name: 'mistral', _password: 'sk-enter' }]);
         });
 
         it('a refused key keeps what was typed and frees the button', () => {
@@ -271,6 +272,9 @@ describe('the settings form', () => {
 
             click('.settings-key[data-name="anthropic"] .delete');
             await vi.advanceTimersByTimeAsync(0);
+            // SET-05, lot 09: both labels come from the server's i18n, no default.
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].cancelLabel).toBe('Cancel');
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].continueLabel).toBe('Delete key');
             expect(deletions).toEqual([]);
 
             click('.settings-key[data-name="anthropic"] .delete');

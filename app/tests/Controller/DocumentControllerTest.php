@@ -86,7 +86,9 @@ final class DocumentControllerTest extends WebTestCase
         // Windows-1252 "é" is not UTF-8.
         file_put_contents($path, "Coucou \xE9\xE8.txt");
 
-        $client->request('GET', '/document');
+        // The read is a fetch (utils/http.ts carries the token): its refusals
+        // stay JSON, only a navigation's would redirect (SET-03, lot 09).
+        $client->request('GET', '/document', [], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(403);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
@@ -112,7 +114,8 @@ final class DocumentControllerTest extends WebTestCase
         $client->request('POST', '/editor/file', ['path' => $path], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
         unlink($path);
 
-        $client->request('GET', '/document');
+        // A fetch, like every read of the front (SET-03, lot 09).
+        $client->request('GET', '/document', [], [], ['HTTP_X-CSRF-TOKEN' => $csrfToken]);
 
         self::assertResponseStatusCodeSame(404);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
@@ -265,7 +268,7 @@ final class DocumentControllerTest extends WebTestCase
         $client = static::createClient();
         $path = $this->createTestImage();
 
-        $client->request('GET', '/document/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
         unlink($path);
@@ -293,7 +296,7 @@ final class DocumentControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/document/image', ['path' => 'photo.png']);
+        $client->request('GET', '/document/image', ['path' => 'photo.png'], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -303,7 +306,7 @@ final class DocumentControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/document/image', ['path' => 'photo.png', 'anchor' => '/etc']);
+        $client->request('GET', '/document/image', ['path' => 'photo.png', 'anchor' => '/etc'], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -312,7 +315,7 @@ final class DocumentControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/document/image');
+        $client->request('GET', '/document/image', [], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -321,7 +324,7 @@ final class DocumentControllerTest extends WebTestCase
     {
         [$client] = $this->createClientWithCsrf();
 
-        $client->request('GET', '/document/image', ['path' => '/tmp/this_image_does_not_exist_12345.png']);
+        $client->request('GET', '/document/image', ['path' => '/tmp/this_image_does_not_exist_12345.png'], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -334,7 +337,7 @@ final class DocumentControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.svg';
         file_put_contents($path, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 
-        $client->request('GET', '/document/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
 
@@ -348,7 +351,7 @@ final class DocumentControllerTest extends WebTestCase
         $path = tempnam(sys_get_temp_dir(), 'test_') . '.txt';
         file_put_contents($path, 'not an image');
 
-        $client->request('GET', '/document/image', ['path' => $path]);
+        $client->request('GET', '/document/image', ['path' => $path], [], $this->imageRequestHeaders());
 
         self::assertResponseStatusCodeSame(404);
 
@@ -828,6 +831,18 @@ final class DocumentControllerTest extends WebTestCase
         file_put_contents($path, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true));
 
         return $path;
+    }
+
+    /**
+     * What a browser sends for an `<img>` load: not a page navigation, so
+     * its 404s stay 404s instead of triggering the navigation exception
+     * listener's redirect (SET-03, lot 09).
+     *
+     * @return array<string, string>
+     */
+    private function imageRequestHeaders(): array
+    {
+        return ['HTTP_SEC_FETCH_MODE' => 'no-cors'];
     }
 
     /**

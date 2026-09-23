@@ -24,6 +24,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
+use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
+use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
 
 /**
  * The settings live in a modal of the editor page (see EDITOR_SETTINGS.md).
@@ -42,6 +44,8 @@ final class SettingsController extends AbstractController
         private readonly SettingStoreInterface $settingStore,
         private readonly SettingsUpdater $settingsUpdater,
         private readonly EditorState $editorState,
+        private readonly StationContextInterface $stationContext,
+        private readonly SecretStoreInterface $secretStore,
     ) {
     }
 
@@ -62,6 +66,12 @@ final class SettingsController extends AbstractController
         return $this->render('settings/index.html.twig', [
             'form' => $form,
             'has_key' => $hasKey,
+            // HUB-06, lot 09: the hub's capabilities, probed one by one —
+            // never "am I in the hub". The bridge probe is the secret store's
+            // own availability: it is exactly what makes saving a key fail.
+            'has_worker' => $this->stationContext->isAsyncWorker(),
+            'bridge_available' => $this->secretStore->isAvailable(),
+            'keyring_available' => $this->stationContext->isKeyringAvailable(),
         ]);
     }
 
@@ -88,7 +98,7 @@ final class SettingsController extends AbstractController
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function setKey(ProviderName $name, #[MapRequestPayload(mapWhenEmpty: true)] SetKeyRequest $payload): JsonResponse
     {
-        $this->settingsUpdater->setKey($name, $payload->key);
+        $this->settingsUpdater->setKey($name, $payload->_password);
 
         return new StateSuccessResponse($this->editorState, ['name' => $name->value]);
     }

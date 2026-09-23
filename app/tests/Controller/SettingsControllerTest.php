@@ -12,6 +12,7 @@ use App\Enum\Setting\ThemeMode;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
+use App\Tests\Double\StationContextDouble;
 use App\Tests\Trait\ContractAssertions;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
@@ -19,6 +20,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpKernel\DataCollector\RequestDataCollector;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class SettingsControllerTest extends WebTestCase
@@ -27,6 +29,7 @@ final class SettingsControllerTest extends WebTestCase
 
     private KernelBrowser $client;
     private InMemorySecretStore $secretStore;
+    private StationContextDouble $stationContext;
 
     protected function setUp(): void
     {
@@ -37,10 +40,12 @@ final class SettingsControllerTest extends WebTestCase
         $this->secretStore = new InMemorySecretStore(['anthropic' => 'existing-key']);
         static::getContainer()->set(SecretStoreInterface::class, $this->secretStore);
 
-        // The AI needs a worker on top of a provider and its key.
-        $stationContext = $this->createStub(StationContextInterface::class);
-        $stationContext->method('isAsyncWorker')->willReturn(true);
-        static::getContainer()->set(StationContextInterface::class, $stationContext);
+        // All three hub capabilities present by default (HUB-06, lot 09):
+        // no banner leaks into the tests that don't care about them. The
+        // probes stay flippable: the container cannot replace an
+        // initialized service, but it re-reads the properties each request.
+        $this->stationContext = new StationContextDouble();
+        static::getContainer()->set(StationContextInterface::class, $this->stationContext);
 
         $entityManager = static::getContainer()->get(EntityManagerInterface::class);
         foreach (ProviderName::cases() as $name) {
@@ -197,7 +202,10 @@ final class SettingsControllerTest extends WebTestCase
 
     public function testSaveWithoutTheFormIsRefused(): void
     {
-        $this->client->request('POST', '/settings', [], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        // The X-CSRF-TOKEN header marks the request as a fetch: without it,
+        // a refused form post is a navigation and the exception listener
+        // redirects instead of answering JSON (SET-03, lot 09).
+        $this->client->request('POST', '/settings', [], [], ['HTTP_X_CSRF_TOKEN' => 'fetch', 'HTTP_ORIGIN' => 'http://localhost']);
 
         self::assertResponseStatusCodeSame(422);
         $body = json_decode((string) $this->client->getResponse()->getContent(), true);
@@ -235,7 +243,7 @@ final class SettingsControllerTest extends WebTestCase
         $this->save(['selected' => 'mistral']);
         self::assertFalse($this->editorAiEnabled());
 
-        $this->client->request('POST', '/settings/provider/mistral/key', ['key' => ' mistral-key '], [], $this->tokenHeader());
+        $this->client->request('POST', '/settings/provider/mistral/key', ['_password' => ' mistral-key '], [], $this->tokenHeader());
 
         self::assertResponseIsSuccessful();
         $body = json_decode((string) $this->client->getResponse()->getContent(), true);
@@ -246,12 +254,13 @@ final class SettingsControllerTest extends WebTestCase
 
     public function testSetKeyRefusesAnEmptyKeyAndAnInvalidToken(): void
     {
-        $this->client->request('POST', '/settings/provider/mistral/key', ['key' => '  '], [], $this->tokenHeader());
+        $this->client->request('POST', '/settings/provider/mistral/key', ['_password' => '  '], [], $this->tokenHeader());
         self::assertResponseStatusCodeSame(422);
         $body = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertSame([], $body['genericErrors']);
         self::assertCount(1, $body['mappedErrors']);
-        self::assertSame('key', $body['mappedErrors'][0]['field']);
+        // The field the profiler masks (SEC-01, lot 09).
+        self::assertSame('_password', $body['mappedErrors'][0]['field']);
         self::assertSame('No API key provided', $body['mappedErrors'][0]['message']);
         self::assertArrayHasKey('state', $body);
 
@@ -336,17 +345,119 @@ final class SettingsControllerTest extends WebTestCase
 
     public function testLocaleRefusesAnUnknownValueAndAnInvalidToken(): void
     {
-        $this->client->request('POST', '/settings/locale', ['locale' => 'xx', '_token' => $this->token()], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        // The X-CSRF-TOKEN header marks these as fetches, so they keep their
+        // JSON answers; the navigation behaviour is NavigationExceptionListenerTest's.
+        $fetch = ['HTTP_X_CSRF_TOKEN' => 'fetch', 'HTTP_ORIGIN' => 'http://localhost'];
+
+        $this->client->request('POST', '/settings/locale', ['locale' => 'xx', '_token' => $this->token()], [], $fetch);
         self::assertResponseStatusCodeSame(422);
         $body = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertSame('locale', $body['mappedErrors'][0]['field']);
 
-        $this->client->request('POST', '/settings/locale', ['_token' => $this->token()], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        $this->client->request('POST', '/settings/locale', ['_token' => $this->token()], [], $fetch);
         self::assertResponseStatusCodeSame(422);
 
-        $this->client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => 'invalid'], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        $this->client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => 'invalid'], [], $fetch);
         self::assertResponseStatusCodeSame(403);
         self::assertSame(AppLocale::En, static::getContainer()->get(SettingRepository::class)->getOrCreate()->getLocale());
+    }
+
+    /**
+     * SEC-01, lot 09: the key travels under `_password`, the one field the
+     * profiler masks. It must not survive anywhere in the profile, while
+     * still reaching the store.
+     */
+    public function testTheKeyReachesTheStoreButNotTheProfilerProfile(): void
+    {
+        $this->client->enableProfiler();
+
+        $this->client->request('POST', '/settings/provider/mistral/key', ['_password' => 'sk-live-mistral-987654'], [], $this->tokenHeader());
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('sk-live-mistral-987654', $this->secretStore->get('mistral'));
+
+        $profile = $this->client->getProfile();
+        self::assertNotNull($profile);
+        // The request collector masks the field, it does not drop it. The
+        // bag survives storage as a cloned Data; offset access unwraps it.
+        $requestCollector = $profile->getCollector('request');
+        self::assertInstanceOf(RequestDataCollector::class, $requestCollector);
+        self::assertSame('******', $requestCollector->__serialize()['data']['request_request']['_password']);
+        // And no collector kept the value: the serialized profile (what the
+        // profiler writes to var/cache/*/profiler/) does not contain it.
+        // A collector that cannot be re-serialized (the form one keeps a
+        // cloned Data) holds no request body anyway.
+        foreach ($profile->getCollectors() as $collector) {
+            try {
+                $serialized = serialize($collector);
+            } catch (\Throwable) {
+                continue;
+            }
+            self::assertStringNotContainsString('sk-live-mistral-987654', $serialized, $collector->getName());
+        }
+    }
+
+    /**
+     * SET-08, lot 09: the page declares the stored locale, and everything
+     * the server renders follows it.
+     */
+    public function testThePageCarriesTheHtmlLangOfTheStoredLocale(): void
+    {
+        $this->client->followRedirects(true);
+        $this->client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => $this->token()], [], ['HTTP_ORIGIN' => 'http://localhost']);
+
+        // The redirect chain ends on the editor page.
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler();
+        self::assertSame('fr', $crawler->filter('html')->attr('lang'));
+        // A text the server renders follows the locale too (base.html.twig).
+        self::assertSame('Fermer', $crawler->filter('[data-toast-close-label-value]')->attr('data-toast-close-label-value'));
+    }
+
+    /** HUB-06, lot 09: one banner per capability the session lacks, nothing more. */
+    public function testNoBannerWhenEveryCapabilityIsPresent(): void
+    {
+        $this->client->request('GET', '/settings');
+
+        self::assertSelectorCount(0, 'p.settings-capability');
+    }
+
+    public function testAMissingWorkerShowsItsBannerButLeavesTheKeyFieldsActive(): void
+    {
+        $this->stationContext->worker = false;
+
+        $crawler = $this->client->request('GET', '/settings');
+
+        self::assertSelectorCount(1, 'p.settings-capability');
+        self::assertSame('AI cannot run in this session.', trim($crawler->filter('p.settings-capability')->text()));
+        self::assertSelectorCount(0, 'input[data-settings-target="keyInput"][disabled]');
+        self::assertSelectorCount(0, 'button.settings-key-save[disabled]');
+    }
+
+    /** Without the bridge, saving a key cannot work, so it cannot be tried either. */
+    public function testAMissingBridgeShowsItsBannerAndDisablesTheKeyFields(): void
+    {
+        $this->secretStore->available = false;
+
+        $crawler = $this->client->request('GET', '/settings');
+
+        self::assertSelectorCount(1, 'p.settings-capability');
+        self::assertSame('API keys cannot be saved in this session: the fields are disabled.', trim($crawler->filter('p.settings-capability')->text()));
+        self::assertSelectorCount(3, 'input[data-settings-target="keyInput"][disabled]');
+        self::assertSelectorCount(3, 'button.settings-key-save[disabled]');
+        self::assertSelectorCount(3, 'button.settings-delete-key-btn[disabled]');
+    }
+
+    public function testAMissingKeyringShowsItsWarningButLeavesTheKeyFieldsActive(): void
+    {
+        $this->stationContext->keyring = false;
+
+        $crawler = $this->client->request('GET', '/settings');
+
+        self::assertSelectorCount(1, 'p.settings-capability');
+        self::assertSame('The system keyring is unavailable: the Hub will store keys in plain text on disk.', trim($crawler->filter('p.settings-capability')->text()));
+        self::assertSelectorCount(0, 'input[data-settings-target="keyInput"][disabled]');
+        self::assertSelectorCount(0, 'button.settings-key-save[disabled]');
     }
 
     /**
@@ -363,7 +474,7 @@ final class SettingsControllerTest extends WebTestCase
         $fields['_token'] = $crawler->filter('input[name="settings[_token]"]')->attr('value');
         $fields += ['defaultMode' => 'single'];
 
-        $this->client->request('POST', '/settings', ['settings' => $fields], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        $this->client->request('POST', '/settings', ['settings' => $fields], [], ['HTTP_X_CSRF_TOKEN' => 'fetch', 'HTTP_ORIGIN' => 'http://localhost']);
 
         return json_decode((string) $this->client->getResponse()->getContent(), true);
     }

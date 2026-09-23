@@ -7,9 +7,9 @@
 export interface SaveConflictOptions {
     message: string | null;
     question: string;
-    cancelLabel?: string;
-    saveAsLabel?: string;
-    overwriteLabel?: string;
+    cancelLabel: string;
+    saveAsLabel: string;
+    overwriteLabel: string;
 }
 
 export type SaveConflictChoice = 'cancel' | 'save_as' | 'overwrite';
@@ -17,9 +17,9 @@ export type SaveConflictChoice = 'cancel' | 'save_as' | 'overwrite';
 export function saveConflictDialog({
     message,
     question,
-    cancelLabel = 'Cancel',
-    saveAsLabel = 'Save as',
-    overwriteLabel = 'Overwrite',
+    cancelLabel,
+    saveAsLabel,
+    overwriteLabel,
 }: SaveConflictOptions): Promise<SaveConflictChoice> {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');

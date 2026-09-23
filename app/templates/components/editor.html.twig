@@ -65,7 +65,7 @@
         {# The files: the Archive modal, its frame loads on the first opening (lazy: the
            closed dialog is not visible) and is never emptied afterwards. #}
         <div class="editor-filebar-actions" data-controller="modal">
-            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.export'|trans({}, 'components') }}">
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.export_title'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--export" aria-hidden="true"></span>
                 <span class="visually-hidden">{{ 'components.editor.export'|trans({}, 'components') }}</span>
             </button>

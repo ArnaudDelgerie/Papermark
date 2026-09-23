@@ -1,14 +1,16 @@
 // The webview shows no native confirm(): the hub doesn't handle JS dialogs.
 // `message` is optional informative context (e.g. what's about to happen);
-// `question` is the actual yes/no prompt and is always shown.
+// `question` is the actual yes/no prompt and is always shown. Both labels
+// are required: no call site falls back to an English default (SET-05,
+// lot 09) — they come from the server's i18n.
 export interface ConfirmDialogOptions {
     message?: string;
     question: string;
-    cancelLabel?: string;
-    continueLabel?: string;
+    cancelLabel: string;
+    continueLabel: string;
 }
 
-export function confirmDialog({ message, question, cancelLabel = 'Cancel', continueLabel = 'Continue' }: ConfirmDialogOptions): Promise<boolean> {
+export function confirmDialog({ message, question, cancelLabel, continueLabel }: ConfirmDialogOptions): Promise<boolean> {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.className = 'editor-confirm-dialog';

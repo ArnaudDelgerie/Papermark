@@ -1,6 +1,6 @@
 import { Crepe } from '@milkdown/crepe';
 import { ai as aiFeature, abortAICmd, defaultAIIcon, useAIInstructionTooltipAPI } from '@milkdown/crepe/feature/ai';
-import type { AIProvider } from '@milkdown/crepe/feature/ai';
+import type { AIProvider, AISuggestionsBuilder } from '@milkdown/crepe/feature/ai';
 import { EditorStatus, commandsCtx, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
 import { imageBlockSchema } from '@milkdown/kit/component/image-block';
 import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
@@ -43,6 +43,13 @@ export interface CrepeI18n {
         table: string;
     };
     codeBlock: { noLanguage: string; copy: string };
+    /** SET-04, lot 09: the image block's own texts (caption, upload, confirm). */
+    imageBlock: {
+        captionPlaceholder: string;
+        uploadButton: string;
+        uploadPlaceholder: string;
+        confirmButton: string;
+    };
     ai: {
         askAi: string;
         instructionPlaceholder: string;
@@ -51,6 +58,48 @@ export interface CrepeI18n {
         sendAsPrompt: string;
         submitButton: string;
         listbox: string;
+        /**
+         * SET-04, lot 09: the suggestions menu — labels only, the prompts
+         * sent to the model stay in English. `streamingFallback` and
+         * `streamingCancel` are the streaming indicator's texts.
+         */
+        suggestions: {
+            improve: string;
+            improveStreaming: string;
+            grammar: string;
+            grammarStreaming: string;
+            shorter: string;
+            shorterStreaming: string;
+            longer: string;
+            longerStreaming: string;
+            streamingFallback: string;
+            streamingCancel: string;
+            tone: {
+                label: string;
+                title: string;
+                search: string;
+                streaming: string;
+                professional: string;
+                casual: string;
+                confident: string;
+                friendly: string;
+                direct: string;
+                formal: string;
+            };
+            translate: {
+                label: string;
+                title: string;
+                search: string;
+                streaming: string;
+                english: string;
+                chinese: string;
+                japanese: string;
+                korean: string;
+                spanish: string;
+                french: string;
+                german: string;
+            };
+        };
     };
 }
 
@@ -457,6 +506,17 @@ export default class CrepeHost {
                     },
                 },
                 [Crepe.Feature.TopBar]: {
+                    // SET-04, lot 09: the heading selector's labels, from
+                    // the slash menu's keys (Paragraph, Heading 1 to 6).
+                    headingOptions: [
+                        { label: t.slashMenu.paragraph, level: null },
+                        { label: t.slashMenu.h1, level: 1 },
+                        { label: t.slashMenu.h2, level: 2 },
+                        { label: t.slashMenu.h3, level: 3 },
+                        { label: t.slashMenu.h4, level: 4 },
+                        { label: t.slashMenu.h5, level: 5 },
+                        { label: t.slashMenu.h6, level: 6 },
+                    ],
                     buildTopBar: (builder) => {
                         // Same replacement as the slash menu's "Image" entry: the hub's
                         // file picker instead of Crepe's own upload/placeholder UI. The
@@ -501,6 +561,17 @@ export default class CrepeHost {
                         }
                     },
                 },
+                // SET-04, lot 09: the image block's own texts. The upload
+                // itself goes through the hub's picker, but the caption and
+                // the empty block stay visible to the user.
+                [Crepe.Feature.ImageBlock]: {
+                    blockCaptionPlaceholderText: t.imageBlock.captionPlaceholder,
+                    blockUploadButton: t.imageBlock.uploadButton,
+                    blockUploadPlaceholderText: t.imageBlock.uploadPlaceholder,
+                    blockConfirmButton: t.imageBlock.confirmButton,
+                    inlineUploadButton: t.imageBlock.uploadButton,
+                    inlineUploadPlaceholderText: t.imageBlock.uploadPlaceholder,
+                },
             },
         });
 
@@ -529,6 +600,13 @@ export default class CrepeHost {
                 sendAsPromptLabel: t.ai.sendAsPrompt,
                 submitButtonLabel: t.ai.submitButton,
                 listboxLabel: t.ai.listbox,
+                // SET-04, lot 09: the suggestions menu's labels, translated;
+                // the prompts sent to the model stay in English.
+                buildAISuggestions: (builder) => this.#translateSuggestions(builder),
+                streamingIndicator: {
+                    fallbackLabel: t.ai.suggestions.streamingFallback,
+                    cancelHint: t.ai.suggestions.streamingCancel,
+                },
                 // Crepe prefixes the message ("AI provider error: ..."); show the original one.
                 onError: onAiError,
             });
@@ -553,6 +631,86 @@ export default class CrepeHost {
         });
 
         return crepe;
+    }
+
+    /**
+     * Rewrites the default suggestions' labels in place (SET-04, lot 09):
+     * Crepe fills the builder with its English defaults first, so the items
+     * keep their icons and English prompts, and only what the user reads
+     * changes. A submenu's definition cannot be reached through the builder,
+     * so each one is rebuilt with its icon — captured from an item before
+     * the removal — and the English prompts restated per id.
+     */
+    #translateSuggestions(builder: AISuggestionsBuilder): void {
+        const s = this.#i18n.ai.suggestions;
+
+        const relabel = (id: string, label: string, streamingLabel: string): void => {
+            const item = builder.getItem(id);
+            if (item !== undefined) {
+                item.label = label;
+                item.streamingLabel = streamingLabel;
+            }
+        };
+        relabel('improve', s.improve, s.improveStreaming);
+        relabel('grammar', s.grammar, s.grammarStreaming);
+        relabel('shorter', s.shorter, s.shorterStreaming);
+        relabel('longer', s.longer, s.longerStreaming);
+
+        // The tone submenu. The prompts are Crepe's own, in English.
+        const tones: Array<[string, string]> = [
+            ['professional', 'Rewrite this in a professional tone.'],
+            ['casual', 'Rewrite this in a casual tone.'],
+            ['confident', 'Rewrite this in a confident tone.'],
+            ['friendly', 'Rewrite this in a friendly tone.'],
+            ['direct', 'Rewrite this in a direct tone.'],
+            ['formal', 'Rewrite this in a formal tone.'],
+        ];
+        const toneIcon = builder.getSubmenu('tone')?.getItem('professional')?.icon ?? '';
+        builder.removeItem('tone');
+        builder.addSubmenu('tone', {
+            icon: toneIcon,
+            label: s.tone.label,
+            title: s.tone.title,
+            searchPlaceholder: s.tone.search,
+        }, (sub) => {
+            for (const [id, prompt] of tones) {
+                sub.addItem(id, {
+                    icon: toneIcon,
+                    label: s.tone[id as 'professional'],
+                    streamingLabel: s.tone.streaming,
+                    prompt,
+                });
+            }
+        });
+
+        // The translate submenu, same approach.
+        const languages: Array<[string, string]> = [
+            ['english', 'Translate this to English.'],
+            ['chinese', 'Translate this to Chinese (Simplified).'],
+            ['japanese', 'Translate this to Japanese.'],
+            ['korean', 'Translate this to Korean.'],
+            ['spanish', 'Translate this to Spanish.'],
+            ['french', 'Translate this to French.'],
+            ['german', 'Translate this to German.'],
+        ];
+        const translateIcon = builder.getSubmenu('translate')?.getItem('english')?.icon ?? '';
+        builder.removeItem('translate');
+        builder.addSubmenu('translate', {
+            icon: translateIcon,
+            label: s.translate.label,
+            title: s.translate.title,
+            searchPlaceholder: s.translate.search,
+        }, (sub) => {
+            for (const [id, prompt] of languages) {
+                const label = s.translate[id as 'english'];
+                sub.addItem(id, {
+                    icon: translateIcon,
+                    label,
+                    streamingLabel: s.translate.streaming.replace('{language}', label),
+                    prompt,
+                });
+            }
+        });
     }
 
     /**

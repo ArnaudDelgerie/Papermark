@@ -323,6 +323,9 @@ describe('the archive modal, with the master', () => {
         it('shows only the count, the list being behind a toggle', async () => {
             await exportWith([issue(1), issue(2), issue(3)]);
 
+            // SET-09, lot 09: the save dialog's zip filter is translated.
+            expect(invoke.mock.calls[0][1].filters).toEqual([{ name: 'Zip archive', extensions: ['zip'] }]);
+
             const details = $<HTMLDetailsElement>('[data-export-target="report"] details');
             expect(details.open).toBe(false);
             expect(details.querySelector('summary')!.textContent).toBe(EXPORT_I18N.report.count_other.replace('{count}', '3'));

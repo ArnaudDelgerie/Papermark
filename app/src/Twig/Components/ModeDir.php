@@ -58,6 +58,8 @@ final class ModeDir
         return [
             'rename' => $this->trans('rename'),
             'delete' => $this->trans('delete'),
+            // SET-05, lot 09: the rename/delete dialogs' Cancel.
+            'cancel' => $this->trans('cancel'),
             'renamePrompt' => $this->trans('rename_prompt'),
             'deleteConfirmMessage' => $this->trans('delete_confirm_message'),
             'deleteConfirmMessageCurrent' => $this->trans('delete_confirm_message_current'),

@@ -358,6 +358,9 @@ describe('the left column, with the master', () => {
             expect(vi.mocked(confirmDialog).mock.calls[0][0].question).toBe('Delete b.md?');
             // Not the current file with unsaved changes: the plain message.
             expect(vi.mocked(confirmDialog).mock.calls[0][0].message).toBe('This cannot be undone.');
+            // SET-05, lot 09: both labels come from the server's i18n, no default.
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].cancelLabel).toBe('Cancel');
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].continueLabel).toBe('Delete');
             expect(fetchMock.mock.calls[0][0]).toBe('/document/delete');
             expect(toasts).toEqual([{ type: 'success', message: 'File deleted' }]);
             expect(reload).toHaveBeenCalledTimes(1);
@@ -406,6 +409,9 @@ describe('the left column, with the master', () => {
             click('.mode-history button[data-path="/notes/a.md"][data-action$="renameEntry"]');
             await settle();
 
+            // SET-05, lot 09: both labels come from the server's i18n, no default.
+            expect(vi.mocked(renameDialog).mock.calls[0][0].cancelLabel).toBe('Cancel');
+            expect(vi.mocked(renameDialog).mock.calls[0][0].continueLabel).toBe('Rename');
             const body = fetchMock.mock.calls[0][1].body as FormData;
             expect([body.get('path'), body.get('name')]).toEqual(['/notes/a.md', 'z.md']);
             expect(history()).toEqual(['/notes/b.md', '/notes/z.md']);

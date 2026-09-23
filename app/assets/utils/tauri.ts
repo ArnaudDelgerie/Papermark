@@ -23,16 +23,16 @@ export interface SaveFilter {
     extensions: string[];
 }
 
-const DEFAULT_SAVE_FILTERS: SaveFilter[] = [
-    { name: 'Markdown', extensions: ['md'] },
-    { name: 'Text', extensions: ['txt'] },
-];
-
+/**
+ * Every label — the proposed file name included — is the caller's, always
+ * from the server's i18n (SET-09, lot 09): no default text here, the filters
+ * least of all ("Markdown", "Texte", "Archive zip").
+ */
 export function savePath(
     i18n: IpcI18n,
-    fileName = 'untitled.md',
+    fileName: string,
     directory?: string | null,
-    filters: SaveFilter[] = DEFAULT_SAVE_FILTERS,
+    filters: SaveFilter[] = [],
 ): Promise<string | null> {
     return invokePathPicker('save_path', { filters, fileName, ...(directory ? { directory } : {}) }, i18n);
 }

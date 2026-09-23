@@ -72,6 +72,8 @@ final class ArchiveController extends AbstractController
             'noSource' => $trans('no_source'),
             'done' => $trans('done'),
             'failed' => $trans('failed'),
+            // SET-09, lot 09: the save dialog's zip filter, translated.
+            'zipFilter' => $trans('zip_filter'),
             // HUB-06, lot 08: the source and target pickers.
             'ipc' => [
                 'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),

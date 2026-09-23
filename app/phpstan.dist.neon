@@ -6,3 +6,10 @@ parameters:
         - src
         - tests
         - migrations
+    ignoreErrors:
+        # SEC-01, lot 09: the serializer panel dumps the request body as it
+        # came in; the redacting collector masks the `_password` field, and
+        # extending is the one hook the profiler offers for it.
+        -
+            identifier: class.extendsFinalByPhpDoc
+            path: src/Profiler/RedactingSerializerDataCollector.php

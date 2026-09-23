@@ -38,6 +38,27 @@
     padding-left: var(--space-4);
 }
 
+/* HUB-06, lot 09: one per capability the session lacks. Danger when the
+   feature cannot work (no bridge), muted when it still does but degraded
+   (no worker, no keyring). */
+.settings-capability {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+}
+
+.settings-capability--error {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.settings-capability--warn {
+    border-color: var(--color-border);
+    color: var(--color-muted);
+}
+
 /* Block flow, not a flex column: WebKitGTK gives a fieldset flex item a
    large bottom padding until something forces a relayout (a hover). */
 .settings-form > :not(:first-child) {

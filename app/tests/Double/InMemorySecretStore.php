@@ -8,9 +8,14 @@ use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 
 /**
  * Keyring stand-in for tests: the real SecretStore needs the TFSApp hub bridge.
+ * `available` flips for the tests of what a missing bridge changes (HUB-06,
+ * lot 09): the container cannot replace an initialized service, but it
+ * re-reads the property each request.
  */
 final class InMemorySecretStore implements SecretStoreInterface
 {
+    public bool $available = true;
+
     /**
      * @param array<string, string> $secrets
      */
@@ -21,7 +26,7 @@ final class InMemorySecretStore implements SecretStoreInterface
 
     public function isAvailable(): bool
     {
-        return true;
+        return $this->available;
     }
 
     public function keys(): array

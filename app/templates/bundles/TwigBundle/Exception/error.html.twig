@@ -1,0 +1,45 @@
+{# The one error page, for every status code (SET-03, lot 09). Shown only with
+   APP_DEBUG=0; in dev the debugger keeps its own page. It must render no
+   matter what failed (settings store, session): no base.html.twig, no asset
+   entry, everything it needs is inline, and the locale comes from the
+   request, not from the database — passed to trans() by hand, no request
+   listener may have run when it renders. #}
+<!DOCTYPE html>
+<html lang="{{ app.request.locale }}">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+        <title>{{ 'templates.error.title'|trans({}, 'templates', app.request.locale) }}</title>
+        <style>
+            body {
+                margin: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: #121212;
+                color: #e6e6e6;
+                font: 16px/1.5 system-ui, sans-serif;
+            }
+            .error-box { text-align: center; padding: 2rem; }
+            .error-box h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 .5rem; }
+            .error-box p { margin: 0 0 1.5rem; color: #a3a3a3; }
+            .error-box a {
+                display: inline-block;
+                padding: .5rem 1.25rem;
+                border-radius: 6px;
+                background: #333;
+                color: #e6e6e6;
+                text-decoration: none;
+            }
+            .error-box a:hover { background: #404040; }
+        </style>
+    </head>
+    <body>
+        <div class="error-box">
+            <h1>{{ 'templates.error.title'|trans({}, 'templates', app.request.locale) }}</h1>
+            <p>{{ 'templates.error.message'|trans({}, 'templates', app.request.locale) }}</p>
+            <a href="{{ path('app_home') }}">{{ 'templates.error.retry'|trans({}, 'templates', app.request.locale) }}</a>
+        </div>
+    </body>
+</html>

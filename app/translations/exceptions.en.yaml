@@ -1,4 +1,5 @@
 exceptions:
+    unexpected: An unexpected error occurred
     form:
         not_submitted: The action failed, please try again
     path:

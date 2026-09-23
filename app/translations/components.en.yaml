@@ -1,17 +1,22 @@
 components:
     editor:
         placeholder: Start writing…
-        open: Open
+        open: Open file…
         new: New
         save: Save
-        save_as: Save as
+        save_as: Save as…
         print: Print
         copy_markdown: Copy as Markdown
         export: Archive
+        export_title: Export or import an archive
         settings: Settings
         theme_button: 'Theme: {theme}'
         locale_button: 'Language: {language}'
         untitled: Untitled
+        untitled_file_name: untitled.md
+        save_filter:
+            markdown: Markdown
+            text: Text
         unsaved:
             indicator: Unsaved
             confirm: Continue and lose unsaved changes?
@@ -36,7 +41,7 @@ components:
             input_placeholder: Paste link…
         slash_menu:
             text: Text
-            paragraph: Text
+            paragraph: Paragraph
             h1: Heading 1
             h2: Heading 2
             h3: Heading 3
@@ -46,9 +51,9 @@ components:
             quote: Quote
             divider: Divider
             list: List
-            bullet_list: Bullet List
-            ordered_list: Ordered List
-            task_list: Task List
+            bullet_list: Bullet list
+            ordered_list: Ordered list
+            task_list: Task list
             advanced: Advanced
             image: Image
             code: Code
@@ -56,6 +61,11 @@ components:
         code_block:
             no_language: Plain text
             copy: Copy code
+        image_block:
+            caption_placeholder: Write image caption
+            upload_button: Upload file
+            upload_placeholder: or paste link
+            confirm_button: Confirm
         toast:
             saved: File saved
             saved_as: 'File saved as {name}'
@@ -79,6 +89,40 @@ components:
             send_as_prompt: 'Ask AI:'
             submit_button: Send prompt
             listbox: AI suggestions
+            suggestions:
+                improve: Improve writing
+                improve_streaming: Improving writing
+                grammar: Fix grammar & spelling
+                grammar_streaming: Fixing grammar & spelling
+                shorter: Make shorter
+                shorter_streaming: Making shorter
+                longer: Make longer
+                longer_streaming: Expanding
+                streaming_fallback: Generating
+                streaming_cancel: Esc to cancel
+                tone:
+                    label: Change tone…
+                    title: Change tone
+                    search: Search tones…
+                    streaming: Adjusting tone
+                    professional: Professional
+                    casual: Casual
+                    confident: Confident
+                    friendly: Friendly
+                    direct: Direct
+                    formal: Formal
+                translate:
+                    label: Translate…
+                    title: Translate
+                    search: Search languages…
+                    streaming: 'Translating to {language}'
+                    english: English
+                    chinese: Chinese
+                    japanese: Japanese
+                    korean: Korean
+                    spanish: Spanish
+                    french: French
+                    german: German
         error:
             provider_not_selected: No AI provider selected, choose one in the settings
             model_missing: No model set for the selected AI provider
@@ -94,7 +138,7 @@ components:
     mode:
         single: Single file
         dir: Folder
-        open_directory: Open folder
+        open_directory: Open folder…
         loading: Loading…
         history:
             empty: No recent files
@@ -108,6 +152,7 @@ components:
             retry: Retry
         file:
             rename: Rename
+            cancel: Cancel
             symlink: 'Symbolic link: rename and delete are disabled'
             delete: Delete
             rename_prompt: 'Enter a new name for "{name}"'
@@ -132,9 +177,13 @@ components:
         errors_title: 'These settings were not saved:'
         error_line: '{field}: {message}'
         mode_title: Default mode
+        cancel: Cancel
         delete_key: Delete key
         delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
         delete_key_confirm_question: Delete this API key?
+        worker_unavailable: AI cannot run in this session.
+        bridge_unavailable: 'API keys cannot be saved in this session: the fields are disabled.'
+        keyring_unavailable: 'The system keyring is unavailable: the Hub will store keys in plain text on disk.'
         update_title: Updates
         update_check_button: Check for update
         update_available: 'Update available: %version%'
@@ -154,6 +203,7 @@ components:
         include_external_markdown: Include external .md files
         export_button: Export…
         no_source: Choose a file or folder first
+        zip_filter: Zip archive
         done: 'Archive exported to {path}'
         failed: Export failed
         unsaved:

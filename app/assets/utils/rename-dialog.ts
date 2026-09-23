@@ -1,14 +1,16 @@
 // Same native <dialog> approach as confirm-dialog.ts (the webview handles no
 // native browser dialogs, so window.prompt() isn't an option either).
 // Resolves to the trimmed new name, or null if cancelled/left unchanged.
+// Both labels are required (SET-05, lot 09): no English default, the
+// server's i18n is the only source.
 export interface RenameDialogOptions {
     currentName: string;
     message?: string;
-    cancelLabel?: string;
-    continueLabel?: string;
+    cancelLabel: string;
+    continueLabel: string;
 }
 
-export function renameDialog({ currentName, message, cancelLabel = 'Cancel', continueLabel = 'Rename' }: RenameDialogOptions): Promise<string | null> {
+export function renameDialog({ currentName, message, cancelLabel, continueLabel }: RenameDialogOptions): Promise<string | null> {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.className = 'editor-confirm-dialog';

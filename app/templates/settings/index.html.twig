@@ -12,6 +12,7 @@
             'data-controller': 'settings',
             'data-action': 'submit->settings#submit',
             'data-settings-delete-label-value': 'components.settings.delete_key'|trans({}, 'components'),
+            'data-settings-cancel-label-value': 'components.settings.cancel'|trans({}, 'components'),
             'data-settings-confirm-message-value': 'components.settings.delete_key_confirm_message'|trans({}, 'components'),
             'data-settings-confirm-question-value': 'components.settings.delete_key_confirm_question'|trans({}, 'components'),
             'data-settings-update-available-value': 'components.settings.update_available'|trans({}, 'components'),
@@ -44,6 +45,24 @@
         {# The panels share one grid cell: the modal keeps the height of the tallest. #}
         <div class="settings-panels">
         <div class="settings-tabpanel" id="panel-providers" role="tabpanel" aria-labelledby="tab-providers" data-settings-target="panel" data-tab="providers">
+            {# HUB-06, lot 09: one banner per capability the session lacks,
+               whatever the reason — the hub's own dialog already said the
+               worker one at launch, this one is for whoever comes back later. #}
+            {% if not has_worker %}
+            <p class="settings-capability settings-capability--warn" role="note">
+                {{ 'components.settings.worker_unavailable'|trans({}, 'components') }}
+            </p>
+            {% endif %}
+            {% if not bridge_available %}
+            <p class="settings-capability settings-capability--error" role="note">
+                {{ 'components.settings.bridge_unavailable'|trans({}, 'components') }}
+            </p>
+            {% endif %}
+            {% if not keyring_available %}
+            <p class="settings-capability settings-capability--warn" role="note">
+                {{ 'components.settings.keyring_unavailable'|trans({}, 'components') }}
+            </p>
+            {% endif %}
             {% for name, provider in form.providers %}
             <fieldset class="settings-fieldset">
                 <legend class="settings-provider{% if form.selected[name].vars.checked %} is-selected{% endif %}">
@@ -55,11 +74,14 @@
 
                 {# Both displays are in the markup: the server picks the visible one,
                    the controller switches after a set or a delete. The key field has
-                   no name: it is not part of the form. #}
+                   no name: it is not part of the form. Without the bridge the key
+                   fields and buttons are disabled (HUB-06, lot 09): saving cannot
+                   work, so it cannot be tried either. #}
                 <div class="settings-key" data-settings-target="keyBlock" data-name="{{ name }}">
                     <div class="settings-key-set"{% if not has_key[name] %} hidden{% endif %}>
                         <span class="settings-key-status">{{ 'components.settings.key_set'|trans({}, 'components') }}</span>
                         <button type="button" class="settings-delete-key-btn" title="{{ 'components.settings.delete_key'|trans({}, 'components') }}"
+                                {% if not bridge_available %}disabled{% endif %}
                                 data-action="click->settings#deleteKey" data-name="{{ name }}">
                             <span class="visually-hidden">{{ 'components.settings.delete_key'|trans({}, 'components') }}</span>
                         </button>
@@ -68,9 +90,11 @@
                         <label for="settings-key-{{ name }}">{{ 'components.settings.api_key_label'|trans({}, 'components') }}</label>
                         <input type="password" id="settings-key-{{ name }}" autocomplete="off"
                                placeholder="{{ 'components.settings.key_placeholder'|trans({}, 'components') }}"
+                               {% if not bridge_available %}disabled{% endif %}
                                data-settings-target="keyInput" data-name="{{ name }}"
                                data-action="keydown.enter->settings#setKey">
                         <button type="button" class="settings-key-save" data-settings-target="keySave" data-name="{{ name }}"
+                                {% if not bridge_available %}disabled{% endif %}
                                 data-action="click->settings#setKey">
                             {{ 'components.settings.set_key'|trans({}, 'components') }}
                         </button>

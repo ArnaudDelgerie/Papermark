@@ -6,6 +6,8 @@ import { emit, on } from './events';
 export interface FileEntryI18n {
     rename: string;
     delete: string;
+    /** The dialogs' Cancel (SET-05, lot 09): the server's label, like every text. */
+    cancel: string;
     renamePrompt: string;
     deleteConfirmMessage: string;
     /** When the target is the current file and it has unsaved changes (lot 03). */
@@ -60,6 +62,7 @@ export class FileEntries {
         const confirmed = await confirmDialog({
             message: query.unsaved ? i18n.deleteConfirmMessageCurrent : i18n.deleteConfirmMessage,
             question: i18n.deleteConfirmQuestion.replace('{name}', basename(path)),
+            cancelLabel: i18n.cancel,
             continueLabel: i18n.delete,
         });
         if (!confirmed) {
@@ -76,6 +79,7 @@ export class FileEntries {
         const name = await renameDialog({
             currentName,
             message: i18n.renamePrompt.replace('{name}', currentName),
+            cancelLabel: i18n.cancel,
             continueLabel: i18n.rename,
         });
         if (name === null) {

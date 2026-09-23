@@ -44,8 +44,9 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame(10, $crawler->filter('div[data-controller="editor"] button.editor-filebar-btn')->count());
         self::assertSame('New', trim($crawler->filter('button[data-action="click->editor#newFile"]')->text()));
 
-        // Open (file) lives in the sidebar.
-        self::assertSame('Open', trim($crawler->filter('button[data-action="click->mode-single#openFile"]')->text()));
+        // Open (file) lives in the sidebar. The ellipsis marks what opens a
+        // dialog (UX-14, lot 09).
+        self::assertSame('Open file…', trim($crawler->filter('button[data-action="click->mode-single#openFile"]')->text()));
 
         // Only the tree is behind a frame; Open folder stays in the column.
         self::assertSame('/editor/dir', $crawler->filter('turbo-frame#mode-dir-tree')->attr('src'));

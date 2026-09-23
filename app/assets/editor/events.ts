@@ -44,7 +44,11 @@ interface Requests {
     'do-rename': { path: string; name: string };
     /** The whole settings form, as the modal's controller reads it, with its own `action`. */
     'do-save_settings': { form: FormData; url: string };
-    'do-set_key': { name: string; key: string };
+    /**
+     * The API key travels under `_password` (SEC-01, lot 09): the name the
+     * server's request collector masks, so it never lands in the profiler.
+     */
+    'do-set_key': { name: string; _password: string };
     'do-delete_key': { name: string };
     /** The archive and the folder it is extracted into, both picked by the import block. */
     'do-import': { archive: string; parentDir: string };
@@ -106,7 +110,7 @@ export type ResultOf<A extends ActionName> = Results[A];
  * A failure may come without any server answer, so it can only repeat what
  * was asked — minus the markdown and the API key, which never travel back.
  */
-export type FailureOf<A extends ActionName> = Omit<Requests[A], 'content' | 'key'> &
+export type FailureOf<A extends ActionName> = Omit<Requests[A], 'content' | '_password'> &
     (A extends keyof FailureExtras ? FailureExtras[A] : unknown);
 
 /**

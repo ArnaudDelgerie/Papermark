@@ -31,6 +31,7 @@ export default class extends Controller<HTMLFormElement> {
         // The same for every field, radios included.
         delay: { type: Number, default: 600 },
         deleteLabel: String,
+        cancelLabel: String,
         confirmMessage: String,
         confirmQuestion: String,
         updateAvailable: String,
@@ -41,6 +42,7 @@ export default class extends Controller<HTMLFormElement> {
 
     declare readonly delayValue: number;
     declare readonly deleteLabelValue: string;
+    declare readonly cancelLabelValue: string;
     declare readonly confirmMessageValue: string;
     declare readonly confirmQuestionValue: string;
     declare readonly updateAvailableValue: string;
@@ -162,7 +164,7 @@ export default class extends Controller<HTMLFormElement> {
         }
 
         this.#keySaving(name, true);
-        emit(requested('do-set_key'), { action: { name, key } });
+        emit(requested('do-set_key'), { action: { name, _password: key } });
     }
 
     async deleteKey(event: Event): Promise<void> {
@@ -172,6 +174,7 @@ export default class extends Controller<HTMLFormElement> {
         const confirmed = await confirmDialog({
             message: this.confirmMessageValue,
             question: this.confirmQuestionValue,
+            cancelLabel: this.cancelLabelValue,
             continueLabel: this.deleteLabelValue,
         });
         if (confirmed) {

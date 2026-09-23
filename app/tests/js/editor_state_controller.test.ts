@@ -311,13 +311,13 @@ describe('editor-state (the master)', () => {
             const succeeded = vi.fn();
             on('editor:do-set_key-succeeded', succeeded);
 
-            emit('editor:do-set_key-requested', { action: { name: 'mistral', key: 'sk-secret' } });
+            emit('editor:do-set_key-requested', { action: { name: 'mistral', _password: 'sk-secret' } });
             await settle();
 
             const [url, init] = fetchMock.mock.calls[0];
             expect(url).toBe('/settings/provider/mistral/key');
             expect(init.method).toBe('POST');
-            expect((init.body as FormData).get('key')).toBe('sk-secret');
+            expect((init.body as FormData).get('_password')).toBe('sk-secret');
             expect(succeeded).toHaveBeenCalledWith({ state: INITIAL, action: { name: 'mistral' } });
         });
 
@@ -326,7 +326,7 @@ describe('editor-state (the master)', () => {
             const failed = vi.fn();
             on('editor:do-set_key-failed', failed);
 
-            emit('editor:do-set_key-requested', { action: { name: 'mistral', key: 'sk-secret' } });
+            emit('editor:do-set_key-requested', { action: { name: 'mistral', _password: 'sk-secret' } });
             await settle();
 
             expect(failed).toHaveBeenCalledWith({ state: INITIAL, action: { name: 'mistral' } });

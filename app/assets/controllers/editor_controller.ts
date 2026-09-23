@@ -43,6 +43,10 @@ interface Urls {
 export interface I18n extends CrepeI18n {
     toggle: { edit: string; readonly: string };
     untitled: string;
+    /** The name proposed for a new file (SET-09, lot 09): "sans-titre.md". */
+    untitledFileName: string;
+    /** The native save dialog's file type filters, translated. */
+    saveFilters: { markdown: string; text: string };
     unsaved: { confirm: string; cancel: string; continue: string };
     conflict: { question: string; cancel: string; saveAs: string; overwrite: string };
     loadError: string;
@@ -688,17 +692,22 @@ export default class extends Controller<HTMLElement> {
             return;
         }
 
-        const defaultName = this.#currentPath !== null ? basename(this.#currentPath) : 'untitled.md';
+        const defaultName = this.#currentPath !== null ? basename(this.#currentPath) : this.i18nValue.untitledFileName;
         // The button stays down from the picker to the answer: whatever
         // happens to the invoke, it comes back (FRT-07, lot 08).
         if (this.hasSaveAsButtonTarget) {
             this.saveAsButtonTarget.disabled = true;
         }
+        const { markdown: markdownFilter, text: textFilter } = this.i18nValue.saveFilters;
+        const filters = [
+            { name: markdownFilter, extensions: ['md'] },
+            { name: textFilter, extensions: ['txt'] },
+        ];
         let path: string | null;
         try {
             // In dir mode, the save dialog opens in the current directory without
             // constraining where the file actually gets saved (see EDITOR_FOLDER_MODE.md).
-            path = await savePath(this.i18nValue.ipc, defaultName, this.#directory, undefined);
+            path = await savePath(this.i18nValue.ipc, defaultName, this.#directory, filters);
         } finally {
             this.#updateSaveButton(this.#host.markdown());
         }

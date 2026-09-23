@@ -417,8 +417,13 @@ describe('the editor, with the master', () => {
         click('[data-editor-target="saveAsButton"]');
         await settle();
 
-        // The dialog opens in the current folder, in dir mode.
+        // The dialog opens in the current folder, in dir mode. The proposed
+        // name and the filters come from the server's i18n (SET-09, lot 09).
         expect(invoke).toHaveBeenCalledWith('save_path', expect.objectContaining({ fileName: 'untitled.md', directory: '/notes' }));
+        expect(invoke.mock.calls[0][1].filters).toEqual([
+            { name: 'Markdown', extensions: ['md'] },
+            { name: 'Text', extensions: ['txt'] },
+        ]);
         expect(label()).toBe('/notes/new.md');
         expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.savedAs.replace('{name}', 'new.md') }]);
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);

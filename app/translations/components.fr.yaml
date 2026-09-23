@@ -1,17 +1,22 @@
 components:
     editor:
         placeholder: Commencez à écrire…
-        open: Ouvrir
+        open: Ouvrir un fichier…
         new: Nouveau
         save: Enregistrer
-        save_as: Enregistrer sous
+        save_as: Enregistrer sous…
         print: Imprimer
         copy_markdown: Copier en Markdown
         export: Archive
+        export_title: Exporter ou importer une archive
         settings: Réglages
         theme_button: 'Thème : {theme}'
         locale_button: 'Langue : {language}'
         untitled: Sans titre
+        untitled_file_name: sans-titre.md
+        save_filter:
+            markdown: Markdown
+            text: Texte
         unsaved:
             indicator: Non enregistré
             confirm: Continuer et perdre les modifications non enregistrées ?
@@ -36,7 +41,7 @@ components:
             input_placeholder: Coller un lien…
         slash_menu:
             text: Texte
-            paragraph: Texte
+            paragraph: Paragraphe
             h1: Titre 1
             h2: Titre 2
             h3: Titre 3
@@ -56,6 +61,11 @@ components:
         code_block:
             no_language: Texte brut
             copy: Copier le code
+        image_block:
+            caption_placeholder: Écrire la légende de l'image
+            upload_button: Envoyer un fichier
+            upload_placeholder: ou collez un lien
+            confirm_button: Confirmer
         toast:
             saved: Fichier enregistré
             saved_as: 'Fichier enregistré sous {name}'
@@ -79,6 +89,40 @@ components:
             send_as_prompt: 'Demander à l''IA :'
             submit_button: Envoyer l'invite
             listbox: Suggestions de l'IA
+            suggestions:
+                improve: Améliorer l'écriture
+                improve_streaming: Amélioration de l'écriture
+                grammar: Corriger la grammaire et l'orthographe
+                grammar_streaming: Correction de la grammaire et de l'orthographe
+                shorter: Raccourcir
+                shorter_streaming: Raccourcissement
+                longer: Allonger
+                longer_streaming: Développement
+                streaming_fallback: Génération
+                streaming_cancel: Échap pour annuler
+                tone:
+                    label: Changer le ton…
+                    title: Changer le ton
+                    search: Rechercher un ton…
+                    streaming: Ajustement du ton
+                    professional: Professionnel
+                    casual: Décontracté
+                    confident: Assuré
+                    friendly: Amical
+                    direct: Direct
+                    formal: Formel
+                translate:
+                    label: Traduire…
+                    title: Traduire
+                    search: Rechercher une langue…
+                    streaming: 'Traduction en {language}'
+                    english: Anglais
+                    chinese: Chinois
+                    japanese: Japonais
+                    korean: Coréen
+                    spanish: Espagnol
+                    french: Français
+                    german: Allemand
         error:
             provider_not_selected: Aucun fournisseur IA sélectionné, choisissez-en un dans les réglages
             model_missing: Aucun modèle défini pour le fournisseur IA sélectionné
@@ -94,7 +138,7 @@ components:
     mode:
         single: Fichier unique
         dir: Dossier
-        open_directory: Ouvrir un dossier
+        open_directory: Ouvrir un dossier…
         loading: Chargement…
         history:
             empty: Aucun fichier récent
@@ -108,6 +152,7 @@ components:
             retry: Réessayer
         file:
             rename: Renommer
+            cancel: Annuler
             symlink: 'Lien symbolique : renommer et supprimer sont désactivés'
             delete: Supprimer
             rename_prompt: 'Entrez un nouveau nom pour « {name} »'
@@ -132,9 +177,13 @@ components:
         errors_title: 'Ces réglages n''ont pas été enregistrés :'
         error_line: '{field} : {message}'
         mode_title: Mode par défaut
+        cancel: Annuler
         delete_key: Supprimer la clé
         delete_key_confirm_message: Ceci supprime la clé API stockée pour ce fournisseur. Vous devrez la saisir à nouveau pour utiliser l'IA avec lui.
         delete_key_confirm_question: Supprimer cette clé API ?
+        worker_unavailable: L'IA ne peut pas fonctionner dans cette session.
+        bridge_unavailable: "Les clés API ne peuvent pas être enregistrées dans cette session : la saisie est désactivée."
+        keyring_unavailable: "Le trousseau du système est indisponible : le Hub stockera les clés en clair sur le disque."
         update_title: Mises à jour
         update_check_button: Vérifier les mises à jour
         update_available: 'Mise à jour disponible : %version%'
@@ -154,6 +203,7 @@ components:
         include_external_markdown: Inclure les .md externes
         export_button: Exporter…
         no_source: Choisissez d'abord un fichier ou un dossier
+        zip_filter: Archive zip
         done: 'Archive exportée vers {path}'
         failed: Échec de l'export
         unsaved:

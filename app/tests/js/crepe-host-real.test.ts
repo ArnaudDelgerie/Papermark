@@ -120,3 +120,74 @@ describe('CrepeHost recreate(), with the real engine (FRT-05)', () => {
         expect(document.activeElement).toBe(newProsemirror);
     });
 });
+
+/**
+ * SET-04, lot 09: the texts Crepe itself renders, against the real engine —
+ * the top bar's heading selector and the image block's caption come from the
+ * server's i18n, not from Crepe's English defaults.
+ *
+ * The AI suggestions palette can't be reached here: Crepe keeps its DOM
+ * detached until its API's show() is called, and the API isn't reachable
+ * without an editor context. Mounting with the AI feature enabled still
+ * proves the builder hook runs against the real AISuggestionsBuilder.
+ */
+describe('Crepe translated, with the real engine (SET-04)', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('the heading selector carries the translated label', async () => {
+        const i18n: CrepeI18n = {
+            ...I18N,
+            slashMenu: { ...I18N.slashMenu, paragraph: 'Paragraphe' },
+        };
+        const root = document.createElement('div');
+        document.body.append(root);
+        const host = new CrepeHost(root, i18n, callbacks());
+        await host.create({ markdown: 'Hello', aiEnabled: false, aiProvider: undefined });
+
+        // The selector shows the current block's label: a paragraph, in French.
+        expect(root.querySelector('.top-bar-heading-label')!.textContent).toBe('Paragraphe');
+        expect(host.markdown()).toContain('Hello');
+    });
+
+    it('the image block caption placeholder is translated', async () => {
+        const i18n: CrepeI18n = {
+            ...I18N,
+            imageBlock: { ...I18N.imageBlock, captionPlaceholder: 'Écrire la légende' },
+        };
+        const root = document.createElement('div');
+        document.body.append(root);
+        const host = new CrepeHost(root, i18n, callbacks());
+        await host.create({ markdown: 'Hello', aiEnabled: false, aiProvider: undefined });
+        const prosemirror = root.querySelector<HTMLElement>('.ProseMirror')!;
+
+        select(prosemirror, 5);
+        host.insertImage('/document/image?path=%2Ffoo.png');
+
+        // The caption input only appears once the block's caption toggle
+        // has been pressed, the way a user opens it. The input is rendered
+        // as a sibling of the wrapper, so it is looked up in the root.
+        root.querySelector('.image-wrapper .operation-item')!
+            .dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        await Promise.resolve();
+        const caption = root.querySelector<HTMLInputElement>('input.caption-input');
+        expect(caption?.getAttribute('placeholder')).toBe('Écrire la légende');
+    });
+
+    it('the AI suggestions hook builds against the real builder', async () => {
+        const root = document.createElement('div');
+        document.body.append(root);
+        const host = new CrepeHost(root, I18N, callbacks());
+        // A provider that never yields: the suggestions are built at
+        // feature setup, long before any prompt is sent.
+        const provider = async function* (): AsyncGenerator<string> {
+            yield 'unused';
+        };
+        await host.create({ markdown: 'Hello', aiEnabled: true, aiProvider: provider });
+
+        // create() resolved: #translateSuggestions relabelled and rebuilt
+        // Crepe's default items without the builder throwing once.
+        expect(root.querySelector('.ProseMirror')).not.toBeNull();
+    });
+});
