@@ -531,6 +531,26 @@ describe('the editor, with the master', () => {
             expect(window.print).toHaveBeenCalledTimes(1);
         });
 
+        it('mounts the copy on beforeprint, and stops listening once the editor is gone', async () => {
+            await start(current);
+            const copy = document.createElement('div');
+            host.printCopy.mockReturnValue(copy);
+
+            window.dispatchEvent(new Event('beforeprint'));
+
+            expect(copy.isConnected).toBe(true);
+
+            document.body.innerHTML = '';
+            await settle();
+            // disconnect() re-initializes the controller, so the host held now
+            // is a fresh one: arm it, since a listener left behind would ask
+            // that one for the copy.
+            host.printCopy.mockReturnValue(copy);
+            window.dispatchEvent(new Event('beforeprint'));
+
+            expect(copy.isConnected).toBe(false);
+        });
+
         it('copying the markdown goes through POST /document/copy and writes what the server renders, not the raw markdown', async () => {
             await start(current);
             host.type('# A, edited');
