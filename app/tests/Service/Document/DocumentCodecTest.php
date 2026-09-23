@@ -151,6 +151,18 @@ final class DocumentCodecTest extends KernelTestCase
         self::assertSame($original, $this->codec->toDisk($editorContent, null));
     }
 
+    /** An image inside a link, and one in a nested list's paragraph, reach the editor and come back intact. */
+    public function testRoundTripsImagesInALinkAndInANestedList(): void
+    {
+        $original = "[![alt](img/a.png)](doc.md)\n\n- a\n  - b\n\n    ![x](img/n.png)\n";
+
+        $editorContent = $this->codec->toEditor($original);
+
+        self::assertStringContainsString('[![alt](/document/image?path=img/a.png)](doc.md)', $editorContent);
+        self::assertStringContainsString('    ![x](/document/image?path=img/n.png)', $editorContent);
+        self::assertSame($original, $this->codec->toDisk($editorContent, null));
+    }
+
     /** FIL-08: a raw path already written with a space inside <…> stays that way end to end. */
     public function testRoundTripsAPathWithASpaceAlreadyInAngleBrackets(): void
     {

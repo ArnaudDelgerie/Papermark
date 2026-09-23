@@ -59,8 +59,8 @@ final class MarkdownReferenceScanner
                 $bracketPos = $pos + 1;
             }
 
-            $closeBracket = strpos($masked, ']', $bracketPos + 1);
-            if (false === $closeBracket || $closeBracket + 1 >= $length || '(' !== $masked[$closeBracket + 1]) {
+            $closeBracket = $this->findCloseBracket($masked, $bracketPos, $length);
+            if (null === $closeBracket || $closeBracket + 1 >= $length || '(' !== $masked[$closeBracket + 1]) {
                 $pos = $bracketPos + 1;
                 continue;
             }
@@ -76,10 +76,37 @@ final class MarkdownReferenceScanner
                 $references[] = $reference;
             }
 
-            $pos = $parsed['end'] + 1;
+            // A link's text may hold an image (`[![alt](a.png)](doc.md)`):
+            // read on from inside it rather than jumping past the link.
+            $pos = $isImage ? $parsed['end'] + 1 : $bracketPos + 1;
         }
 
+        // An image inside a link is found after the link, but its
+        // destination comes first: rewriters need them in text order.
+        usort($references, static fn (MarkdownReference $a, MarkdownReference $b): int => $a->destinationOffset <=> $b->destinationOffset);
+
         return $references;
+    }
+
+    /** The `]` closing the `[` at $openPos, brackets nested inside counted, or null. */
+    private function findCloseBracket(string $masked, int $openPos, int $length): ?int
+    {
+        $depth = 0;
+        for ($i = $openPos + 1; $i < $length; ++$i) {
+            $char = $masked[$i];
+            if ('\\' === $char) {
+                ++$i;
+            } elseif ('[' === $char) {
+                ++$depth;
+            } elseif (']' === $char) {
+                if (0 === $depth) {
+                    return $i;
+                }
+                --$depth;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -341,6 +368,12 @@ final class MarkdownReferenceScanner
         $result = $masked;
         $prevBlank = true;
         $inCodeBlock = false;
+        // Inside a list, a line indented by 4 after a blank line is the
+        // item's content (a paragraph, a nested item), not code. The list
+        // ends at the first unindented line after a blank one that isn't a
+        // new item. Real code nested in a list item is not detected: a
+        // reference in it is read, the cheaper mistake.
+        $inList = false;
 
         foreach ($this->splitLines($markdown) as [$start, $lineLength, $text]) {
             $maskedText = substr($result, $start, \strlen($text));
@@ -358,7 +391,16 @@ final class MarkdownReferenceScanner
 
             $isIndented = 1 === preg_match('/^(\t| {4,})/', $text);
 
-            if ($isIndented && ($inCodeBlock || $prevBlank)) {
+            if (!$isIndented || !$inList) {
+                $isListItem = 1 === preg_match('/^ {0,3}([-+*]|\d{1,9}[.)])([ \t]|$)/', $text);
+                if ($isListItem) {
+                    $inList = true;
+                } elseif ($prevBlank && !preg_match('/^[ \t]/', $text)) {
+                    $inList = false;
+                }
+            }
+
+            if ($isIndented && !$inList && ($inCodeBlock || $prevBlank)) {
                 $result = $this->maskRange($result, $start, $start + $lineLength);
                 $inCodeBlock = true;
             } else {

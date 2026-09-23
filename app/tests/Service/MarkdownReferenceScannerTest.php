@@ -253,4 +253,52 @@ final class MarkdownReferenceScannerTest extends TestCase
         self::assertCount(1, $references);
         self::assertSame('./photo.png', $references[0]->path);
     }
+
+    public function testFindsAnImageInsideALinkAndTheLinkItself(): void
+    {
+        $markdown = '[![alt](img/a.png)](doc.md)';
+
+        $references = $this->scanner->find($markdown);
+
+        self::assertEquals(
+            [
+                new MarkdownReference(MarkdownReferenceType::Image, 'img/a.png', null, strpos($markdown, 'img/a.png'), \strlen('img/a.png')),
+                new MarkdownReference(MarkdownReferenceType::Link, 'doc.md', null, strpos($markdown, 'doc.md'), \strlen('doc.md')),
+            ],
+            $references,
+        );
+    }
+
+    public function testReadsBalancedBracketsInTheText(): void
+    {
+        $references = $this->scanner->find('![a [b] c](./photo.png)');
+
+        self::assertCount(1, $references);
+        self::assertSame('./photo.png', $references[0]->path);
+    }
+
+    /** A paragraph or item of a nested list, indented by 4 after a blank line, is not a code block. */
+    #[DataProvider('provideIndentedListContent')]
+    public function testFindsAnIndentedReferenceInsideAList(string $markdown): void
+    {
+        $references = $this->scanner->find($markdown);
+
+        self::assertCount(1, $references);
+        self::assertSame('img/n.png', $references[0]->path);
+    }
+
+    /** @return iterable<string, array{0: string}> */
+    public static function provideIndentedListContent(): iterable
+    {
+        yield 'paragraph of a nested item' => ["- a\n  - b\n\n    ![x](img/n.png)\n"];
+        yield 'item of a loose nested list' => ["- a\n\n  - b\n\n    - ![x](img/n.png)\n"];
+        yield 'ordered list' => ["1. a\n   1. b\n\n      ![x](img/n.png)\n"];
+    }
+
+    public function testIgnoresAnIndentedCodeBlockAfterAList(): void
+    {
+        $markdown = "- a\n\nParagraph.\n\n    ![alt](./photo.png)\n";
+
+        self::assertSame([], $this->scanner->find($markdown));
+    }
 }
