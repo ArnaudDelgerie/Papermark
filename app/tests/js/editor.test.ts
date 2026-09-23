@@ -127,6 +127,8 @@ function editorHtml(): string {
         <button type="button" data-action="click->editor#newFile" data-editor-leave-guard>New</button>
         <button type="button" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>Save</button>
         <button type="button" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>Save as</button>
+        <button type="button" data-editor-target="printButton" data-action="click->editor#printFile" disabled>Print</button>
+        <button type="button" data-editor-target="copyMarkdownButton" data-action="click->editor#copyMarkdown" disabled>Copy</button>
         <span data-editor-target="dirtyIndicator" hidden></span>
         <span data-editor-target="filePath">Untitled</span>
         <div class="editor-load-error">
@@ -210,6 +212,10 @@ describe('the editor, with the master', () => {
 
                     return reply({ path, revision: `r${++saveCount}` });
                 }
+                case 'POST /document/copy':
+                    // Distinct from the raw markdown, so a test can tell the
+                    // clipboard got the server's answer, not the editor's.
+                    return jsonResponse({ content: `${body!.get('content') as string} (converted)` });
             }
             throw new Error(`Unexpected ${method} ${url}`);
         });
@@ -229,6 +235,8 @@ describe('the editor, with the master', () => {
         invoke = vi.fn();
         window.__TAURI__ = { core: { invoke: invoke as never } };
         vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(window, 'print').mockImplementation(() => {});
+        Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
         toasts.length = 0;
         window.addEventListener('toast:show', onToast);
         for (const key of Object.keys(files)) {
@@ -508,6 +516,31 @@ describe('the editor, with the master', () => {
             const [, init] = calls('POST', '/document/save')[1];
             expect((init!.body as FormData).get('path')).toBe('/notes/copy.md');
             expect((init!.body as FormData).get('revision')).toBe(null);
+        });
+    });
+
+    describe('printing and copying', () => {
+        it('printing mounts the copy the host renders and calls window.print()', async () => {
+            await start(current);
+            const copy = document.createElement('div');
+            host.printCopy.mockReturnValue(copy);
+
+            click('[data-editor-target="printButton"]');
+
+            expect(copy.isConnected).toBe(true);
+            expect(window.print).toHaveBeenCalledTimes(1);
+        });
+
+        it('copying the markdown goes through POST /document/copy and writes what the server renders, not the raw markdown', async () => {
+            await start(current);
+            host.type('# A, edited');
+
+            click('[data-editor-target="copyMarkdownButton"]');
+            await settle();
+
+            expect((calls('POST', '/document/copy')[0][1]!.body as FormData).get('content')).toBe('# A, edited');
+            expect(navigator.clipboard.writeText).toHaveBeenCalledWith('# A, edited (converted)');
+            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.copiedMarkdown }]);
         });
     });
 

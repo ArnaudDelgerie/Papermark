@@ -60,7 +60,7 @@ final class EditorComponentTest extends KernelTestCase
         self::assertStringContainsString('data-editor-readonly-value="true"', $html);
 
         $crawler = new Crawler($html);
-        $toggle = $crawler->filter('button[data-editor-target="toggleButton"]');
+        $toggle = $crawler->filter('button[data-action="click->editor#toggleReadonly"]');
         self::assertSame(1, $toggle->count());
         // Edit is shown when currently readonly.
         self::assertSame('Edit', trim($toggle->text()));

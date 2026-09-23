@@ -3,7 +3,9 @@ import AiClient from '../editor/ai-client';
 import CrepeHost, { type CrepeI18n } from '../editor/crepe-host';
 import { type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
-import { confirmDialog } from '../utils/confirm-dialog';
+import LeaveGuard from '../editor/leave-guard';
+import PrintCopy from '../editor/print-copy';
+import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { saveConflictDialog } from '../utils/conflict-dialog';
 import { request } from '../utils/http';
 import { pickPath, savePath } from '../utils/tauri';
@@ -104,7 +106,7 @@ export default class extends Controller<HTMLElement> {
         i18n: Object,
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
+    static targets = ['saveButton', 'saveAsButton', 'printButton', 'copyMarkdownButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
 
     static outlets = ['editor-state'];
 
@@ -157,15 +159,11 @@ export default class extends Controller<HTMLElement> {
     // state, with Retry (FRT-04).
     #loadFailed = false;
     #isReadonly = false;
-    #printCopy: HTMLElement | null = null;
     #aiClient: AiClient | null = null;
     #fileRequest: AbortController | null = null;
-    #leaveConfirmed = false;
     #unsubscribers: Array<() => void> = [];
-
-    #onBeforePrint = (): void => this.#mountPrintCopy();
-    #onAfterPrint = (): void => this.#removePrintCopy();
-    #onGuardedClick = (event: MouseEvent): void => this.#guardLeave(event);
+    #guard!: LeaveGuard;
+    #print!: PrintCopy;
 
     initialize(): void {
         this.#crepeReady = new Promise((resolve) => (this.#resolveCrepe = resolve));
@@ -185,6 +183,12 @@ export default class extends Controller<HTMLElement> {
             this.#updateCopyMarkdownButton(markdown);
             this.#updateDirtyIndicator(markdown);
         });
+        this.#guard = new LeaveGuard(this.i18nValue.unsaved, {
+            shouldConfirm: () => this.#shouldConfirmLeave(),
+            onLeave: () => this.#host.discardAi(),
+            onStay: () => this.#host.focus(),
+        });
+        this.#print = new PrintCopy(() => this.#host.printCopy());
     }
 
     // FRT-11, lot Front éditeur: Stimulus never awaits connect(); a rejection
@@ -202,11 +206,10 @@ export default class extends Controller<HTMLElement> {
         // reference so the indicator doesn't fire on the initial content.
         this.#savedRef = this.#host.markdown();
 
-        window.addEventListener('beforeprint', this.#onBeforePrint);
-        window.addEventListener('afterprint', this.#onAfterPrint);
+        this.#print.listen();
         // Capture phase, on window: covers the sidebar (mode-single / mode-dir),
         // not just this element, since navigation there also drops unsaved work.
-        window.addEventListener('click', this.#onGuardedClick, true);
+        this.#guard.listen();
         this.#listen();
 
         if (this.#isReadonly) {
@@ -223,13 +226,11 @@ export default class extends Controller<HTMLElement> {
     }
 
     disconnect(): void {
-        window.removeEventListener('beforeprint', this.#onBeforePrint);
-        window.removeEventListener('afterprint', this.#onAfterPrint);
-        window.removeEventListener('click', this.#onGuardedClick, true);
+        this.#print.stop();
+        this.#guard.stop();
         this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
         this.#unsubscribers = [];
         this.#fileRequest?.abort();
-        this.#removePrintCopy();
         this.#aiClient?.close();
         this.#host.destroy();
         this.initialize();
@@ -710,32 +711,22 @@ export default class extends Controller<HTMLElement> {
     }
 
     printFile(): void {
-        // beforeprint also mounts it; mounting here too doesn't rely on the
-        // webview firing that event for a scripted print.
-        this.#mountPrintCopy();
-        window.print();
+        this.#print.print();
     }
 
     async copyMarkdown(): Promise<void> {
         const markdown = this.#host.markdown();
-        try {
-            const content = await this.#convertImageUrlsForCopy(markdown);
-            await navigator.clipboard.writeText(content);
-            showToast('success', this.i18nValue.toast.copiedMarkdown);
-        } catch (err) {
-            console.error('Failed to copy markdown:', err);
-            showToast('error', this.i18nValue.toast.copyMarkdownFailed);
-        }
+        await copyToClipboard(this.#convertImageUrlsForCopy(markdown), {
+            success: this.i18nValue.toast.copiedMarkdown,
+            failure: this.i18nValue.toast.copyMarkdownFailed,
+        });
     }
 
     async #copyCode(text: string): Promise<void> {
-        try {
-            await navigator.clipboard.writeText(text);
-            showToast('success', this.i18nValue.toast.copiedCode);
-        } catch (err) {
-            console.error('Failed to copy code:', err);
-            showToast('error', this.i18nValue.toast.copyCodeFailed);
-        }
+        await copyToClipboard(text, {
+            success: this.i18nValue.toast.copiedCode,
+            failure: this.i18nValue.toast.copyCodeFailed,
+        });
     }
 
     /**
@@ -751,22 +742,6 @@ export default class extends Controller<HTMLElement> {
         }
 
         return result.data!.content;
-    }
-
-    #mountPrintCopy(): void {
-        const copy = this.#host.printCopy();
-        if (copy === null) {
-            return;
-        }
-
-        this.#removePrintCopy();
-        document.body.append(copy);
-        this.#printCopy = copy;
-    }
-
-    #removePrintCopy(): void {
-        this.#printCopy?.remove();
-        this.#printCopy = null;
     }
 
     /**
@@ -837,43 +812,6 @@ export default class extends Controller<HTMLElement> {
 
     #shouldConfirmLeave(): boolean {
         return this.#isDirty() || this.#host.isAiBusy();
-    }
-
-    /**
-     * Guards clicks on elements marked data-editor-leave-guard, links and JS
-     * actions alike. The click is stopped before the element's own handlers or
-     * navigation; once confirmed, any AI generation or review is discarded and
-     * the click is replayed, skipping the guard.
-     */
-    #guardLeave(event: MouseEvent): void {
-        const guarded = (event.target as Element | null)?.closest<HTMLElement>('[data-editor-leave-guard]');
-        if (!guarded || this.#leaveConfirmed || !this.#shouldConfirmLeave()) {
-            return;
-        }
-
-        event.preventDefault();
-        event.stopImmediatePropagation();
-
-        void confirmDialog({
-            question: this.i18nValue.unsaved.confirm,
-            cancelLabel: this.i18nValue.unsaved.cancel,
-            continueLabel: this.i18nValue.unsaved.continue,
-        }).then((confirmed) => {
-            if (!confirmed) {
-                this.#host.focus();
-
-                return;
-            }
-
-            this.#host.discardAi();
-            // click() dispatches synchronously, so the flag only covers the replay.
-            this.#leaveConfirmed = true;
-            try {
-                guarded.click();
-            } finally {
-                this.#leaveConfirmed = false;
-            }
-        });
     }
 
 }

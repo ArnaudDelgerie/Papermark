@@ -52,7 +52,7 @@
 
         {# The display #}
         <div class="editor-filebar-actions editor-filebar-actions--end">
-            <button type="button" class="editor-filebar-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly" title="{{ readonly ? 'components.editor.toggle.edit'|trans({}, 'components') : 'components.editor.toggle.readonly'|trans({}, 'components') }}">
+            <button type="button" class="editor-filebar-btn" data-action="click->editor#toggleReadonly" title="{{ readonly ? 'components.editor.toggle.edit'|trans({}, 'components') : 'components.editor.toggle.readonly'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--toggle" aria-hidden="true"></span>
                 <span class="visually-hidden" data-editor-target="toggleLabel">{{ readonly
                     ? 'components.editor.toggle.edit'|trans({}, 'components')
