@@ -145,11 +145,16 @@ components:
         no_source: Choisissez d'abord un fichier ou un dossier
         done: 'Archive exportée vers {path}'
         failed: Échec de l'export
+        unsaved:
+            confirm: L'archive contiendra la dernière version enregistrée.
+            cancel: Annuler
+            continue: Exporter quand même
         report:
             title: Laissées à leur chemin d'origine
             empty: Toutes les références ont été embarquées.
             count_one: '{count} référence'
             count_other: '{count} références'
+            clear: Effacer le rapport
             reason:
                 not_found: Introuvable
                 limit_exceeded: Au-delà de la limite d'export
@@ -165,6 +170,9 @@ components:
         report:
             title: Entrées ignorées
             empty: Toutes les entrées ont été importées.
+            count_one: '{count} entrée ignorée'
+            count_other: '{count} entrées ignorées'
+            clear: Effacer le rapport
     archive:
         title: Archive
         close: Fermer

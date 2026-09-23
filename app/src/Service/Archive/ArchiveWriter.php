@@ -28,14 +28,20 @@ final class ArchiveWriter
             throw new WriteFailedException($path);
         }
 
+        $allAdded = true;
         foreach ($plan->entries as $entry) {
-            if (null !== $entry->content) {
-                $zip->addFromString($entry->archivePath, $entry->content);
-            } else {
-                $zip->addFile($entry->sourcePath, $entry->archivePath);
-            }
+            $added = null !== $entry->content
+                ? @$zip->addFromString($entry->archivePath, $entry->content)
+                : @$zip->addFile($entry->sourcePath, $entry->archivePath);
+            $allAdded = $allAdded && $added;
         }
 
-        $zip->close();
+        $closed = @$zip->close();
+
+        if (!$allAdded || !$closed || !is_file($path)) {
+            @unlink($path);
+
+            throw new WriteFailedException($path);
+        }
     }
 }

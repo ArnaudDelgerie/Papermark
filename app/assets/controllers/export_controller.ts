@@ -1,6 +1,8 @@
 import { Controller } from '@hotwired/stimulus';
-import { type EditorState, on } from '../editor/events';
+import { type EditorState, emit, on } from '../editor/events';
+import { confirmDialog } from '../utils/confirm-dialog';
 import { request } from '../utils/http';
+import { renderReportHeader } from '../utils/report-header';
 import { type SaveFilter, pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
@@ -19,7 +21,8 @@ export interface I18n {
     noSource: string;
     failed: string;
     done: string;
-    report: { title: string; empty: string; count_one: string; count_other: string; reason: Record<string, string> };
+    unsaved: { confirm: string; cancel: string; continue: string };
+    report: { title: string; empty: string; count_one: string; count_other: string; clear: string; reason: Record<string, string> };
 }
 
 /** ArchiveController::export(): the archive it wrote, and the references left at their original path. */
@@ -77,11 +80,14 @@ export default class extends Controller {
     #kind: Kind = 'file';
     #filePath = '';
     #directoryPath = '';
+    /** The file actually open in the editor, whatever the source picked here (see ARC-09). */
+    #openFile: string | null = null;
     #unsubscribers: Array<() => void> = [];
 
     connect(): void {
         this.#filePath = this.initialPathValue;
         this.#directoryPath = this.initialDirectoryValue;
+        this.#openFile = this.initialPathValue || null;
         this.#show('directory' === this.initialKindValue ? 'directory' : 'file');
 
         // The frame is loaded once and never emptied: the source follows every
@@ -110,6 +116,7 @@ export default class extends Controller {
     #follow(state: EditorState): void {
         this.#filePath = state.file ?? '';
         this.#directoryPath = state.dir ?? '';
+        this.#openFile = state.file;
         this.#show(state.mode === 'dir' ? 'directory' : 'file');
     }
 
@@ -143,6 +150,10 @@ export default class extends Controller {
         const sourcePath = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
         if (!sourcePath) {
             showToast('error', this.i18nValue.noSource);
+            return;
+        }
+
+        if (!(await this.#confirmUnsavedSource(sourcePath))) {
             return;
         }
 
@@ -181,6 +192,35 @@ export default class extends Controller {
         }
     }
 
+    /**
+     * True when the export can proceed as-is. False means the user cancelled
+     * after being warned that the archive would contain the last saved
+     * version, not what they see on screen (ARC-09): the editor has unsaved
+     * changes for the file it currently has open, and that file is the
+     * source picked here (or sits inside it, in folder mode).
+     */
+    async #confirmUnsavedSource(sourcePath: string): Promise<boolean> {
+        const openFile = this.#openFile;
+        if (openFile === null) {
+            return true;
+        }
+
+        const covered = this.#kind === 'file' ? openFile === sourcePath : openFile === sourcePath || openFile.startsWith(`${sourcePath}/`);
+        if (!covered) {
+            return true;
+        }
+
+        const query: { path: string; unsaved: boolean } = { path: openFile, unsaved: false };
+        emit('editor:unsaved-file-query', query);
+        if (!query.unsaved) {
+            return true;
+        }
+
+        const i18n = this.i18nValue.unsaved;
+
+        return confirmDialog({ question: i18n.confirm, cancelLabel: i18n.cancel, continueLabel: i18n.continue });
+    }
+
     #updateSourceDisplay(): void {
         this.sourcePathTarget.textContent = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
     }
@@ -188,10 +228,7 @@ export default class extends Controller {
     #renderReport(issues: ReportIssue[]): void {
         const i18n = this.i18nValue.report;
         this.reportTarget.replaceChildren();
-
-        const title = document.createElement('h2');
-        title.textContent = i18n.title;
-        this.reportTarget.appendChild(title);
+        renderReportHeader(this.reportTarget, i18n.title, i18n.clear, () => this.#clearReport());
 
         if (issues.length === 0) {
             const empty = document.createElement('p');
@@ -230,5 +267,10 @@ export default class extends Controller {
         }
 
         this.reportTarget.hidden = false;
+    }
+
+    #clearReport(): void {
+        this.reportTarget.replaceChildren();
+        this.reportTarget.hidden = true;
     }
 }

@@ -16,4 +16,6 @@ enum ArchiveImportRefusalReason: string
     case Symlink = 'symlink';
     case TooManyEntries = 'too_many_entries';
     case TooLarge = 'too_large';
+    case Unreadable = 'unreadable';
+    case Empty = 'empty';
 }

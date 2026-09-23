@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Archive;
 
+use App\Enum\Archive\ArchiveExportRefusalReason;
+use App\Exception\Archive\ArchiveExportRefusedException;
 use App\Exception\Path\PathNotFoundException;
 use App\Exception\Path\PathNotWritableException;
 use App\Service\Archive\ArchiveExporter;
@@ -60,6 +62,40 @@ final class ArchiveExporterTest extends TestCase
         $this->expectException(PathNotFoundException::class);
 
         $this->exporter->export($this->root . '/missing.md', $this->root . '/out', false);
+    }
+
+    /** ARC-01: a source folder with nothing to embark is refused before the archive is opened, the existing target untouched. */
+    public function testRefusesAnEmptyPlanAndLeavesAnExistingTargetUntouched(): void
+    {
+        $sourceDir = $this->root . '/notes';
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/photo.png', 'PNG');
+
+        $existingTarget = $this->root . '/out.zip';
+        file_put_contents($existingTarget, 'not a real zip, but it must survive');
+
+        try {
+            $this->exporter->export($sourceDir, $this->root . '/out', false);
+            self::fail('Expected ArchiveExportRefusedException.');
+        } catch (ArchiveExportRefusedException $e) {
+            self::assertSame(ArchiveExportRefusalReason::Empty, $e->reason);
+        }
+
+        self::assertSame('not a real zip, but it must survive', file_get_contents($existingTarget));
+    }
+
+    /** ARC-12: a file-mode source that isn't a document is refused outright. */
+    public function testRefusesAnUnsupportedFileModeSource(): void
+    {
+        $photoPath = $this->root . '/photo.png';
+        file_put_contents($photoPath, 'PNG-BYTES');
+
+        try {
+            $this->exporter->export($photoPath, $this->root . '/out', false);
+            self::fail('Expected ArchiveExportRefusedException.');
+        } catch (ArchiveExportRefusedException $e) {
+            self::assertSame(ArchiveExportRefusalReason::UnsupportedFileType, $e->reason);
+        }
     }
 
     public function testRefusesAnUnwritableTargetParent(): void

@@ -18,13 +18,18 @@ exceptions:
         key_save_failed: Could not save the API key
         key_delete_failed: Could not delete the API key
     archive:
-        ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
-        ext_md_conflict: 'Export needs "ext_md" to be a folder in the source folder'
+        export_refused:
+            ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
+            ext_md_conflict: 'Export needs "ext_md" to be a folder in the source folder'
+            empty: 'Nothing to export: no .md, .markdown or .txt file'
+            unsupported_file_type: "This file type can't be exported: only .md, .markdown and .txt"
         import_refused:
             not_a_zip: 'The selected file is not a valid zip archive'
             zip_slip: 'This archive contains an unsafe file path and was rejected'
             symlink: 'This archive contains a symbolic link and was rejected'
             too_many_entries: 'This archive has too many entries to import'
             too_large: 'This archive is too large to import'
+            unreadable: 'This archive is unreadable, encrypted, or corrupted'
+            empty: 'This archive has no Markdown file or image to import'
     security:
         csrf_invalid: Invalid security token, please reload the page

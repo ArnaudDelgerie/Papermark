@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\Archive;
 
 use App\Dto\Archive\ExportPlan;
+use App\Enum\Archive\ArchiveExportRefusalReason;
+use App\Exception\Archive\ArchiveExportRefusedException;
 use App\Service\Path\PathPolicy;
 
 /**
@@ -33,6 +35,13 @@ final class ArchiveExporter
         $resolvedTarget = $this->targetResolver->resolve($canonicalTarget);
 
         $plan = $this->planner->plan($realSource, $includeExternalMarkdown);
+
+        // Refused before the archive is even opened (ARC-01): an existing
+        // target at $resolvedTarget is never touched.
+        if ([] === $plan->entries) {
+            throw new ArchiveExportRefusedException(ArchiveExportRefusalReason::Empty);
+        }
+
         $this->writer->write($plan, $resolvedTarget);
 
         return ['path' => $resolvedTarget, 'plan' => $plan];

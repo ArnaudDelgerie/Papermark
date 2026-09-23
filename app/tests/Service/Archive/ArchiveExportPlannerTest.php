@@ -197,18 +197,41 @@ final class ArchiveExportPlannerTest extends TestCase
         self::assertSame('../l4/l4.md', $issue->originalTarget);
     }
 
+    /**
+     * ARC-03: the plafond counts only external copies (ext_img/, ext_md/),
+     * never the root entry — a maxTotalFiles of 1 lets the first external
+     * image through and refuses the second.
+     */
     public function testTotalFileCapReportsIssueOnceReached(): void
     {
         $this->write('root.md', '![a](./a.png) ![b](./b.png)');
         $this->write('a.png', 'A');
         $this->write('b.png', 'B');
 
-        $plan = $this->planner(maxTotalFiles: 2)->plan($this->root . '/root.md', false);
+        $plan = $this->planner(maxTotalFiles: 1)->plan($this->root . '/root.md', false);
 
         self::assertCount(2, $plan->entries); // root.md + a.png only
         self::assertNotNull($this->findEntry($plan, 'ext_img/a.png'));
         self::assertNull($this->findEntry($plan, 'ext_img/b.png'));
         self::assertSame(ExportIssueReason::LimitExceeded, $plan->issues[0]->reason);
+    }
+
+    /**
+     * ARC-03: an internal image never runs into the plafond, even once
+     * plenty of internal .md files have already been registered.
+     */
+    public function testDirectoryExportInternalImageIsNeverCappedByExternalLimit(): void
+    {
+        for ($i = 0; $i < 10; ++$i) {
+            $this->write("note{$i}.md", "note {$i}");
+        }
+        $this->write('zz.md', '![a](./img/photo.png)');
+        $this->write('img/photo.png', 'PNG');
+
+        $plan = $this->planner(maxTotalFiles: 1)->plan($this->root, false);
+
+        self::assertNotNull($this->findEntry($plan, 'img/photo.png'));
+        self::assertSame([], $plan->issues);
     }
 
     public function testUnresolvableReferenceIsReportedAndLeftUnchanged(): void

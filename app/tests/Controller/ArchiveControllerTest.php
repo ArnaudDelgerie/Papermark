@@ -137,6 +137,50 @@ final class ArchiveControllerTest extends WebTestCase
         self::assertNotEmpty($crawler->filter('meta[name="csrf-token"]')->attr('content'));
     }
 
+    /** Each new refusal reason of this lot (ARC-01, ARC-06, ARC-07, ARC-12) reaches the user translated, in English and in French. */
+    public function testEachNewRefusalReasonProducesATranslatedMessage(): void
+    {
+        $emptyDir = $this->workDir . '/empty';
+        mkdir($emptyDir);
+        $photoPath = $this->workDir . '/photo.png';
+        file_put_contents($photoPath, 'PNG-BYTES');
+        $emptyZip = $this->workDir . '/empty.zip';
+        $zip = new \ZipArchive();
+        $zip->open($emptyZip, \ZipArchive::CREATE);
+        $zip->addFromString('notes.pdf', 'ignored');
+        $zip->close();
+        $encryptedZip = $this->workDir . '/encrypted.zip';
+        $zip = new \ZipArchive();
+        $zip->open($encryptedZip, \ZipArchive::CREATE);
+        $zip->addFromString('secret.md', 'top secret');
+        $zip->setEncryptionName('secret.md', \ZipArchive::EM_AES_256, 'hunter2');
+        $zip->close();
+
+        $cases = [
+            ['POST', '/archive/export', ['source' => $emptyDir, 'target' => $this->workDir . '/out'], 'Nothing to export: no .md, .markdown or .txt file', 'Rien à exporter : aucun fichier .md, .markdown ou .txt'],
+            ['POST', '/archive/export', ['source' => $photoPath, 'target' => $this->workDir . '/out'], "This file type can't be exported: only .md, .markdown and .txt", 'Ce type de fichier ne s\'exporte pas : seuls .md, .markdown et .txt'],
+            ['POST', '/archive/import', ['archive' => $emptyZip, 'parentDir' => $this->workDir], 'This archive has no Markdown file or image to import', 'Cette archive ne contient aucun fichier Markdown ni image à importer'],
+            ['POST', '/archive/import', ['archive' => $encryptedZip, 'parentDir' => $this->workDir], 'This archive is unreadable, encrypted, or corrupted', 'Cette archive est illisible, chiffrée ou corrompue'],
+        ];
+
+        $client = static::createClient();
+        $client->disableReboot();
+
+        foreach ($cases as [$method, $url, $params, $expectedEn]) {
+            $client->request($method, $url, $params, [], ['HTTP_X-CSRF-TOKEN' => $this->csrfTokenFor($client)]);
+            $data = json_decode((string) $client->getResponse()->getContent(), true);
+            self::assertSame([$expectedEn], $data['genericErrors'], "{$url} (en)");
+        }
+
+        $this->switchToFrench($client);
+
+        foreach ($cases as [$method, $url, $params, , $expectedFr]) {
+            $client->request($method, $url, $params, [], ['HTTP_X-CSRF-TOKEN' => $this->csrfTokenFor($client)]);
+            $data = json_decode((string) $client->getResponse()->getContent(), true);
+            self::assertSame([$expectedFr], $data['genericErrors'], "{$url} (fr)");
+        }
+    }
+
     public function testExportRejectsInvalidCsrf(): void
     {
         $client = static::createClient();
@@ -464,12 +508,10 @@ final class ArchiveControllerTest extends WebTestCase
         self::assertSame($data['state'], json_decode((string) $client->getResponse()->getContent(), true)['state']);
     }
 
-    public function testImportOfAnArchiveWithNothingToOpenLeavesTheStateAsItWas(): void
+    /** ARC-07: an archive with nothing to retain is refused, the state left untouched. */
+    public function testImportOfAnArchiveWithNothingToOpenIsRefused(): void
     {
         [$client, $csrfToken] = $this->createClientWithImportCsrf();
-
-        $client->request('GET', '/editor/state');
-        $before = json_decode((string) $client->getResponse()->getContent(), true)['state'];
 
         $zipPath = $this->workDir . '/pdfs.zip';
         $zip = new \ZipArchive();
@@ -484,11 +526,11 @@ final class ArchiveControllerTest extends WebTestCase
             'HTTP_X-CSRF-TOKEN' => $csrfToken,
         ]);
 
-        self::assertResponseIsSuccessful();
+        self::assertResponseStatusCodeSame(409);
         $data = json_decode((string) $client->getResponse()->getContent(), true);
-        self::assertNull($data['action']['openMode']);
-        self::assertSame(['notes.pdf'], $data['action']['ignoredEntries']);
-        self::assertSame($before, $data['state']);
+        self::assertSame(['This archive has no Markdown file or image to import'], $data['genericErrors']);
+        self::assertSame('single', $data['state']['mode']);
+        self::assertArrayNotHasKey('action', $data);
     }
 
     /**
@@ -517,6 +559,19 @@ final class ArchiveControllerTest extends WebTestCase
             ->getToken('papermark_app')->getValue();
 
         return [$client, $csrfToken];
+    }
+
+    private function csrfTokenFor(\Symfony\Bundle\FrameworkBundle\KernelBrowser $client): string
+    {
+        $client->request('GET', '/archive');
+
+        return $client->getContainer()->get(CsrfTokenManagerInterface::class)
+            ->getToken('papermark_app')->getValue();
+    }
+
+    private function switchToFrench(\Symfony\Bundle\FrameworkBundle\KernelBrowser $client): void
+    {
+        $client->request('POST', '/settings/locale', ['locale' => 'fr', '_token' => $this->csrfTokenFor($client)], [], ['HTTP_ORIGIN' => 'http://localhost']);
     }
 
     private function removeDirectory(string $dir): void

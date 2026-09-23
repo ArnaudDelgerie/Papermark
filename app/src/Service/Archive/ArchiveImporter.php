@@ -21,12 +21,15 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  * App\Service\Archive: only entries with a recognised markdown/image extension are
  * extracted, everything else is reported as ignored. The archive is
  * validated entry by entry before anything is written to disk — a single
- * unsafe or oversized entry refuses the whole import (see
+ * unsafe entry, or one that pushes the real (not declared, see SEC-03)
+ * uncompressed size beyond the ceiling, refuses the whole import (see
  * ArchiveImportRefusedException) — and extraction lands in a sibling
  * temporary folder, renamed into place only once complete, so a failure
- * never leaves a half-filled destination behind. Dispatches ArchiveImported
- * once extraction succeeds; the cached tree and the editor's own state react
- * to it, not to this class.
+ * never leaves a half-filled destination behind: any error past that point
+ * removes the temporary folder before propagating (ARC-06). An archive with
+ * nothing to keep is refused outright, before any folder is created
+ * (ARC-07). Dispatches ArchiveImported once extraction succeeds; the cached
+ * tree and the editor's own state react to it, not to this class.
  */
 final class ArchiveImporter
 {
@@ -54,6 +57,14 @@ final class ArchiveImporter
             throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
         }
 
+        // A 0-byte file open()s as a fresh, empty archive (deprecated since
+        // PHP 8.1) instead of failing: caught here, before that call, so it
+        // takes the same "nothing to extract" refusal as ARC-07 rather than
+        // a deprecation warning.
+        if (0 === filesize($realArchivePath)) {
+            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::Empty);
+        }
+
         $zip = new \ZipArchive();
         if (true !== $zip->open($realArchivePath)) {
             throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
@@ -78,7 +89,7 @@ final class ArchiveImporter
 
         $toExtract = [];
         $ignored = [];
-        $totalSize = 0;
+        $declaredSize = 0;
 
         for ($i = 0; $i < $zip->numFiles; ++$i) {
             $name = $zip->getNameIndex($i);
@@ -88,12 +99,6 @@ final class ArchiveImporter
 
             $this->assertSafeName($name);
             $this->assertNotSymlink($zip, $i);
-
-            $stat = $zip->statIndex($i);
-            $totalSize += false !== $stat ? $stat['size'] : 0;
-            if ($totalSize > $this->maxTotalUncompressedBytes) {
-                throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::TooLarge);
-            }
 
             if (str_ends_with($name, '/')) {
                 continue;
@@ -105,22 +110,126 @@ final class ArchiveImporter
                 continue;
             }
 
+            // A first, cheap refusal on the size the zip declares — ARC-08:
+            // only entries actually kept for extraction count. It can't be
+            // trusted (SEC-03): the real ceiling is enforced below, on bytes
+            // actually streamed out.
+            $stat = $zip->statIndex($i);
+            $declaredSize += false !== $stat ? $stat['size'] : 0;
+            if ($declaredSize > $this->maxTotalUncompressedBytes) {
+                throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::TooLarge);
+            }
+
             $toExtract[] = $name;
+        }
+
+        if ([] === $toExtract) {
+            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::Empty);
         }
 
         $destination = $this->targetResolver->resolve($parentDir, basename($archivePath));
         $tmpDir = \dirname($destination) . '/.import_' . uniqid();
-        mkdir($tmpDir, 0o777, true);
 
-        if ([] !== $toExtract && !$zip->extractTo($tmpDir, $toExtract)) {
+        if (!@mkdir($tmpDir, 0o777, true)) {
             throw new WriteFailedException($archivePath);
         }
 
-        rename($tmpDir, $destination);
+        try {
+            $this->extractStreamed($zip, $toExtract, $tmpDir);
+        } catch (\Throwable $e) {
+            $this->removeDirectory($tmpDir);
+
+            throw $e;
+        }
+
+        if (!@rename($tmpDir, $destination)) {
+            $this->removeDirectory($tmpDir);
+
+            throw new WriteFailedException($archivePath);
+        }
 
         [$openMode, $openPath] = $this->resolveOpenTarget($destination, $toExtract);
 
         return new ImportResult($destination, $openMode, $openPath, $ignored);
+    }
+
+    /**
+     * Reads each kept entry through its own stream instead of
+     * ZipArchive::extractTo(), counting the bytes it actually produces —
+     * extractTo() trusts the header size ZipArchive::statIndex() reports,
+     * which an archive can misstate (SEC-03). An entry that can't be opened
+     * or read through (encrypted, corrupted CRC) is ARC-06's new refusal
+     * reason, not a generic write failure.
+     *
+     * @param string[] $names
+     */
+    private function extractStreamed(\ZipArchive $zip, array $names, string $tmpDir): void
+    {
+        $totalBytes = 0;
+
+        foreach ($names as $name) {
+            $source = @$zip->getStream($name);
+            if (false === $source) {
+                throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::Unreadable);
+            }
+
+            try {
+                $targetPath = $tmpDir . '/' . $name;
+                $targetDir = \dirname($targetPath);
+                if (!is_dir($targetDir) && !@mkdir($targetDir, 0o777, true) && !is_dir($targetDir)) {
+                    throw new WriteFailedException($targetPath);
+                }
+
+                $target = @fopen($targetPath, 'wb');
+                if (false === $target) {
+                    throw new WriteFailedException($targetPath);
+                }
+
+                try {
+                    while (!feof($source)) {
+                        $chunk = @fread($source, 1024 * 1024);
+                        if (false === $chunk) {
+                            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::Unreadable);
+                        }
+
+                        $totalBytes += \strlen($chunk);
+                        if ($totalBytes > $this->maxTotalUncompressedBytes) {
+                            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::TooLarge);
+                        }
+
+                        if (false === @fwrite($target, $chunk)) {
+                            throw new WriteFailedException($targetPath);
+                        }
+                    }
+                } finally {
+                    fclose($target);
+                }
+            } finally {
+                fclose($source);
+            }
+        }
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        foreach (scandir($dir) ?: [] as $item) {
+            if ('.' === $item || '..' === $item) {
+                continue;
+            }
+
+            $path = $dir . '/' . $item;
+            if (is_dir($path) && !is_link($path)) {
+                $this->removeDirectory($path);
+            } else {
+                @unlink($path);
+            }
+        }
+
+        @rmdir($dir);
     }
 
     private function assertSafeName(string $name): void

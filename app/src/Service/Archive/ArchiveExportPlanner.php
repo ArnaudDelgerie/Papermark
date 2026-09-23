@@ -8,6 +8,7 @@ use App\Builder\ExportPlanBuilder;
 use App\Dto\Archive\ExportPlan;
 use App\Dto\Archive\ExportQueueItem;
 use App\Dto\MarkdownReference;
+use App\Enum\Archive\ArchiveExportRefusalReason;
 use App\Enum\Archive\ExportIssueReason;
 use App\Enum\DocumentExtension;
 use App\Enum\MarkdownReferenceType;
@@ -32,6 +33,11 @@ use Symfony\Component\Validator\Constraints\File as FileConstraint;
 final class ArchiveExportPlanner
 {
     private const EXTERNAL_DIRS = ['ext_img', 'ext_md'];
+
+    private const RESERVED_DIR_REASONS = [
+        'ext_img' => ArchiveExportRefusalReason::ExtImgConflict,
+        'ext_md' => ArchiveExportRefusalReason::ExtMdConflict,
+    ];
 
     public function __construct(
         private readonly MarkdownReferenceScanner $referenceScanner,
@@ -63,7 +69,7 @@ final class ArchiveExportPlanner
         foreach (self::EXTERNAL_DIRS as $reservedName) {
             $path = $root . '/' . $reservedName;
             if ($this->filesystem->exists($path) && !is_dir($path)) {
-                throw new ArchiveExportRefusedException($reservedName);
+                throw new ArchiveExportRefusedException(self::RESERVED_DIR_REASONS[$reservedName]);
             }
         }
 
@@ -103,6 +109,10 @@ final class ArchiveExportPlanner
 
     private function planFile(string $realPath, bool $includeExternalMarkdown): ExportPlan
     {
+        if (!DocumentExtension::isDocument($realPath)) {
+            throw new ArchiveExportRefusedException(ArchiveExportRefusalReason::UnsupportedFileType);
+        }
+
         $state = new ExportPlanBuilder(null, $this->maxTotalFiles);
         $archivePath = basename($realPath);
         $state->register($realPath, $archivePath);
@@ -217,7 +227,7 @@ final class ArchiveExportPlanner
                 ? $state->relativeToRoot($targetReal)
                 : $state->uniqueExternalPath($isImage ? 'ext_img' : 'ext_md', basename($targetReal));
 
-            $state->register($targetReal, $archivePath);
+            $state->register($targetReal, $archivePath, external: !$isInternal);
 
             if ($isMarkdownLink) {
                 $queue[] = new ExportQueueItem($targetReal, $archivePath, $isInternal ? 0 : $hop);

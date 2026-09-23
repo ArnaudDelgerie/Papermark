@@ -72,11 +72,17 @@ final class ArchiveController extends AbstractController
             'noSource' => $trans('no_source'),
             'done' => $trans('done'),
             'failed' => $trans('failed'),
+            'unsaved' => [
+                'confirm' => $trans('unsaved.confirm'),
+                'cancel' => $trans('unsaved.cancel'),
+                'continue' => $trans('unsaved.continue'),
+            ],
             'report' => [
                 'title' => $trans('report.title'),
                 'empty' => $trans('report.empty'),
                 'count_one' => $trans('report.count_one'),
                 'count_other' => $trans('report.count_other'),
+                'clear' => $trans('report.clear'),
                 'reason' => [
                     'not_found' => $trans('report.reason.not_found'),
                     'limit_exceeded' => $trans('report.reason.limit_exceeded'),
@@ -100,6 +106,9 @@ final class ArchiveController extends AbstractController
             'report' => [
                 'title' => $trans('report.title'),
                 'empty' => $trans('report.empty'),
+                'count_one' => $trans('report.count_one'),
+                'count_other' => $trans('report.count_other'),
+                'clear' => $trans('report.clear'),
             ],
         ];
     }
@@ -108,9 +117,10 @@ final class ArchiveController extends AbstractController
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function export(#[MapRequestPayload(mapWhenEmpty: true)] ExportArchiveRequest $payload): JsonResponse
     {
-        // ArchiveExportRefusedException (a reserved name conflict) is
-        // UserFacing on its own and propagates as-is, same for WriteFailedException
-        // thrown by the writer on a failed zip.
+        // ArchiveExportRefusedException (reserved-name conflict, nothing to
+        // export, unsupported source type) is UserFacing on its own and
+        // propagates as-is, same for WriteFailedException thrown by the
+        // writer on a failed zip.
         $result = $this->exporter->export($payload->source, $payload->target, $payload->includeExternalMarkdown);
 
         return new JsonResponse([

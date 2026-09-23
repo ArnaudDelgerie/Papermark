@@ -32,6 +32,13 @@ final class ExportPlanBuilder
     /** @var array<string, int> "dir/original name" => next suffix to try */
     private array $nextSuffix = [];
 
+    /**
+     * Entries copied from outside the exported source (ext_img/, ext_md/):
+     * the only ones the plafond counts (ARC-03) — an internal file, embarked
+     * as-is, never runs into it.
+     */
+    private int $externalCount = 0;
+
     public function __construct(
         private readonly ?string $root,
         private readonly int $maxTotalFiles,
@@ -63,7 +70,7 @@ final class ExportPlanBuilder
 
     public function isFull(): bool
     {
-        return \count($this->entries) >= $this->maxTotalFiles;
+        return $this->externalCount >= $this->maxTotalFiles;
     }
 
     /**
@@ -103,11 +110,20 @@ final class ExportPlanBuilder
         return $candidate;
     }
 
-    public function register(string $realPath, string $archivePath): void
+    /**
+     * $external marks a copy from outside the exported source (ext_img/,
+     * ext_md/): the root entry (the exported file, or a file discovered by
+     * the directory walk) never is (ARC-03).
+     */
+    public function register(string $realPath, string $archivePath, bool $external = false): void
     {
         $this->archivePathsByRealPath[$realPath] = $archivePath;
         $this->takenArchivePaths[$archivePath] = true;
         $this->entries[$archivePath] = new ExportEntry($archivePath, $realPath, null);
+
+        if ($external) {
+            ++$this->externalCount;
+        }
     }
 
     public function setContent(string $archivePath, string $content): void

@@ -7,11 +7,14 @@ import ImportController from '../../assets/controllers/import_controller';
 import ModeDirController from '../../assets/controllers/mode_dir_controller';
 import ModeSingleController from '../../assets/controllers/mode_single_controller';
 import ModeSwitchController from '../../assets/controllers/mode_switch_controller';
+import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { type EditorState, emit } from '../../assets/editor/events';
 import { INITIAL, attr, masterHtml, sidebarHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
 import EXPORT_I18N from '../contract/i18n/export.json';
 import IMPORT_I18N from '../contract/i18n/import.json';
+
+vi.mock('../../assets/utils/confirm-dialog', () => ({ confirmDialog: vi.fn() }));
 
 const HISTORY_KEY = 'editor.single.history';
 
@@ -125,6 +128,7 @@ describe('the archive modal, with the master', () => {
             expect(((init as RequestInit).body as FormData).get('parentDir')).toBe('/dest');
             expect(toasts).toEqual([{ type: 'success', message: IMPORT_I18N.done.replace('{path}', '/dest/notes') }]);
             expect($('.report').hidden).toBe(false);
+            expect($('.report summary').textContent).toBe(IMPORT_I18N.report.count_one.replace('{count}', '1'));
             expect($('.report li').textContent).toBe('a.pdf');
             expect($<HTMLButtonElement>('.import').disabled).toBe(false);
         });
@@ -137,7 +141,36 @@ describe('the archive modal, with the master', () => {
             click('.import');
             await settle();
 
+            expect(document.querySelector('.report details')).toBeNull();
             expect($('.report p').textContent).toBe(IMPORT_I18N.report.empty);
+        });
+
+        it('shows only the count for several ignored entries, the list behind a toggle', async () => {
+            await start();
+            await pick();
+            answerImport({}, { destination: '/dest/notes', openMode: null, ignoredEntries: ['a.pdf', 'b.pdf', 'c.pdf'] });
+
+            click('.import');
+            await settle();
+
+            const details = $<HTMLDetailsElement>('.report details');
+            expect(details.open).toBe(false);
+            expect(details.querySelector('summary')!.textContent).toBe(IMPORT_I18N.report.count_other.replace('{count}', '3'));
+            expect(details.querySelectorAll('li')).toHaveLength(3);
+        });
+
+        it('clears and hides the report on the clear button', async () => {
+            await start();
+            await pick();
+            answerImport({}, { destination: '/dest/notes', openMode: null, ignoredEntries: ['a.pdf'] });
+
+            click('.import');
+            await settle();
+
+            click('.report .export-report-clear');
+
+            expect($<HTMLElement>('.report').hidden).toBe(true);
+            expect($('.report').children).toHaveLength(0);
         });
 
         it('on a failure, the master toasts, the button comes back and there is no report', async () => {
@@ -306,6 +339,93 @@ describe('the archive modal, with the master', () => {
 
             expect(document.querySelector('[data-export-target="report"] details')).toBeNull();
             expect($('[data-export-target="report"] p').textContent).toBe(EXPORT_I18N.report.empty);
+        });
+
+        it('clears and hides the report on the clear button, leaving the import block alone', async () => {
+            await exportWith([issue(1)]);
+
+            click('[data-export-target="report"] .export-report-clear');
+
+            expect($<HTMLElement>('[data-export-target="report"]').hidden).toBe(true);
+            expect($('[data-export-target="report"]').children).toHaveLength(0);
+        });
+    });
+
+    describe('the export unsaved-source guard (ARC-09)', () => {
+        /** Answers editor:unsaved-file-query as if `openFile` were dirty, everything else clean. */
+        function answerUnsaved(openFile: string): () => void {
+            const handler = (event: Event): void => {
+                const query = (event as CustomEvent<{ path: string; unsaved: boolean }>).detail;
+                query.unsaved = query.path === openFile;
+            };
+            window.addEventListener('editor:unsaved-file-query', handler);
+
+            return () => window.removeEventListener('editor:unsaved-file-query', handler);
+        }
+
+        async function attemptExport(): Promise<void> {
+            invoke.mockResolvedValueOnce('/out/archive.zip');
+            fetchMock.mockResolvedValue(jsonResponse({ path: '/out/archive.zip', issues: [] }));
+            click('[data-export-target="exportButton"]');
+            await settle();
+        }
+
+        it('asks before exporting the file open with unsaved changes as its own source', async () => {
+            await start('single', 'file'); // source and open file both start as '/notes/a.md'
+            const stop = answerUnsaved('/notes/a.md');
+            vi.mocked(confirmDialog).mockResolvedValue(true);
+
+            await attemptExport();
+            stop();
+
+            expect(vi.mocked(confirmDialog)).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(confirmDialog).mock.calls[0][0].question).toBe(EXPORT_I18N.unsaved.confirm);
+            expect(fetchMock).toHaveBeenCalled();
+        });
+
+        it('sends no request when the dialog is cancelled', async () => {
+            await start('single', 'file');
+            const stop = answerUnsaved('/notes/a.md');
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+
+            await attemptExport();
+            stop();
+
+            expect(fetchMock).not.toHaveBeenCalled();
+        });
+
+        it('asks nothing when the editor is clean', async () => {
+            await start('single', 'file');
+            const stop = answerUnsaved('/some/other/file.md');
+
+            await attemptExport();
+            stop();
+
+            expect(confirmDialog).not.toHaveBeenCalled();
+            expect(fetchMock).toHaveBeenCalled();
+        });
+
+        it('asks before exporting a folder that contains the file open with unsaved changes', async () => {
+            await start('dir', 'directory'); // source '/notes', open file '/notes/a.md' sits inside it
+            const stop = answerUnsaved('/notes/a.md');
+            vi.mocked(confirmDialog).mockResolvedValue(true);
+
+            await attemptExport();
+            stop();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+        });
+
+        it('asks nothing when the open file sits outside the exported folder', async () => {
+            await start('dir', 'directory');
+            emit('editor:nav-change_dir-succeeded', { state: { ...INITIAL, mode: 'dir', file: '/notes/a.md', dir: '/other' }, action: { path: '/other' } });
+            const stop = answerUnsaved('/notes/a.md');
+
+            await attemptExport();
+            stop();
+
+            expect(confirmDialog).not.toHaveBeenCalled();
+            expect(fetchMock).toHaveBeenCalled();
         });
     });
 

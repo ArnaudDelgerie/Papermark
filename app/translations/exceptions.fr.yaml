@@ -18,13 +18,18 @@ exceptions:
         key_save_failed: Impossible d'enregistrer la clé API
         key_delete_failed: Impossible de supprimer la clé API
     archive:
-        ext_img_conflict: 'L''export a besoin que « ext_img » soit un dossier dans le dossier source'
-        ext_md_conflict: 'L''export a besoin que « ext_md » soit un dossier dans le dossier source'
+        export_refused:
+            ext_img_conflict: 'L''export a besoin que « ext_img » soit un dossier dans le dossier source'
+            ext_md_conflict: 'L''export a besoin que « ext_md » soit un dossier dans le dossier source'
+            empty: 'Rien à exporter : aucun fichier .md, .markdown ou .txt'
+            unsupported_file_type: 'Ce type de fichier ne s''exporte pas : seuls .md, .markdown et .txt'
         import_refused:
             not_a_zip: 'Le fichier sélectionné n''est pas une archive zip valide'
             zip_slip: 'Cette archive contient un chemin de fichier non sûr et a été refusée'
             symlink: 'Cette archive contient un lien symbolique et a été refusée'
             too_many_entries: 'Cette archive contient trop d''entrées pour être importée'
             too_large: 'Cette archive est trop volumineuse pour être importée'
+            unreadable: 'Cette archive est illisible, chiffrée ou corrompue'
+            empty: 'Cette archive ne contient aucun fichier Markdown ni image à importer'
     security:
         csrf_invalid: Jeton de sécurité invalide, veuillez recharger la page

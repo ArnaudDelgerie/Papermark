@@ -1,12 +1,13 @@
 import { Controller } from '@hotwired/stimulus';
 import { emit, on } from '../editor/events';
+import { renderReportHeader } from '../utils/report-header';
 import { pickPath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
 export interface I18n {
     noSource: string;
     done: string;
-    report: { title: string; empty: string };
+    report: { title: string; empty: string; count_one: string; count_other: string; clear: string };
 }
 
 function dirname(path: string): string {
@@ -115,16 +116,21 @@ export default class extends Controller {
     #renderReport(ignoredEntries: string[]): void {
         const i18n = this.i18nValue.report;
         this.reportTarget.replaceChildren();
-
-        const title = document.createElement('h2');
-        title.textContent = i18n.title;
-        this.reportTarget.appendChild(title);
+        renderReportHeader(this.reportTarget, i18n.title, i18n.clear, () => this.#clearReport());
 
         if (ignoredEntries.length === 0) {
             const empty = document.createElement('p');
             empty.textContent = i18n.empty;
             this.reportTarget.appendChild(empty);
         } else {
+            // Only the count at first (ARC-13): a project's worth of ignored
+            // entries can run into the thousands, the list is behind a toggle.
+            const details = document.createElement('details');
+            details.className = 'export-report-details';
+            const summary = document.createElement('summary');
+            summary.textContent = (ignoredEntries.length === 1 ? i18n.count_one : i18n.count_other).replace('{count}', String(ignoredEntries.length));
+            details.appendChild(summary);
+
             const list = document.createElement('ul');
             for (const entry of ignoredEntries) {
                 const item = document.createElement('li');
@@ -132,9 +138,15 @@ export default class extends Controller {
                 item.textContent = entry;
                 list.appendChild(item);
             }
-            this.reportTarget.appendChild(list);
+            details.appendChild(list);
+            this.reportTarget.appendChild(details);
         }
 
         this.reportTarget.hidden = false;
+    }
+
+    #clearReport(): void {
+        this.reportTarget.replaceChildren();
+        this.reportTarget.hidden = true;
     }
 }

@@ -5,6 +5,9 @@
     "done": "Imported into {path}",
     "report": {
         "title": "Ignored entries",
-        "empty": "Nothing was ignored"
+        "empty": "Nothing was ignored",
+        "count_one": "{count} ignored entry",
+        "count_other": "{count} ignored entries",
+        "clear": "Clear the report"
     }
 }

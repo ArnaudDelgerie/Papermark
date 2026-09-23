@@ -176,15 +176,33 @@ final class ArchiveImporterTest extends TestCase
         self::assertSame(['img/logo.svg'], $result->ignoredEntries);
     }
 
-    public function testArchiveWithOnlyIgnoredEntriesReportsNoOpen(): void
+    /** ARC-07: nothing retained refuses the whole import instead of creating an empty folder. */
+    public function testArchiveWithOnlyIgnoredEntriesIsRefused(): void
     {
         $zipPath = $this->makeZip(['notes.pdf' => 'not extracted']);
 
-        $result = $this->importer->import($zipPath, $this->parentDir);
+        try {
+            $this->importer->import($zipPath, $this->parentDir);
+            self::fail('Expected ArchiveImportRefusedException.');
+        } catch (ArchiveImportRefusedException $e) {
+            self::assertSame(ArchiveImportRefusalReason::Empty, $e->reason);
+        }
 
-        self::assertNull($result->openMode);
-        self::assertNull($result->openPath);
-        self::assertSame(['notes.pdf'], $result->ignoredEntries);
+        self::assertSame(['.', '..'], scandir($this->parentDir));
+    }
+
+    /** ARC-07: a 0-byte zip is accepted by ZipArchive::open() but has nothing to extract either. */
+    public function testZeroByteZipIsRefused(): void
+    {
+        $zipPath = $this->workDir . '/zero.zip';
+        file_put_contents($zipPath, '');
+
+        try {
+            $this->importer->import($zipPath, $this->parentDir);
+            self::fail('Expected ArchiveImportRefusedException.');
+        } catch (ArchiveImportRefusedException $e) {
+            self::assertSame(ArchiveImportRefusalReason::Empty, $e->reason);
+        }
     }
 
     public function testRefusesParentTraversalEntry(): void
@@ -255,6 +273,67 @@ final class ArchiveImporterTest extends TestCase
         }
     }
 
+    /**
+     * ARC-08: a large ignored entry never counts towards the size ceiling —
+     * only the small, kept .md does.
+     */
+    public function testALargeIgnoredEntryDoesNotCountTowardsTheSizeLimit(): void
+    {
+        $importer = $this->makeImporter(maxTotalUncompressedBytes: 1024);
+        $zipPath = $this->makeZip([
+            'README.md' => 'four',
+            'video.mp4' => str_repeat('V', 2048),
+        ]);
+
+        $result = $importer->import($zipPath, $this->parentDir);
+
+        self::assertFileExists($result->destination . '/README.md');
+        self::assertFileDoesNotExist($result->destination . '/video.mp4');
+        self::assertSame(['video.mp4'], $result->ignoredEntries);
+    }
+
+    /**
+     * SEC-03: the declared header size can't be trusted — the real ceiling
+     * is enforced on the bytes actually streamed out during extraction, not
+     * on ZipArchive::statIndex()'s reported (and falsifiable) size.
+     */
+    public function testRefusesArchiveOnceTheRealStreamedBytesExceedTheLimitEvenWithAFalsifiedDeclaredSize(): void
+    {
+        $importer = $this->makeImporter(maxTotalUncompressedBytes: 100);
+        $content = str_repeat('AB', 5000); // 10,000 bytes, compresses to well under 100.
+        $zipPath = $this->makeZipWithFalsifiedDeclaredSize('bomb.md', $content, 1);
+
+        try {
+            $importer->import($zipPath, $this->parentDir);
+            self::fail('Expected ArchiveImportRefusedException.');
+        } catch (ArchiveImportRefusedException $e) {
+            self::assertSame(ArchiveImportRefusalReason::TooLarge, $e->reason);
+        }
+
+        self::assertSame(['.', '..'], scandir($this->parentDir));
+    }
+
+    /** ARC-06: an entry that can't be read through (here, encrypted without a password) refuses the whole import and leaves no residue. */
+    public function testRefusesAnEncryptedEntryAndLeavesNoResidue(): void
+    {
+        $zipPath = $this->workDir . '/encrypted.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('doc.md', '# Hello');
+        $zip->addFromString('secret.md', 'top secret');
+        $zip->setEncryptionName('secret.md', \ZipArchive::EM_AES_256, 'hunter2');
+        $zip->close();
+
+        try {
+            $this->importer->import($zipPath, $this->parentDir);
+            self::fail('Expected ArchiveImportRefusedException.');
+        } catch (ArchiveImportRefusedException $e) {
+            self::assertSame(ArchiveImportRefusalReason::Unreadable, $e->reason);
+        }
+
+        self::assertSame(['.', '..'], scandir($this->parentDir));
+    }
+
     public function testSuffixesDestinationWhenNameAlreadyTaken(): void
     {
         mkdir($this->parentDir . '/archive');
@@ -289,6 +368,38 @@ final class ArchiveImporterTest extends TestCase
         } catch (ArchiveImportRefusedException $e) {
             self::assertSame(ArchiveImportRefusalReason::NotAZip, $e->reason);
         }
+    }
+
+    /**
+     * A single-entry zip whose local and central "uncompressed size" fields
+     * are overwritten with $falsifiedSize, well below $content's real
+     * length — what SEC-03's streamed byte count, not
+     * ZipArchive::statIndex(), is meant to catch.
+     */
+    private function makeZipWithFalsifiedDeclaredSize(string $entryName, string $content, int $falsifiedSize): string
+    {
+        $zipPath = $this->workDir . '/falsified.zip';
+
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString($entryName, $content);
+        $zip->setCompressionName($entryName, \ZipArchive::CM_DEFLATE);
+        $zip->close();
+
+        $bytes = file_get_contents($zipPath);
+        self::assertNotFalse($bytes);
+        self::assertSame("PK\x03\x04", substr($bytes, 0, 4), 'local file header must open the archive');
+
+        $packedSize = pack('V', $falsifiedSize);
+        $bytes = substr_replace($bytes, $packedSize, 22, 4);
+
+        $centralOffset = strpos($bytes, "PK\x01\x02");
+        self::assertNotFalse($centralOffset, 'central directory record not found');
+        $bytes = substr_replace($bytes, $packedSize, $centralOffset + 24, 4);
+
+        file_put_contents($zipPath, $bytes);
+
+        return $zipPath;
     }
 
     /** @param array<string, string> $entries */

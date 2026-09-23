@@ -7,6 +7,7 @@ namespace App\Tests\Service\Archive;
 use App\Service\Archive\ArchiveWriter;
 use App\Dto\Archive\ExportEntry;
 use App\Dto\Archive\ExportPlan;
+use App\Exception\Filesystem\WriteFailedException;
 use PHPUnit\Framework\TestCase;
 
 final class ArchiveWriterTest extends TestCase
@@ -79,6 +80,27 @@ final class ArchiveWriterTest extends TestCase
         self::assertSame(['markdown/sub/doc.md', 'markdown/sub/img/photo.png'], $names);
 
         $zip->close();
+    }
+
+    /** ARC-02: an addFile() source gone missing by write time fails the whole write, announcing nothing. */
+    public function testUnreadableSourceFailsTheWriteAndAnnouncesNoFile(): void
+    {
+        $imagePath = $this->workDir . '/photo.png';
+        file_put_contents($imagePath, 'PNG-BYTES');
+        unlink($imagePath);
+
+        $plan = new ExportPlan(
+            [new ExportEntry('ext_img/photo.png', $imagePath, null)],
+            [],
+        );
+
+        $this->expectException(WriteFailedException::class);
+
+        try {
+            (new ArchiveWriter())->write($plan, $this->zipPath);
+        } finally {
+            self::assertFileDoesNotExist($this->zipPath);
+        }
     }
 
     private function removeDirectory(string $dir): void

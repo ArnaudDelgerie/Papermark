@@ -9,11 +9,17 @@
     "noSource": "Choose a source first",
     "done": "Exported to {path}",
     "failed": "Export failed",
+    "unsaved": {
+        "confirm": "The archive will contain the last saved version.",
+        "cancel": "Cancel",
+        "continue": "Export anyway"
+    },
     "report": {
         "title": "Report",
         "empty": "Nothing left out",
         "count_one": "{count} reference left at its original path",
         "count_other": "{count} references left at their original path",
+        "clear": "Clear the report",
         "reason": {
             "not_found": "Not found",
             "limit_exceeded": "Size limit exceeded"

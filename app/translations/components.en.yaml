@@ -145,11 +145,16 @@ components:
         no_source: Choose a file or folder first
         done: 'Archive exported to {path}'
         failed: Export failed
+        unsaved:
+            confirm: The archive will contain the last saved version.
+            cancel: Cancel
+            continue: Export anyway
         report:
             title: Left at their original path
             empty: Every reference was embedded.
             count_one: '{count} reference'
             count_other: '{count} references'
+            clear: Clear the report
             reason:
                 not_found: Not found
                 limit_exceeded: Beyond the export limit
@@ -165,6 +170,9 @@ components:
         report:
             title: Ignored entries
             empty: Every entry was imported.
+            count_one: '{count} ignored entry'
+            count_other: '{count} ignored entries'
+            clear: Clear the report
     archive:
         title: Archive
         close: Close
