@@ -512,6 +512,10 @@ export default class extends Controller<HTMLElement> {
         this.#savedRef = this.#host.markdown();
         this.#applyEditable();
         this.#updateSaveButton(this.#savedRef);
+        // Loading is not a change: Milkdown's listener re-bases on the new
+        // document, so onChange doesn't fire and these two must be set here.
+        this.#updatePrintButton(this.#savedRef);
+        this.#updateCopyMarkdownButton(this.#savedRef);
         this.#updateDirtyIndicator(this.#savedRef);
         this.#updateFilePath();
     }

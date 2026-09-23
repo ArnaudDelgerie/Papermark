@@ -88,9 +88,11 @@ function fakeHost(): {
             markdown = value;
             changeListener?.(markdown);
         },
+        // Loading a document is not a change: the real host flushes, and
+        // Milkdown's listener re-bases on the new document without calling
+        // back. The controller has to update what it shows by itself.
         replace: vi.fn((value: string) => {
             markdown = value;
-            changeListener?.(markdown);
         }),
         onChange: (listener: (markdown: string) => void) => {
             changeListener = listener;
@@ -154,6 +156,8 @@ describe('the editor, with the master', () => {
     const label = (): string | null => $('[data-editor-target="filePath"]').textContent;
     const saveButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="saveButton"]');
     const saveAsButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="saveAsButton"]');
+    const printButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="printButton"]');
+    const copyMarkdownButton = (): HTMLButtonElement => $<HTMLButtonElement>('[data-editor-target="copyMarkdownButton"]');
     const calls = (method: string, url: string): Array<[string, RequestInit | undefined]> =>
         (fetchMock.mock.calls as Array<[string, RequestInit | undefined]>).filter(([u, init]) => u === url && (init?.method ?? 'GET') === method);
 
@@ -520,6 +524,26 @@ describe('the editor, with the master', () => {
     });
 
     describe('printing and copying', () => {
+        // Loading is not a change, so nothing calls back: both buttons used to
+        // wake up only on the first keystroke, or on the empty paragraph
+        // Milkdown's trailing plugin appends to a document that doesn't end
+        // with one — a file ending on a paragraph stayed unprintable.
+        it('enables both buttons on a loaded file, with no edit', async () => {
+            await start(current);
+
+            expect(printButton().disabled).toBe(false);
+            expect(copyMarkdownButton().disabled).toBe(false);
+        });
+
+        it('disables both buttons again on an emptied document', async () => {
+            await start(current);
+
+            click('[data-action="click->editor#newFile"]');
+
+            expect(printButton().disabled).toBe(true);
+            expect(copyMarkdownButton().disabled).toBe(true);
+        });
+
         it('printing mounts the copy the host renders and calls window.print()', async () => {
             await start(current);
             const copy = document.createElement('div');
