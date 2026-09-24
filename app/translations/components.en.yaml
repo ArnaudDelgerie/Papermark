@@ -136,7 +136,7 @@ components:
         unavailable: This action requires the Hub
         rejected: The file picker failed
     mode:
-        single: Single file
+        single: File
         dir: Folder
         open_directory: Open folder…
         loading: Loading…

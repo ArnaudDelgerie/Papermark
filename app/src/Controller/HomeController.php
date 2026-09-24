@@ -3,15 +3,16 @@
 namespace App\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
-use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class HomeController extends AbstractController
 {
     public function __construct(
-        private readonly KernelInterface $kernel,
+        #[Autowire('%kernel.project_dir%')]
+        private readonly string $projectDir,
     ) {
     }
 
@@ -33,7 +34,7 @@ final class HomeController extends AbstractController
     #[Route('/icon.png', name: 'app_icon')]
     public function icon(): BinaryFileResponse
     {
-        $response = new BinaryFileResponse($this->kernel->getProjectDir() . '/icon.png');
+        $response = new BinaryFileResponse($this->projectDir . '/icon.png');
         $response->headers->add(['Cache-Control' => 'public, max-age=31536000, immutable']);
 
         return $response;

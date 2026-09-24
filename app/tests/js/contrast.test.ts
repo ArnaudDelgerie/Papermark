@@ -39,12 +39,15 @@ function block(name: string): Record<string, string> {
 }
 
 describe('the field and mode-selector outlines (UX-11, lot 10)', () => {
-    it('declares a border-strong at 3:1 or more against the page, in every theme', () => {
+    it('declares a border-strong at 3:1 or more against the page and the surface, in every theme', () => {
+        // The page for the settings modal, the surface for the rename dialog.
         for (const name of ['dark', 'light', 'auto', 'auto-dark']) {
             const theme = block(name);
             expect(theme['--color-border-strong'], name).toBeDefined();
-            expect(theme['--color-page'], name).toBeDefined();
-            expect(ratio(theme['--color-border-strong'], theme['--color-page']), name).toBeGreaterThanOrEqual(3);
+            for (const background of ['--color-page', '--color-surface']) {
+                expect(theme[background], `${name} ${background}`).toBeDefined();
+                expect(ratio(theme['--color-border-strong'], theme[background]), `${name} ${background}`).toBeGreaterThanOrEqual(3);
+            }
         }
     });
 

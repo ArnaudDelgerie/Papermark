@@ -164,6 +164,8 @@ describe('the toast zones (UX-06)', () => {
         expect(modalZone.contains(toast())).toBe(true);
 
         dialog.close();
+        // Its toasts went with it, not kept for the next opening.
+        expect(modalZone.children.length).toBe(0);
 
         window.dispatchEvent(new CustomEvent('toast:show', { detail: { type: 'success', message: 'Saved' } }));
         expect(document.querySelector('.toast-container')!.contains(toast())).toBe(true);

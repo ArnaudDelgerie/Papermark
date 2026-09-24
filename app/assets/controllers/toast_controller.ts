@@ -40,7 +40,10 @@ export default class extends Controller<HTMLElement> {
         this.#zone = dialog.querySelector('.toast-container') ?? this.element;
     };
 
-    #onModalClosed = (): void => {
+    #onModalClosed = (event: Event): void => {
+        // The modal's toasts go with it: an error has no timer, and would
+        // otherwise still be there at the next opening.
+        (event as ModalEvent).detail.dialog.querySelector('.toast-container')?.replaceChildren();
         this.#zone = this.element;
     };
 

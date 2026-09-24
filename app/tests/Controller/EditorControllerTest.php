@@ -28,7 +28,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
 
         self::assertSame(1, $crawler->filter('div[data-controller="editor"]')->count());
-        self::assertSame('Single file', trim($crawler->filter('.mode-selector-link.is-active')->text()));
+        self::assertSame('File', trim($crawler->filter('.mode-selector-link.is-active')->text()));
 
         // The /file/image gate depends on it (lot 02, SEC-04): written out,
         // not left to the framework's default.

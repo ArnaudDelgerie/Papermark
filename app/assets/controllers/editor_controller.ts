@@ -11,6 +11,7 @@ import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { saveConflictDialog } from '../utils/conflict-dialog';
 import { draftConflictDialog } from '../utils/draft-conflict-dialog';
 import { request } from '../utils/http';
+import { showPath } from '../utils/path-label';
 import { type IpcI18n, pickPath, savePath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 import type EditorStateController from './editor_state_controller';
@@ -1059,9 +1060,7 @@ export default class extends Controller<HTMLElement> {
         if (!this.hasFilePathTarget) {
             return;
         }
-        const label = this.#currentPath ?? this.i18nValue.untitled;
-        this.filePathTarget.textContent = label;
-        this.filePathTarget.title = label;
+        showPath(this.filePathTarget, this.#currentPath ?? this.i18nValue.untitled);
     }
 
     #shouldConfirmLeave(): boolean {

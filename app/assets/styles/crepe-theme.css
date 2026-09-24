@@ -12,7 +12,10 @@
 
 :root[data-theme="dark"] .milkdown {
     --crepe-color-background: #1a1a1a;
-    --crepe-color-on-background: #e6e6e6;
+
+    /* Softer than the UI's #e0e0e0: under the hub's greyscale antialiasing,
+       near-white body text on a dark page reads fuzzier (lot 10). ~11:1. */
+    --crepe-color-on-background: #c8c8c8;
     --crepe-color-surface: #121212;
     --crepe-color-surface-low: #1c1c1c;
     --crepe-color-on-surface: #d1d1d1;
@@ -67,7 +70,9 @@
 @media (prefers-color-scheme: dark) {
     :root[data-theme="auto"] .milkdown {
         --crepe-color-background: #1a1a1a;
-        --crepe-color-on-background: #e6e6e6;
+
+        /* Same as the dark theme above. */
+        --crepe-color-on-background: #c8c8c8;
         --crepe-color-surface: #121212;
         --crepe-color-surface-low: #1c1c1c;
         --crepe-color-on-surface: #d1d1d1;

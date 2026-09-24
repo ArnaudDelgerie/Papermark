@@ -49,7 +49,7 @@
             letter-spacing: 0.02em;
         }
 
-        /* The icon's P, as a discreet loading pulse underneath. */
+        /* A discreet loading pulse under the name. */
 
         .loading {
             display: flex;
@@ -93,10 +93,13 @@
     </style>
 </head>
 <body>
-    <svg width="72" height="72" viewBox="0 0 96 96" role="img" aria-label="P">
-        <rect x="5" y="5" width="86" height="86" rx="14" fill="var(--page)" stroke="var(--letter)" stroke-width="2.5"></rect>
-        <path fill="var(--letter)" d="M30 28 h14 a14 14 0 0 1 0 28 h-5 v12 h-9 z"></path>
-        <path fill="var(--page)" d="M39 37 h5 a5 5 0 0 1 0 10 h-5 z"></path>
+    <!-- The icon itself (app/icon.png), redrawn at its geometry on a 1024
+         grid: the tile, and the P ImageMagick drew for
+         "JetBrains-Mono-ExtraBold" — the variable JetBrainsMono[wght].ttf at
+         its default weight, 400 — trimmed to 620 high and centred. -->
+    <svg width="96" height="96" viewBox="0 0 1024 1024" role="img" aria-label="P">
+        <rect x="37" y="37" width="950" height="950" rx="96" fill="var(--page)" stroke="var(--letter)" stroke-width="10"></rect>
+        <path fill="var(--letter)" fill-rule="evenodd" transform="translate(239.36 822) scale(0.8493 -0.8493)" d="M92 0V730H327Q395 730 445 703.5Q495 677 522.5 629Q550 581 550 515Q550 450 522.5 401.5Q495 353 445 326.5Q395 300 327 300H182V0ZM182 381H327Q386 381 421.5 417.5Q457 454 457 515Q457 577 421.5 613Q386 649 327 649H182Z"></path>
     </svg>
     <h1>Papermark</h1>
     <p class="loading" aria-hidden="true"><span></span><span></span><span></span></p>

@@ -21,8 +21,9 @@
     --color-border: #2c2c2c;
 
     /* UX-11, lot 10: field edges need 3:1 against the page (this one is
-       3.26:1); --color-border stays for the quiet separators. */
-    --color-border-strong: #666;
+       3.52:1, and 3.13:1 against the surface of the JS dialogs);
+       --color-border stays for the quiet separators. */
+    --color-border-strong: #6b6b6b;
     --color-text: #e0e0e0;
     --color-muted: #a0a0a0;
     --color-accent: #6ba8d4;
@@ -40,7 +41,7 @@
     --color-surface: #f7f7f7;
     --color-border: #dcdcdc;
 
-    /* UX-11, lot 10: 3.95:1 against the page. */
+    /* UX-11, lot 10: 3.95:1 against the page, 3.69:1 the surface. */
     --color-border-strong: #808080;
     --color-text: #1c1c1c;
     --color-muted: #6b6b6b;
@@ -55,7 +56,7 @@
     --color-surface: #f7f7f7;
     --color-border: #dcdcdc;
 
-    /* UX-11, lot 10: 3.95:1 against the page. */
+    /* UX-11, lot 10: 3.95:1 against the page, 3.69:1 the surface. */
     --color-border-strong: #808080;
     --color-text: #1c1c1c;
     --color-muted: #6b6b6b;
@@ -69,8 +70,8 @@
         --color-surface: #1e1e1e;
         --color-border: #2c2c2c;
 
-        /* UX-11, lot 10: 3.26:1 against the page. */
-        --color-border-strong: #666;
+        /* UX-11, lot 10: 3.52:1 against the page, 3.13:1 the surface. */
+        --color-border-strong: #6b6b6b;
         --color-text: #e0e0e0;
         --color-muted: #a0a0a0;
         --color-accent: #6ba8d4;

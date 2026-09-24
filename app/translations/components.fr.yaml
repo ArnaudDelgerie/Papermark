@@ -136,7 +136,7 @@ components:
         unavailable: Cette action demande le Hub
         rejected: Le sélecteur de fichiers a échoué
     mode:
-        single: Fichier unique
+        single: Fichier
         dir: Dossier
         open_directory: Ouvrir un dossier…
         loading: Chargement…

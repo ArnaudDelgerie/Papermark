@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { emit, on } from '../editor/events';
+import { showPath } from '../utils/path-label';
 import { type IpcI18n, pickPath } from '../utils/tauri';
 
 /** The component's own texts. */
@@ -23,6 +24,10 @@ export default class extends Controller {
     #unsubscribers: Array<() => void> = [];
 
     connect(): void {
+        // The server writes the whole path; cut from its start from here on.
+        if (!this.pathTarget.hidden) {
+            this.#show(this.pathTarget.textContent);
+        }
         this.#unsubscribers = [
             on('editor:nav-change_dir-requested', () => this.#busy(true)),
             on('editor:nav-change_dir-succeeded', ({ state }) => this.#settle(state.dir)),
@@ -67,8 +72,7 @@ export default class extends Controller {
     }
 
     #show(dir: string | null): void {
-        this.pathTarget.textContent = dir ?? '';
-        this.pathTarget.title = dir ?? '';
+        showPath(this.pathTarget, dir ?? '');
         this.pathTarget.hidden = dir === null;
     }
 
