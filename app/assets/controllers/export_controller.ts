@@ -17,6 +17,8 @@ interface ReportIssue {
 
 export interface I18n {
     noSource: string;
+    /** UX-13, lot 10: what the source field says while it is empty. */
+    noSourceSelected: string;
     failed: string;
     done: string;
     ipc: IpcI18n;
@@ -54,7 +56,7 @@ function basename(path: string): string {
  * references left at their original path.
  */
 export default class extends Controller {
-    static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'browseButton', 'includeExternalMarkdown', 'exportButton', 'report'];
+    static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'browseButton', 'includeExternalMarkdown', 'exportButton', 'exportLabel', 'exportSpinner', 'report'];
 
     static values = {
         // At load: 'file' in single mode, 'directory' in dir mode (see
@@ -72,6 +74,10 @@ export default class extends Controller {
     declare readonly browseButtonTarget: HTMLButtonElement;
     declare readonly includeExternalMarkdownTarget: HTMLInputElement;
     declare readonly exportButtonTarget: HTMLButtonElement;
+    declare readonly hasExportLabelTarget: boolean;
+    declare readonly exportLabelTarget: HTMLElement;
+    declare readonly hasExportSpinnerTarget: boolean;
+    declare readonly exportSpinnerTarget: HTMLElement;
     declare readonly reportTarget: HTMLElement;
     declare readonly initialKindValue: string;
     declare readonly initialPathValue: string;
@@ -187,6 +193,9 @@ export default class extends Controller {
 
         this.exportButtonTarget.disabled = true;
         this.reportTarget.hidden = true;
+        // UX-13, lot 10: the writing can take a while; the label steps aside
+        // for a spinner until the answer comes back.
+        this.#setExporting(true);
 
         const formData = new FormData();
         formData.append('source', sourcePath);
@@ -208,7 +217,17 @@ export default class extends Controller {
             console.error('Failed to export archive:', err);
             showToast('error', (err as Error).message || this.i18nValue.failed);
         } finally {
+            this.#setExporting(false);
             this.exportButtonTarget.disabled = false;
+        }
+    }
+
+    #setExporting(exporting: boolean): void {
+        if (this.hasExportLabelTarget) {
+            this.exportLabelTarget.hidden = exporting;
+        }
+        if (this.hasExportSpinnerTarget) {
+            this.exportSpinnerTarget.hidden = !exporting;
         }
     }
 
@@ -242,7 +261,15 @@ export default class extends Controller {
     }
 
     #updateSourceDisplay(): void {
-        this.sourcePathTarget.textContent = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
+        const path = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
+        // UX-13, lot 10: an empty source says why nothing shows, and a set one
+        // carries its whole path in a title, for what the ellipsis cut.
+        this.sourcePathTarget.textContent = path || this.i18nValue.noSourceSelected;
+        if (path) {
+            this.sourcePathTarget.title = path;
+        } else {
+            this.sourcePathTarget.removeAttribute('title');
+        }
     }
 
     #renderReport(issues: ReportIssue[]): void {

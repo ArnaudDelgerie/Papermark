@@ -50,6 +50,31 @@ final class EditorControllerTest extends WebTestCase
 
         // Only the tree is behind a frame; Open folder stays in the column.
         self::assertSame('/editor/dir', $crawler->filter('turbo-frame#mode-dir-tree')->attr('src'));
+
+        // The tree and both modal frames say they are loading until their
+        // first answer (UX-13, lot 10).
+        self::assertSame(1, $crawler->filter('turbo-frame#mode-dir-tree p.sidebar-loading')->count());
+        self::assertSame(1, $crawler->filter('turbo-frame#archive p.sidebar-loading')->count());
+        self::assertSame(1, $crawler->filter('turbo-frame#settings p.sidebar-loading')->count());
+
+        // The unsaved dot announces itself, and the readonly toggle starts
+        // unpressed with the matching tooltip (UX-10, lot 10).
+        $dot = $crawler->filter('[data-editor-target="dirtyIndicator"]');
+        self::assertSame('status', $dot->attr('role'));
+        self::assertSame('Unsaved', trim($dot->filter('.visually-hidden')->text()));
+        self::assertSame('Unsaved', $dot->attr('title'));
+
+        $toggle = $crawler->filter('[data-editor-target="toggleButton"]');
+        self::assertSame('false', $toggle->attr('aria-pressed'));
+        self::assertSame('Read only', $toggle->attr('title'));
+        self::assertSame('Read only', trim($toggle->filter('[data-editor-target="toggleLabel"]')->text()));
+
+        // The mode buttons carry their pressed state from the start (UX-11).
+        self::assertSame('true', $crawler->filter('button[data-mode="single"]')->attr('aria-pressed'));
+        self::assertSame('false', $crawler->filter('button[data-mode="dir"]')->attr('aria-pressed'));
+
+        // The favicon is the app icon (UX-08, lot 10).
+        self::assertSame('/icon.png', $crawler->filter('link[rel="icon"]')->attr('href'));
     }
 
     public function testEditorEmbedsNoFileEvenWhenOneIsCurrent(): void

@@ -3,6 +3,8 @@
   "identifier": "dev.local.papermark",
   "project_name": "papermark",
   "app_version": "0.1.0",
+  "icon_path": "icon.png",
+  "splash_path": "splash.html",
   "splash_bg": "#121212",
   "splash_text": "#e0e0e0",
   "workers": [

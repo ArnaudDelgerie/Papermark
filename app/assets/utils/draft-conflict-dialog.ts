@@ -13,15 +13,21 @@ export interface DraftConflictOptions {
 
 export type DraftConflictChoice = 'keep_draft' | 'use_disk';
 
+let nextId = 0;
+
 export function draftConflictDialog({ question, keepDraftLabel, useDiskLabel }: DraftConflictOptions): Promise<DraftConflictChoice> {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.className = 'editor-confirm-dialog';
 
+        // UX-12, lot 10: the question is the dialog's accessible name.
+        const questionId = `editor-draft-conflict-question-${++nextId}`;
         const questionEl = document.createElement('p');
         questionEl.className = 'editor-confirm-dialog-question';
+        questionEl.id = questionId;
         questionEl.textContent = question;
         dialog.append(questionEl);
+        dialog.setAttribute('aria-labelledby', questionId);
 
         const actions = document.createElement('div');
         actions.className = 'editor-confirm-dialog-actions';

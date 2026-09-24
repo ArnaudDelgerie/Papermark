@@ -245,11 +245,13 @@
     font-size: 0.85rem;
 }
 
+/* UX-11, lot 10: --color-border-strong (3:1) instead of --color-border, so
+   the field is seen against the page, this one included. */
 .settings-fieldset > div input {
     flex: 1;
     padding: var(--space-2) var(--space-3);
     background: var(--color-page);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-border-strong);
     border-radius: var(--radius);
     color: var(--color-text);
     font-family: var(--font-sans);

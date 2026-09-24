@@ -120,7 +120,7 @@ export default class extends Controller<HTMLElement> {
         i18n: Object,
     };
 
-    static targets = ['saveButton', 'saveAsButton', 'newButton', 'printButton', 'copyMarkdownButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
+    static targets = ['saveButton', 'saveAsButton', 'newButton', 'printButton', 'copyMarkdownButton', 'toggleButton', 'toggleLabel', 'dirtyIndicator', 'filePath', 'loadErrorMessage'];
 
     static outlets = ['editor-state'];
 
@@ -141,6 +141,8 @@ export default class extends Controller<HTMLElement> {
     declare readonly printButtonTarget: HTMLButtonElement;
     declare readonly hasCopyMarkdownButtonTarget: boolean;
     declare readonly copyMarkdownButtonTarget: HTMLButtonElement;
+    declare readonly hasToggleButtonTarget: boolean;
+    declare readonly toggleButtonTarget: HTMLButtonElement;
     declare readonly hasToggleLabelTarget: boolean;
     declare readonly toggleLabelTarget: HTMLElement;
     declare readonly hasDirtyIndicatorTarget: boolean;
@@ -494,6 +496,14 @@ export default class extends Controller<HTMLElement> {
             this.toggleLabelTarget.textContent = this.#isReadonly
                 ? this.i18nValue.toggle.edit
                 : this.i18nValue.toggle.readonly;
+        }
+        // UX-10, lot 10: the tooltip and the pressed state follow the toggle,
+        // instead of staying at what the server rendered.
+        if (this.hasToggleButtonTarget) {
+            this.toggleButtonTarget.title = this.#isReadonly
+                ? this.i18nValue.toggle.edit
+                : this.i18nValue.toggle.readonly;
+            this.toggleButtonTarget.setAttribute('aria-pressed', this.#isReadonly ? 'true' : 'false');
         }
     }
 

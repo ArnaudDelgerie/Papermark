@@ -38,11 +38,14 @@ export function sidebarHtml(mode: EditorState['mode'] = 'single', dir: string | 
     return `
     <nav class="mode-selector" data-controller="mode-switch">
         <button type="button" data-mode="single" class="mode-selector-link${mode === 'single' ? ' is-active' : ''}"
+            aria-pressed="${mode === 'single' ? 'true' : 'false'}"
             data-mode-switch-target="link" data-action="mode-switch#change">Single</button>
         <button type="button" data-mode="dir" class="mode-selector-link${mode === 'dir' ? ' is-active' : ''}"
+            aria-pressed="${mode === 'dir' ? 'true' : 'false'}"
             data-mode-switch-target="link" data-action="mode-switch#change">Dir</button>
     </nav>
     <div class="editor-sidebar-panel" data-controller="mode-single"
+         data-mode-single-editor-state-outlet="#editor-state"
          data-mode-single-i18n-value="${attr(MODE_SINGLE_I18N)}"${mode === 'single' ? '' : ' hidden'}>
         <button type="button" data-mode-single-target="openButton" data-action="click->mode-single#openFile">Open</button>
         <div data-mode-single-target="loading">Loading</div>
@@ -50,6 +53,7 @@ export function sidebarHtml(mode: EditorState['mode'] = 'single', dir: string | 
         <p data-mode-single-target="empty" hidden>Empty</p>
     </div>
     <div class="editor-sidebar-panel" data-controller="mode-dir"
+         data-mode-dir-editor-state-outlet="#editor-state"
          data-mode-dir-dir-value="${dir ?? ''}"
          data-mode-dir-i18n-value="${attr(MODE_DIR_I18N)}"${mode === 'dir' ? '' : ' hidden'}>
         <div class="current-directory" data-controller="current-directory"
@@ -63,9 +67,26 @@ export function sidebarHtml(mode: EditorState['mode'] = 'single', dir: string | 
         </div>
         <turbo-frame id="mode-dir-tree" data-mode-dir-target="treeFrame">
             <ul class="mode-tree">
-                <li><a href="#" data-action="click->mode-dir#openFile" data-path="/notes/b.md">b.md</a>
-                    <button type="button" data-action="click->mode-dir#renameEntry" data-path="/notes/b.md">R</button>
-                    <button type="button" data-action="click->mode-dir#deleteEntry" data-path="/notes/b.md">D</button>
+                <li class="mode-tree-dir">
+                    <details>
+                        <summary class="mode-tree-dir-name"><span class="mode-tree-label">sub</span></summary>
+                        <ul>
+                            <li class="mode-tree-file">
+                                <a href="#" data-action="click->mode-dir#openFile" data-path="/notes/sub/d.md">d.md</a>
+                                <span class="mode-entry-actions">
+                                    <button type="button" data-action="click->mode-dir#renameEntry" data-path="/notes/sub/d.md">R</button>
+                                    <button type="button" data-action="click->mode-dir#deleteEntry" data-path="/notes/sub/d.md">D</button>
+                                </span>
+                            </li>
+                        </ul>
+                    </details>
+                </li>
+                <li class="mode-tree-file">
+                    <a href="#" data-action="click->mode-dir#openFile" data-path="/notes/b.md">b.md</a>
+                    <span class="mode-entry-actions">
+                        <button type="button" data-action="click->mode-dir#renameEntry" data-path="/notes/b.md">R</button>
+                        <button type="button" data-action="click->mode-dir#deleteEntry" data-path="/notes/b.md">D</button>
+                    </span>
                 </li>
             </ul>
         </turbo-frame>

@@ -1,6 +1,6 @@
 /* Document typography, shared by the editor body (.ProseMirror.document)
-   and the print copy (.print-copy.document). Screen A4 mode and print read
-   the same values, so the sheet on screen matches the PDF. */
+   and the print copy (.print-copy.document). The A4 sheet on screen and
+   print read the same values, so the sheet matches the PDF. */
 
 :root {
     --doc-font-size: 11pt;

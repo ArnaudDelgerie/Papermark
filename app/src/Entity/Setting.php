@@ -30,7 +30,7 @@ class Setting
     private EditorMode $defaultMode = EditorMode::Single;
 
     #[ORM\Column(length: 16, enumType: ThemeMode::class)]
-    private ThemeMode $themeMode = ThemeMode::Dark;
+    private ThemeMode $themeMode = ThemeMode::Auto;
 
     #[ORM\Column(length: 16, enumType: AppLocale::class)]
     private AppLocale $locale = AppLocale::En;

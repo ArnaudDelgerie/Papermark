@@ -6,6 +6,9 @@ import { showToast } from '../utils/toast';
 
 export interface I18n {
     noSource: string;
+    /** UX-13, lot 10: what each path field says while it is empty. */
+    noArchiveSelected: string;
+    noParentSelected: string;
     done: string;
     ipc: IpcI18n;
     report: { title: string; empty: string; count_one: string; count_other: string; clear: string };
@@ -47,6 +50,11 @@ export default class extends Controller {
     #parentPath = '';
 
     connect(): void {
+        // UX-13, lot 10: an empty field says why nothing shows, instead of
+        // three blank boxes on a first opening.
+        this.#showArchivePath();
+        this.#showParentPath();
+
         this.#unsubscribers = [
             on('editor:do-import-succeeded', ({ action }) => {
                 if (!this.#running) {
@@ -77,14 +85,14 @@ export default class extends Controller {
         }
 
         this.#archivePath = path;
-        this.archivePathTarget.textContent = path;
+        this.#showArchivePath();
 
         // Pre-filled with the archive's own folder, without overwriting a
         // destination the user already picked (see EDITOR_IMPORT.md,
         // "Destination").
         if (!this.#parentPath) {
             this.#parentPath = dirname(path);
-            this.parentPathTarget.textContent = this.#parentPath;
+            this.#showParentPath();
         }
     }
 
@@ -95,7 +103,27 @@ export default class extends Controller {
         }
 
         this.#parentPath = path;
-        this.parentPathTarget.textContent = path;
+        this.#showParentPath();
+    }
+
+    // UX-13, lot 10: a set path carries its whole content in a title, for
+    // what the ellipsis cut; an empty one says why nothing shows.
+
+    #showArchivePath(): void {
+        this.#showPath(this.archivePathTarget, this.#archivePath, this.i18nValue.noArchiveSelected);
+    }
+
+    #showParentPath(): void {
+        this.#showPath(this.parentPathTarget, this.#parentPath, this.i18nValue.noParentSelected);
+    }
+
+    #showPath(target: HTMLElement, path: string, placeholder: string): void {
+        target.textContent = path || placeholder;
+        if (path) {
+            target.title = path;
+        } else {
+            target.removeAttribute('title');
+        }
     }
 
     /**

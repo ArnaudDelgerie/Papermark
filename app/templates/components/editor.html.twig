@@ -1,7 +1,7 @@
 {# Reads the state at load through its outlet on the master (editor-state),
    which makes its writes: New, Save, Save as. #}
 <div data-controller="editor"
-     class="editor-shell is-a4"
+     class="editor-shell"
      data-editor-editor-state-outlet="#editor-state"
      data-editor-urls-value="{{ {
          file: path('app_document_read'),
@@ -46,13 +46,19 @@
         </div>
 
         <div class="editor-file-status">
-            <span class="editor-dirty-dot" data-editor-target="dirtyIndicator" hidden title="{{ 'components.editor.unsaved.indicator'|trans({}, 'components') }}"></span>
+            {# UX-10, lot 10: role="status" and a hidden label announce the
+               unsaved state; the accent colour reads as "pending", not error. #}
+            <span class="editor-dirty-dot" role="status" data-editor-target="dirtyIndicator" hidden title="{{ 'components.editor.unsaved.indicator'|trans({}, 'components') }}">
+                <span class="visually-hidden">{{ 'components.editor.unsaved.indicator'|trans({}, 'components') }}</span>
+            </span>
             <span class="editor-file-path" data-editor-target="filePath">{{ 'components.editor.untitled'|trans({}, 'components') }}</span>
         </div>
 
         {# The display #}
         <div class="editor-filebar-actions editor-filebar-actions--end">
-            <button type="button" class="editor-filebar-btn" data-action="click->editor#toggleReadonly" title="{{ readonly ? 'components.editor.toggle.edit'|trans({}, 'components') : 'components.editor.toggle.readonly'|trans({}, 'components') }}">
+            <button type="button" class="editor-filebar-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly"
+                    aria-pressed="{{ readonly ? 'true' : 'false' }}"
+                    title="{{ readonly ? 'components.editor.toggle.edit'|trans({}, 'components') : 'components.editor.toggle.readonly'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--toggle" aria-hidden="true"></span>
                 <span class="visually-hidden" data-editor-target="toggleLabel">{{ readonly
                     ? 'components.editor.toggle.edit'|trans({}, 'components')
@@ -77,7 +83,10 @@
                         <span class="visually-hidden">{{ 'components.archive.close'|trans({}, 'components') }}</span>
                     </button>
                 </div>
-                <turbo-frame id="archive" class="modal-dialog-body" src="{{ path('app_archive') }}" loading="lazy"></turbo-frame>
+                {# UX-13, lot 10: what the modal shows until the frame's first answer. #}
+                <turbo-frame id="archive" class="modal-dialog-body" src="{{ path('app_archive') }}" loading="lazy">{% include 'components/_sidebar_loading.html.twig' %}</turbo-frame>
+                {# UX-06, lot 10: the modal's own toast zone, above its backdrop. #}
+                <div class="toast-container toast-container--modal" aria-live="polite"></div>
             </dialog>
         </div>
 
@@ -139,7 +148,10 @@
                         <span class="visually-hidden">{{ 'components.settings.close'|trans({}, 'components') }}</span>
                     </button>
                 </div>
-                <turbo-frame id="settings" class="modal-dialog-body" src="{{ path('app_settings') }}" loading="lazy"></turbo-frame>
+                {# UX-13, lot 10: what the modal shows until the frame's first answer. #}
+                <turbo-frame id="settings" class="modal-dialog-body" src="{{ path('app_settings') }}" loading="lazy">{% include 'components/_sidebar_loading.html.twig' %}</turbo-frame>
+                {# UX-06, lot 10: the modal's own toast zone, above its backdrop. #}
+                <div class="toast-container toast-container--modal" aria-live="polite"></div>
             </dialog>
         </div>
     </div>

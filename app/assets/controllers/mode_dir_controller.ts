@@ -1,8 +1,11 @@
 import { Controller } from '@hotwired/stimulus';
+import { onCurrentFile } from '../editor/current-file';
 import { emit, on, requested } from '../editor/events';
 import { FileEntries, type FileEntryI18n, entryPath } from '../editor/file-entries';
 import { onModeShown } from '../editor/mode-shown';
+import { markCurrentFile } from '../utils/mark-current';
 import { showToast } from '../utils/toast';
+import type EditorStateController from './editor_state_controller';
 
 /** The column's own texts, beyond what its file entries show. */
 export interface ModeDirI18n extends FileEntryI18n {
@@ -18,6 +21,11 @@ export interface ModeDirI18n extends FileEntryI18n {
  * tree only depends on the folder. The frame reloads with morphing
  * (refresh="morph"): only the entries that changed are touched, and the
  * folders keep the open/closed state the user gave them.
+ *
+ * UX-09, lot 10: the entry of the file the editor shows carries
+ * `aria-current` and the active style — re-marked after each frame load,
+ * since a render loses what a morph didn't keep, and followed on the events
+ * that change the file without reloading the tree.
  */
 export default class extends Controller<HTMLElement> {
     static values = {
@@ -31,6 +39,7 @@ export default class extends Controller<HTMLElement> {
         dir: String,
     };
     static targets = ['treeFrame', 'refreshButton', 'toolbar'];
+    static outlets = ['editor-state'];
 
     declare readonly i18nValue: ModeDirI18n;
     /** The folder at page render, '' when none is open. */
@@ -38,6 +47,8 @@ export default class extends Controller<HTMLElement> {
     declare readonly treeFrameTarget: TurboFrameElement;
     declare readonly refreshButtonTarget: HTMLButtonElement;
     declare readonly toolbarTarget: HTMLElement;
+    declare readonly hasEditorStateOutlet: boolean;
+    declare readonly editorStateOutlet: EditorStateController;
 
     #entries = new FileEntries(() => this.i18nValue);
     #unsubscribers: Array<() => void> = [];
@@ -48,8 +59,13 @@ export default class extends Controller<HTMLElement> {
     #loads = 0;
     /** The folder whose tree the frame last loaded, or was told to. */
     #shownDir: string | null = null;
-    /** Bound so disconnect() can remove it; see #reportGoneDir(). */
-    readonly #onFrameLoad = (): void => this.#reportGoneDir();
+    /** The file the editor shows, for the tree's aria-current (UX-09). */
+    #currentFile: string | null = null;
+    /** Bound so disconnect() can remove it; a fresh render loses the mark. */
+    readonly #onFrameLoad = (): void => {
+        this.#reportGoneDir();
+        this.#mark();
+    };
     // FRT-06, lot 08: Turbo answers a network error by logging and an
     // unanswered frame; left alone, turbo:frame-missing even throws. Both
     // end in the front's own error zone.
@@ -61,6 +77,9 @@ export default class extends Controller<HTMLElement> {
 
     connect(): void {
         this.#shownDir = this.dirValue || null;
+        if (this.hasEditorStateOutlet) {
+            this.#currentFile = this.editorStateOutlet.state.file;
+        }
         this.#entries.connect();
         // A tree that says the open folder is gone carries data-dir-gone: the
         // server already dropped it, the master hears the anomaly and re-reads
@@ -89,6 +108,12 @@ export default class extends Controller<HTMLElement> {
         this.#unsubscribers = [
             onModeShown((mode) => {
                 this.element.hidden = mode !== 'dir';
+            }),
+            // UX-09, lot 10: the mark follows the file on the events that
+            // change it without reloading the tree.
+            onCurrentFile((file) => {
+                this.#currentFile = file;
+                this.#mark();
             }),
             // The old tree goes as the new path shows, the refresh button
             // turns until the new one is in. Nothing to morph from: a new
@@ -167,6 +192,10 @@ export default class extends Controller<HTMLElement> {
     /** Walks the folder again: the tree only follows the in-app changes. */
     refresh(): void {
         emit(requested('nav-refresh_dir'), { action: {} });
+    }
+
+    #mark(): void {
+        markCurrentFile(this.treeFrameTarget, this.#currentFile);
     }
 
     /** The Retry of the load error zone (FRT-06): the same load, again. */

@@ -226,6 +226,8 @@ components:
         browse: Parcourir…
         import_button: Importer…
         no_source: Choisissez d'abord une archive et un dossier de destination
+        no_archive_selected: Aucune archive sélectionnée
+        no_parent_selected: Aucun dossier de destination sélectionné
         done: 'Archive importée dans {path}'
         failed: Échec de l'import
         report:

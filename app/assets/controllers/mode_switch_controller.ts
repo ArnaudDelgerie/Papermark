@@ -34,7 +34,11 @@ export default class extends Controller {
 
     #show(mode: EditorMode): void {
         for (const link of this.linkTargets) {
-            link.classList.toggle('is-active', link.dataset.mode === mode);
+            const active = link.dataset.mode === mode;
+            link.classList.toggle('is-active', active);
+            // UX-11, lot 10: the pressed state follows the class, for what the
+            // colour now also says.
+            link.setAttribute('aria-pressed', active ? 'true' : 'false');
         }
     }
 

@@ -1,5 +1,7 @@
 import type { Application } from '@hotwired/stimulus';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
 import CurrentDirectoryController from '../../assets/controllers/current_directory_controller';
 import EditorStateController from '../../assets/controllers/editor_state_controller';
 import ModeDirController from '../../assets/controllers/mode_dir_controller';
@@ -84,6 +86,20 @@ describe('the left column, with the master', () => {
 
             expect(dirColumn().hidden).toBe(false);
             expect($('[data-mode="single"]').classList.contains('is-active')).toBe(false);
+        });
+
+        it('follows the pressed state of both buttons through the switch (UX-11, lot 10)', async () => {
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes' }, action: { mode: 'dir' } }));
+            await start();
+
+            expect($('[data-mode="single"]').getAttribute('aria-pressed')).toBe('true');
+            expect($('[data-mode="dir"]').getAttribute('aria-pressed')).toBe('false');
+
+            click('[data-mode="dir"]');
+            await settle();
+
+            expect($('[data-mode="single"]').getAttribute('aria-pressed')).toBe('false');
+            expect($('[data-mode="dir"]').getAttribute('aria-pressed')).toBe('true');
         });
 
         it('settles back on the state when it fails, without asking again', async () => {
@@ -261,7 +277,7 @@ describe('the left column, with the master', () => {
             let reloaded!: () => void;
             reload.mockReturnValue(new Promise<void>((resolve) => (reloaded = resolve)));
 
-            click('[data-action="click->mode-dir#deleteEntry"]');
+            click('turbo-frame button[data-path="/notes/b.md"][data-action$="deleteEntry"]');
             await settle();
 
             expect(reload).toHaveBeenCalledTimes(1);
@@ -339,7 +355,7 @@ describe('the left column, with the master', () => {
             fetchMock.mockResolvedValue(jsonResponse({ state: { file: '/notes/b.md' }, action: { path: '/notes/b.md' } }));
             await start([], 'dir');
 
-            click('a[data-action="click->mode-dir#openFile"]');
+            click('a[data-path="/notes/b.md"][data-action="click->mode-dir#openFile"]');
             await settle();
 
             expect((fetchMock.mock.calls[0][1].body as FormData).get('path')).toBe('/notes/b.md');
@@ -352,7 +368,7 @@ describe('the left column, with the master', () => {
             fetchMock.mockResolvedValue(jsonResponse({ state: {}, action: { path: '/notes/b.md' } }));
             await start(['/notes/a.md', '/notes/b.md'], 'dir');
 
-            click('[data-action="click->mode-dir#deleteEntry"]');
+            click('turbo-frame button[data-path="/notes/b.md"][data-action$="deleteEntry"]');
             await settle();
 
             expect(vi.mocked(confirmDialog).mock.calls[0][0].question).toBe('Delete b.md?');
@@ -381,7 +397,7 @@ describe('the left column, with the master', () => {
             };
             window.addEventListener('editor:unsaved-file-query', answer);
             try {
-                click('[data-action="click->mode-dir#deleteEntry"]');
+                click('turbo-frame button[data-path="/notes/b.md"][data-action$="deleteEntry"]');
                 await settle();
             } finally {
                 window.removeEventListener('editor:unsaved-file-query', answer);
@@ -395,7 +411,7 @@ describe('the left column, with the master', () => {
             vi.mocked(confirmDialog).mockResolvedValue(false);
             await start([], 'dir');
 
-            click('[data-action="click->mode-dir#deleteEntry"]');
+            click('turbo-frame button[data-path="/notes/b.md"][data-action$="deleteEntry"]');
             await settle();
 
             expect(fetchMock).not.toHaveBeenCalled();
@@ -430,6 +446,76 @@ describe('the left column, with the master', () => {
             expect(history()).toEqual(['/notes/a.md']);
             expect(toasts).toEqual([{ type: 'error', message: 'A file with that name already exists' }]);
             expect(reload).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('the current file is marked (UX-09, lot 10)', () => {
+        it('marks the initial file in the history, and moves the mark as the file changes', async () => {
+            await start(['/notes/a.md', '/notes/b.md']);
+
+            const a = $('.mode-history a[data-path="/notes/a.md"]');
+            expect(a.getAttribute('aria-current')).toBe('true');
+            expect(a.classList.contains('is-current')).toBe(true);
+            expect($('.mode-history a[data-path="/notes/b.md"]').hasAttribute('aria-current')).toBe(false);
+
+            emit('editor:nav-change_file-succeeded', { state: { ...INITIAL, file: '/notes/b.md' }, action: { path: '/notes/b.md' } });
+
+            expect(a.hasAttribute('aria-current')).toBe(false);
+            expect($('.mode-history a[data-path="/notes/b.md"]').getAttribute('aria-current')).toBe('true');
+        });
+
+        it('marks the file in the tree and opens its folders, and re-marks after a frame load', async () => {
+            await start(['/notes/a.md'], 'dir');
+
+            emit('editor:nav-change_file-succeeded', { state: { ...INITIAL, mode: 'dir', file: '/notes/sub/d.md' }, action: { path: '/notes/sub/d.md' } });
+
+            const link = $('turbo-frame a[data-path="/notes/sub/d.md"]');
+            expect(link.getAttribute('aria-current')).toBe('true');
+            expect(link.classList.contains('is-current')).toBe(true);
+            expect($<HTMLDetailsElement>('turbo-frame details').open).toBe(true);
+
+            // A fresh render (morph or reload) knows nothing of the mark:
+            // the frame load brings it back.
+            $('turbo-frame').dispatchEvent(new Event('turbo:frame-load'));
+            expect(link.getAttribute('aria-current')).toBe('true');
+
+            emit('editor:nav-change_file-succeeded', { state: { ...INITIAL, mode: 'dir', file: '/notes/b.md' }, action: { path: '/notes/b.md' } });
+            expect(link.hasAttribute('aria-current')).toBe(false);
+            expect($('turbo-frame a[data-path="/notes/b.md"]').getAttribute('aria-current')).toBe('true');
+        });
+
+        it('drops the mark when there is no file anymore', async () => {
+            await start(['/notes/a.md']);
+
+            // New empties the editor at once, mark included (the mark
+            // follows what the editor shows, not the session).
+            emit('editor:nav-new_file-requested', { action: {} });
+
+            expect($('.mode-history a[data-path="/notes/a.md"]').hasAttribute('aria-current')).toBe(false);
+        });
+    });
+
+    describe('the entry actions stay reachable by keyboard (FRT-09, lot 10)', () => {
+        it('renders them in the tab order of every entry, not display: none', async () => {
+            await start(['/notes/a.md'], 'dir');
+
+            for (const actions of document.querySelectorAll('.mode-history .mode-entry-actions')) {
+                const buttons = actions.querySelectorAll('button');
+                expect(buttons.length).toBe(2);
+                for (const button of buttons) {
+                    expect(button.tabIndex).not.toBe(-1);
+                }
+            }
+
+            // jsdom runs no cascade: the guarantee is read from the sheet
+            // itself. The group fades out of sight but never leaves the
+            // layout, and focus brings it back. (The suite runs from app/.)
+            const css = readFileSync('assets/styles/sidebar.css', 'utf8');
+            const rule = css.match(/\.mode-entry-actions \{[^}]*\}/)![0];
+            expect(rule).not.toContain('display: none');
+            expect(rule).toContain('opacity: 0');
+            expect(css).toContain('.mode-entry-actions:focus-within');
+            expect(css).toContain('.mode-entry-action:focus-visible');
         });
     });
 

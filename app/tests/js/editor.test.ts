@@ -137,8 +137,11 @@ function editorHtml(): string {
         <button type="button" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>Save as</button>
         <button type="button" data-editor-target="printButton" data-action="click->editor#printFile" disabled>Print</button>
         <button type="button" data-editor-target="copyMarkdownButton" data-action="click->editor#copyMarkdown" disabled>Copy</button>
-        <span data-editor-target="dirtyIndicator" hidden></span>
+        <span data-editor-target="dirtyIndicator" role="status" hidden title="Unsaved"><span class="visually-hidden">Unsaved</span></span>
         <span data-editor-target="filePath">Untitled</span>
+        <button type="button" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly" aria-pressed="false" title="Read only">
+            <span class="visually-hidden" data-editor-target="toggleLabel">Read only</span>
+        </button>
         <div class="editor-load-error">
             <p data-editor-target="loadErrorMessage"></p>
             <button type="button" data-action="click->editor#retryLoad">Retry</button>
@@ -427,6 +430,34 @@ describe('the editor, with the master', () => {
         expect(label()).toBe('/notes/new.md');
         expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.savedAs.replace('{name}', 'new.md') }]);
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+    });
+
+    describe('the readonly toggle (UX-10, lot 10)', () => {
+        it('follows the title, the pressed state and the hidden label through a toggle and back', async () => {
+            await start(current);
+            host.type('# A, edited');
+            expect(saveButton().disabled).toBe(false);
+
+            const button = $<HTMLButtonElement>('[data-editor-target="toggleButton"]');
+            expect(button.title).toBe(EDITOR_I18N.toggle.readonly);
+            expect(button.getAttribute('aria-pressed')).toBe('false');
+
+            click('[data-editor-target="toggleButton"]');
+            await settle();
+
+            expect(button.title).toBe(EDITOR_I18N.toggle.edit);
+            expect(button.getAttribute('aria-pressed')).toBe('true');
+            expect($('[data-editor-target="toggleLabel"]').textContent).toBe(EDITOR_I18N.toggle.edit);
+            expect(saveButton().disabled).toBe(true);
+
+            click('[data-editor-target="toggleButton"]');
+            await settle();
+
+            expect(button.title).toBe(EDITOR_I18N.toggle.readonly);
+            expect(button.getAttribute('aria-pressed')).toBe('false');
+            expect($('[data-editor-target="toggleLabel"]').textContent).toBe(EDITOR_I18N.toggle.readonly);
+            expect(saveButton().disabled).toBe(false);
+        });
     });
 
     describe('Save, following the dirty state (lot 03)', () => {

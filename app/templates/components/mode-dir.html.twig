@@ -1,4 +1,5 @@
 <div class="editor-sidebar-panel mode-dir-panel" data-controller="mode-dir"
+     data-mode-dir-editor-state-outlet="#editor-state"
      data-mode-dir-dir-value="{{ dir }}"
      data-mode-dir-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     {{ component('current-directory') }}
@@ -12,5 +13,8 @@
     </div>
 
     <turbo-frame id="mode-dir-tree" src="{{ path('app_editor_get_dir') }}" refresh="morph"
-                 data-mode-dir-target="treeFrame" data-action="turbo:before-morph-attribute->mode-dir#keepFolderState"></turbo-frame>
+                 data-mode-dir-target="treeFrame" data-action="turbo:before-morph-attribute->mode-dir#keepFolderState">
+        {# UX-13, lot 10: what the frame shows until the tree's first answer. #}
+        {% include 'components/_sidebar_loading.html.twig' %}
+    </turbo-frame>
 </div>

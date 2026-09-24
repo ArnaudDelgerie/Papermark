@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="light dark">
+    <title>Papermark</title>
+    <style>
+        /* The hub's cold-start page (contract §8): loaded over its own scheme
+           before the app's server exists, under CSP `default-src 'none'` —
+           everything lives in this one file. The colours are the two themes of
+           app/assets/styles/tokens.css: this page can only follow the system,
+           never the theme chosen in the app's settings, so both are here. */
+        :root {
+            color-scheme: light dark;
+            --page: #121212;
+            --letter: #e0e0e0;
+            --muted: #a0a0a0;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --page: #fff;
+                --letter: #1c1c1c;
+                --muted: #6b6b6b;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.25rem;
+            background: var(--page);
+            color: var(--letter);
+            font-family: sans-serif;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        /* The icon's P, as a discreet loading pulse underneath. */
+
+        .loading {
+            display: flex;
+            gap: 0.4rem;
+            margin: -0.75rem 0 0;
+        }
+
+        .loading span {
+            width: 0.4rem;
+            height: 0.4rem;
+            border-radius: 50%;
+            background: var(--muted);
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
+        .loading span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 0.25;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .loading span {
+                animation: none;
+                opacity: 0.6;
+            }
+        }
+    </style>
+</head>
+<body>
+    <svg width="72" height="72" viewBox="0 0 96 96" role="img" aria-label="P">
+        <rect x="5" y="5" width="86" height="86" rx="14" fill="var(--page)" stroke="var(--letter)" stroke-width="2.5"></rect>
+        <path fill="var(--letter)" d="M30 28 h14 a14 14 0 0 1 0 28 h-5 v12 h-9 z"></path>
+        <path fill="var(--page)" d="M39 37 h5 a5 5 0 0 1 0 10 h-5 z"></path>
+    </svg>
+    <h1>Papermark</h1>
+    <p class="loading" aria-hidden="true"><span></span><span></span><span></span></p>
+</body>
+</html>

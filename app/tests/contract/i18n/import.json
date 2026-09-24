@@ -2,6 +2,8 @@
     "browse": "Browse…",
     "importButton": "Import",
     "noSource": "Choose an archive and a destination",
+    "noArchiveSelected": "No archive selected",
+    "noParentSelected": "No destination folder selected",
     "done": "Imported into {path}",
     "ipc": { "unavailable": "This action requires the Hub", "rejected": "The file picker failed" },
     "report": {

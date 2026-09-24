@@ -54,9 +54,13 @@ turbo-frame {
     cursor: pointer;
 }
 
+/* UX-11, lot 10: the accent underline keeps the active mode readable (the
+   accent is 5.3:1 against the light page, 7.29:1 against the dark one). */
+
 .mode-selector-link.is-active {
     background: var(--color-surface);
     color: var(--color-text);
+    box-shadow: inset 0 -2px 0 0 var(--color-accent);
 }
 
 .editor-sidebar-btn {
@@ -212,16 +216,21 @@ turbo-frame {
     border-radius: var(--radius);
 }
 
+/* FRT-09, lot 10: the actions stay rendered and focusable — display: none
+   took them out of the tab order. They fade out instead, and come back on
+   hover or focus, so the layout never shifts. */
 .mode-entry-actions {
-    display: none;
+    display: flex;
     flex: 0 0 auto;
     gap: 2px;
     padding-right: var(--space-1);
+    opacity: 0;
 }
 
+.mode-entry-actions:focus-within,
 .mode-tree-file:hover .mode-entry-actions,
 .mode-history li:hover .mode-entry-actions {
-    display: flex;
+    opacity: 1;
 }
 
 .mode-entry-action {
@@ -241,6 +250,15 @@ turbo-frame {
 .mode-entry-action:hover {
     background: var(--color-surface);
     color: var(--color-text);
+}
+
+/* FRT-09, lot 10: the outline the keyboard user follows through the
+   hidden-until-focused group. */
+.mode-entry-action:focus-visible {
+    background: var(--color-surface);
+    color: var(--color-text);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
 }
 
 .mode-entry-action--delete:hover {
@@ -274,6 +292,15 @@ turbo-frame {
 .mode-tree-file a:hover,
 .mode-history li a:hover {
     background: var(--color-surface);
+}
+
+/* UX-09, lot 10: the entry of the file the editor shows — a marked file,
+   not a hovered one, so it stays visible without the pointer. */
+.mode-tree-file a.is-current,
+.mode-history li a.is-current {
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
 .mode-history-empty,

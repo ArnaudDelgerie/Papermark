@@ -33,7 +33,10 @@ function archiveHtml(kind: 'file' | 'directory' = 'file'): string {
             <span class="source" data-export-target="sourcePath"></span>
             <button type="button" class="browse" data-export-target="browseButton" data-action="click->export#browse">Browse</button>
             <input type="checkbox" data-export-target="includeExternalMarkdown">
-            <button type="button" data-export-target="exportButton" data-action="click->export#run">Export</button>
+            <button type="button" data-export-target="exportButton" data-action="click->export#run">
+                <span class="export-submit-spinner" data-export-target="exportSpinner" aria-hidden="true" hidden></span>
+                <span data-export-target="exportLabel">Export</span>
+            </button>
             <div data-export-target="report" hidden></div>
         </section>
         <section data-controller="import"
@@ -497,6 +500,58 @@ describe('the archive modal, with the master', () => {
             emit('editor:nav-change_file-failed', { state: INITIAL, action: { path: '/x.md' } });
 
             expect(kind()).toBe('directory');
+        });
+    });
+
+    describe('the empty and loading states (UX-13, lot 10)', () => {
+        const source = (): string => $('.source').textContent!;
+
+        it('the export source carries its path in a title, and says what is missing once there is none', async () => {
+            await start('single', 'file');
+
+            expect(source()).toBe('/notes/a.md');
+            expect($('.source').title).toBe('/notes/a.md');
+
+            emit('editor:nav-new_file-succeeded', { state: { ...INITIAL, file: null }, action: {} });
+
+            expect(source()).toBe(EXPORT_I18N.noSourceSelected);
+            expect($('.source').getAttribute('title')).toBeNull();
+        });
+
+        it('the import fields each say what is missing until picked, then carry their path in a title', async () => {
+            await start();
+
+            expect($('[data-import-target="archivePath"]').textContent).toBe(IMPORT_I18N.noArchiveSelected);
+            expect($('[data-import-target="parentPath"]').textContent).toBe(IMPORT_I18N.noParentSelected);
+
+            invoke.mockResolvedValueOnce('/tmp/sub/notes.zip');
+            click('.browse-archive');
+            await settle();
+
+            expect($('[data-import-target="archivePath"]').textContent).toBe('/tmp/sub/notes.zip');
+            expect($('[data-import-target="archivePath"]').title).toBe('/tmp/sub/notes.zip');
+            // The folder was pre-filled with the archive's own, not left empty.
+            expect($('[data-import-target="parentPath"]').textContent).toBe('/tmp/sub');
+            expect($('[data-import-target="parentPath"]').title).toBe('/tmp/sub');
+        });
+
+        it('the export button trades its label for a spinner while the archive is written, and comes back', async () => {
+            let answer!: (response: Response) => void;
+            invoke.mockResolvedValueOnce('/dest/notes.zip');
+            await start('single', 'file');
+            fetchMock.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+
+            click('[data-export-target="exportButton"]');
+            await settle();
+
+            expect($('[data-export-target="exportSpinner"]').hidden).toBe(false);
+            expect($('[data-export-target="exportLabel"]').hidden).toBe(true);
+
+            answer(jsonResponse({ path: '/dest/notes.zip', issues: [] }));
+            await settle();
+
+            expect($('[data-export-target="exportSpinner"]').hidden).toBe(true);
+            expect($('[data-export-target="exportLabel"]').hidden).toBe(false);
         });
     });
 

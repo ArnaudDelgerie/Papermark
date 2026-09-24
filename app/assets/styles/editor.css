@@ -64,6 +64,14 @@
     background: var(--color-border);
 }
 
+/* UX-10, lot 10: the readonly toggle shows its state, not only a tooltip. */
+
+.editor-filebar-btn[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
 .editor-filebar-icon {
     width: 14px;
     height: 14px;
@@ -93,7 +101,14 @@
     mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 1.5h7v9H4zM6.5 4.5h7v9h-7z'/%3E%3C/svg%3E");
 }
 
+/* UX-10, lot 10: the icon tells the action, eye to read only, pencil to edit
+   back; the pencil of Rename lives in the sidebar, not here. */
+
 .editor-filebar-icon--toggle {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z'/%3E%3Ccircle cx='8' cy='8' r='2'/%3E%3C/svg%3E");
+}
+
+.editor-shell.is-readonly .editor-filebar-icon--toggle {
     mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 2l3 3-8 8-3.5 1 1-3.5zM9.5 3.5l3 3'/%3E%3C/svg%3E");
 }
 
@@ -171,12 +186,16 @@
     white-space: nowrap;
 }
 
+/* UX-10, lot 10: accent, not danger — unsaved work is pending, not an error.
+   The ring keeps the dot readable on the surface in both themes. */
+
 .editor-dirty-dot {
     flex: 0 0 auto;
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--color-danger);
+    background: var(--color-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
 .editor-dirty-dot[hidden] {
@@ -225,13 +244,14 @@
     font-size: 1rem;
 }
 
+/* UX-11, lot 10: --color-border-strong (3:1), so the rename field is seen. */
 .editor-confirm-dialog-input {
     box-sizing: border-box;
     width: 100%;
     padding: var(--space-2) var(--space-3);
     margin-top: var(--space-2);
     background: var(--color-page);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-border-strong);
     border-radius: var(--radius);
     color: var(--color-text);
     font-family: var(--font-sans);
@@ -308,6 +328,9 @@
     min-height: 0;
     position: relative;
     overflow: hidden;
+
+    /* The desk around the sheet is the page colour, not the surface. */
+    background: var(--color-page);
 }
 
 .editor-shell.is-load-failed .milkdown {
@@ -363,7 +386,16 @@
     height: 18px;
 }
 
-.editor-shell:is(.is-a4, .is-readonly) .milkdown-block-handle {
+/* UX-07, lot 10: the block handle is back, minus its "+" — the slash menu
+   it opened is the "/" one, already reachable without it. Readonly keeps
+   hiding the whole handle. */
+.editor-shell.is-readonly .milkdown-block-handle {
+    display: none;
+}
+
+/* Crepe renders the "+" (block menu) first, the drag handle second, with
+   no option to drop the former alone (block-edit/handle/component.tsx). */
+.editor-shell .milkdown-block-handle .operation-item:first-child {
     display: none;
 }
 
@@ -400,7 +432,13 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     overflow: hidden;
-    padding: var(--space-5) var(--space-5) var(--space-4);
+
+    /* A4 sheet: centered on the desk, width matches a real A4 page. No
+       page-break guides — reliable simulation is not feasible in CSS/JS. */
+    width: 100%;
+    max-width: var(--doc-page-width);
+    margin-inline: auto;
+    padding: var(--space-5) var(--doc-page-margin) var(--doc-page-margin);
     background: var(--color-surface);
 }
 
@@ -589,25 +627,10 @@
     padding: 0;
 }
 
-/* A4 sheet: centered page on a darker desk, width matches a real A4 page.
-   No page-break guides — reliable simulation is not feasible in CSS/JS. */
-
-.editor-shell.is-a4 .milkdown {
-    background: var(--color-page);
-}
-
-.editor-shell.is-a4 .ProseMirror {
-    width: 100%;
-    max-width: var(--doc-page-width);
-    margin-inline: auto;
-    padding: var(--space-5) var(--doc-page-margin) var(--doc-page-margin);
-    background-color: var(--color-surface);
-}
-
 /* Narrower panel widths (half-page and up): the fixed A4 margin eats too
    much of the available text width, shrink it. Below this, not covered. */
 @media (width <= 960px) {
-    .editor-shell.is-a4 .ProseMirror {
+    .editor-shell .ProseMirror {
         padding-inline: var(--space-4);
     }
 }

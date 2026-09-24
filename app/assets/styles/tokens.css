@@ -10,13 +10,19 @@
 }
 
 /* --color-page and --color-text (dark) are also written as literal hex in
-   app/tfsapp.config.json (splash_bg / splash_text), which the host reads
-   instead of this file for the splash screen shown before CSS loads. Change
-   one, change the other. */
+   app/tfsapp.config.json (splash_bg / splash_text, the host's fallback page)
+   and in both themes in app/splash.html (the app's own cold-start page);
+   neither file can read this one. Change one, change the others. */
 :root[data-theme="dark"] {
+    color-scheme: dark;
+
     --color-page: #121212;
     --color-surface: #1e1e1e;
     --color-border: #2c2c2c;
+
+    /* UX-11, lot 10: field edges need 3:1 against the page (this one is
+       3.26:1); --color-border stays for the quiet separators. */
+    --color-border-strong: #666;
     --color-text: #e0e0e0;
     --color-muted: #a0a0a0;
     --color-accent: #6ba8d4;
@@ -25,12 +31,32 @@
 
 /* "auto" defaults to the light values below (the CSS spec's own fallback
    when no system preference is detected) and is overridden to the dark
-   values above, duplicated, when the OS prefers dark. */
-:root[data-theme="light"],
-:root[data-theme="auto"] {
+   values above, duplicated, when the OS prefers dark. Its color-scheme is
+   "light dark" so the engine follows the system on its own. */
+:root[data-theme="light"] {
+    color-scheme: light;
+
     --color-page: #fff;
     --color-surface: #f7f7f7;
     --color-border: #dcdcdc;
+
+    /* UX-11, lot 10: 3.95:1 against the page. */
+    --color-border-strong: #808080;
+    --color-text: #1c1c1c;
+    --color-muted: #6b6b6b;
+    --color-accent: #2f6fa8;
+    --color-danger: #ba1a1a;
+}
+
+:root[data-theme="auto"] {
+    color-scheme: light dark;
+
+    --color-page: #fff;
+    --color-surface: #f7f7f7;
+    --color-border: #dcdcdc;
+
+    /* UX-11, lot 10: 3.95:1 against the page. */
+    --color-border-strong: #808080;
     --color-text: #1c1c1c;
     --color-muted: #6b6b6b;
     --color-accent: #2f6fa8;
@@ -42,6 +68,9 @@
         --color-page: #121212;
         --color-surface: #1e1e1e;
         --color-border: #2c2c2c;
+
+        /* UX-11, lot 10: 3.26:1 against the page. */
+        --color-border-strong: #666;
         --color-text: #e0e0e0;
         --color-muted: #a0a0a0;
         --color-accent: #6ba8d4;

@@ -1,8 +1,11 @@
 import { Controller } from '@hotwired/stimulus';
+import { onCurrentFile } from '../editor/current-file';
 import { on } from '../editor/events';
 import { FileEntries, type FileEntryI18n, basename, entryPath } from '../editor/file-entries';
 import { onModeShown } from '../editor/mode-shown';
+import { markCurrentFile } from '../utils/mark-current';
 import { type IpcI18n, pickPath } from '../utils/tauri';
+import type EditorStateController from './editor_state_controller';
 
 const STORAGE_KEY = 'editor.single.history';
 
@@ -18,10 +21,15 @@ export interface ModeSingleI18n extends FileEntryI18n {
  * cancelled open never reaches here — and goes away if that open fails: a
  * file found gone is dropped on click. Save as, delete and rename are
  * followed whoever acted, and so is a current file found gone (the anomaly).
+ *
+ * UX-09, lot 10: the entry of the file the editor shows carries
+ * `aria-current` and the active style, read from the master's outlet at
+ * start and from the events after.
  */
 export default class extends Controller<HTMLElement> {
     static values = { maxEntries: { type: Number, default: 50 }, i18n: Object };
     static targets = ['openButton', 'list', 'empty', 'loading'];
+    static outlets = ['editor-state'];
 
     declare readonly maxEntriesValue: number;
     declare readonly i18nValue: ModeSingleI18n;
@@ -29,15 +37,25 @@ export default class extends Controller<HTMLElement> {
     declare readonly listTarget: HTMLElement;
     declare readonly emptyTarget: HTMLElement;
     declare readonly loadingTarget: HTMLElement;
+    declare readonly hasEditorStateOutlet: boolean;
+    declare readonly editorStateOutlet: EditorStateController;
 
     #entries = new FileEntries(() => this.i18nValue);
     #unsubscribers: Array<() => void> = [];
+    #currentFile: string | null = null;
 
     connect(): void {
         this.#entries.connect();
+        if (this.hasEditorStateOutlet) {
+            this.#currentFile = this.editorStateOutlet.state.file;
+        }
         this.#unsubscribers = [
             onModeShown((mode) => {
                 this.element.hidden = mode !== 'single';
+            }),
+            onCurrentFile((file) => {
+                this.#currentFile = file;
+                this.#mark();
             }),
             on('editor:nav-change_file-failed', ({ action }) => this.#remove(action.path)),
             // A new path the user just created, not yet in the history built
@@ -140,6 +158,11 @@ export default class extends Controller<HTMLElement> {
         this.loadingTarget.hidden = true;
         this.listTarget.hidden = history.length === 0;
         this.emptyTarget.hidden = history.length > 0;
+        this.#mark();
+    }
+
+    #mark(): void {
+        markCurrentFile(this.listTarget, this.#currentFile);
     }
 
     #entry(path: string): HTMLLIElement {

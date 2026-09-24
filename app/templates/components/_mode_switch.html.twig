@@ -4,11 +4,13 @@
 <nav class="mode-selector" data-controller="mode-switch">
     <button type="button" data-mode="single"
        class="mode-selector-link{% if mode == 'single' %} is-active{% endif %}"
+       aria-pressed="{{ mode == 'single' ? 'true' : 'false' }}"
        data-mode-switch-target="link" data-action="mode-switch#change" data-editor-leave-guard>
         {{ 'components.mode.single'|trans({}, 'components') }}
     </button>
     <button type="button" data-mode="dir"
        class="mode-selector-link{% if mode == 'dir' %} is-active{% endif %}"
+       aria-pressed="{{ mode == 'dir' ? 'true' : 'false' }}"
        data-mode-switch-target="link" data-action="mode-switch#change" data-editor-leave-guard>
         {{ 'components.mode.dir'|trans({}, 'components') }}
     </button>

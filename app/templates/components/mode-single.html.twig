@@ -1,4 +1,5 @@
 <div class="editor-sidebar-panel" data-controller="mode-single"
+     data-mode-single-editor-state-outlet="#editor-state"
      data-mode-single-i18n-value="{{ i18n|json_encode }}"{% if not active %} hidden{% endif %}>
     <button type="button" class="editor-sidebar-btn" data-mode-single-target="openButton" data-action="click->mode-single#openFile" data-editor-leave-guard>
         {{ 'components.editor.open'|trans({}, 'components') }}

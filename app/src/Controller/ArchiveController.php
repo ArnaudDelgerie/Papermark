@@ -109,6 +109,9 @@ final class ArchiveController extends AbstractController
             'browse' => $trans('browse'),
             'importButton' => $trans('import_button'),
             'noSource' => $trans('no_source'),
+            // UX-13, lot 10: what an empty path field says, per field.
+            'noArchiveSelected' => $trans('no_archive_selected'),
+            'noParentSelected' => $trans('no_parent_selected'),
             'done' => $trans('done'),
             // HUB-06, lot 08: the archive and parent folder pickers.
             'ipc' => [

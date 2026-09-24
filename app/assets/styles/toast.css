@@ -16,6 +16,15 @@
     pointer-events: none;
 }
 
+/* UX-06, lot 10: the zone a modal carries, where toasts land while it is
+   open — inside the <dialog>, in the top layer with it, above its own
+   backdrop. A modal dialog is position: fixed (the UA stylesheet), so an
+   absolute child is placed against the dialog itself. */
+.toast-container--modal {
+    position: absolute;
+    width: min(90%, 42rem);
+}
+
 .toast {
     display: flex;
     align-items: center;

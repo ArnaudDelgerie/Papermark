@@ -38,7 +38,10 @@
         </label>
 
         <button type="button" class="export-submit" data-export-target="exportButton" data-action="click->export#run">
-            {{ 'components.export.export_button'|trans({}, 'components') }}
+            {# UX-13, lot 10: the label steps aside for the spinner while the
+               archive is being written. #}
+            <span class="export-submit-spinner" data-export-target="exportSpinner" aria-hidden="true" hidden></span>
+            <span data-export-target="exportLabel">{{ 'components.export.export_button'|trans({}, 'components') }}</span>
         </button>
 
         <div class="export-report" data-export-target="report" hidden></div>
