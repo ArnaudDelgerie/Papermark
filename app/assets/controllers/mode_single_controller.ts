@@ -1,6 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { onCurrentFile } from '../editor/current-file';
-import { on } from '../editor/events';
+import { type EditorState, on } from '../editor/events';
 import { FileEntries, type FileEntryI18n, basename, entryPath } from '../editor/file-entries';
 import { onModeShown } from '../editor/mode-shown';
 import { markCurrentFile } from '../utils/mark-current';
@@ -52,6 +52,12 @@ export default class extends Controller<HTMLElement> {
         if (this.hasEditorStateOutlet) {
             this.#currentFile = this.editorStateOutlet.state.file;
         }
+        // The file an import or an open_path opened, same as one the user just created.
+        const pushOpenedFile = (state: EditorState): void => {
+            if (state.file !== null) {
+                this.#push(state.file);
+            }
+        };
         this.#unsubscribers = [
             onModeShown((mode) => {
                 this.element.hidden = mode !== 'single';
@@ -64,10 +70,16 @@ export default class extends Controller<HTMLElement> {
             // A new path the user just created, not yet in the history built
             // from Open and history clicks (see EDITOR_FIX.md #5).
             on('editor:do-save_as-succeeded', ({ action }) => this.#push(action.path)),
-            // The file an archive opened, same as one the user just created.
+            // The file an archive or an open_path opened, same as one the
+            // user just created.
             on('editor:do-import-succeeded', ({ state, action }) => {
-                if (action.openMode === 'single' && state.file !== null) {
-                    this.#push(state.file);
+                if (action.openMode === 'single') {
+                    pushOpenedFile(state);
+                }
+            }),
+            on('editor:nav-open_path-succeeded', ({ state, action }) => {
+                if (action.openMode === 'single') {
+                    pushOpenedFile(state);
                 }
             }),
             on('editor:do-delete-succeeded', ({ action }) => this.#remove(action.path)),

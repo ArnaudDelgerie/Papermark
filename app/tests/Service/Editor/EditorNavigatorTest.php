@@ -143,6 +143,80 @@ final class EditorNavigatorTest extends KernelTestCase
         $this->navigator->openDir($this->root . '/missing');
     }
 
+    public function testOpenPathWithADirectorySwitchesToDirModeOnIt(): void
+    {
+        $this->navigator->openFile($this->createFile('doc.md', '# Hello'));
+
+        $opened = $this->navigator->openPath($this->root);
+
+        self::assertSame($this->root, $opened->path);
+        self::assertSame(EditorMode::Dir, $opened->mode);
+        self::assertSame(EditorMode::Dir, $this->editorState->getMode());
+        self::assertSame($this->root, $this->editorState->getDir());
+        self::assertNull($this->editorState->getFile());
+    }
+
+    public function testOpenPathWithAFileSwitchesToSingleModeOnIt(): void
+    {
+        $path = $this->createFile('doc.md', '# Hello');
+
+        $opened = $this->navigator->openPath($path);
+
+        self::assertSame($path, $opened->path);
+        self::assertSame(EditorMode::Single, $opened->mode);
+        self::assertSame(EditorMode::Single, $this->editorState->getMode());
+        self::assertSame($path, $this->editorState->getFile());
+    }
+
+    public function testOpenPathFromDirModeSwitchesToTheOpenedFile(): void
+    {
+        $this->navigator->openDir($this->root);
+        $path = $this->createFile('doc.md', '# Hello');
+
+        $opened = $this->navigator->openPath($path);
+
+        self::assertSame(EditorMode::Single, $opened->mode);
+        self::assertSame(EditorMode::Single, $this->editorState->getMode());
+        self::assertSame($path, $this->editorState->getFile());
+    }
+
+    public function testOpenPathWithAMissingPathLeavesTheStateUnchanged(): void
+    {
+        $this->navigator->openDir($this->root);
+        $kept = $this->createFile('kept.md', '# Kept');
+        $this->navigator->openFile($kept);
+
+        try {
+            $this->navigator->openPath($this->root . '/missing.md');
+            self::fail('Expected PathNotFoundException.');
+        } catch (PathNotFoundException) {
+        }
+
+        self::assertSame(EditorMode::Single, $this->editorState->getMode());
+        self::assertSame($kept, $this->editorState->getFile());
+        self::assertSame($this->root, $this->editorState->getDir());
+    }
+
+    public function testOpenPathRefusesANonUtf8FileWithoutTouchingTheState(): void
+    {
+        $this->navigator->openDir($this->root);
+        $kept = $this->createFile('kept.md', '# Kept');
+        $this->navigator->openFile($kept);
+
+        $bad = $this->root . '/bad.md';
+        file_put_contents($bad, "Coucou \xE9\xE8.txt");
+        $this->tempPaths[] = $bad;
+
+        $this->expectException(DocumentNotUtf8Exception::class);
+
+        try {
+            $this->navigator->openPath($bad);
+        } finally {
+            self::assertSame($kept, $this->editorState->getFile());
+            self::assertSame($this->root, $this->editorState->getDir());
+        }
+    }
+
     /** Re-selecting the same folder must not throw away the cached walk. */
     public function testOpenDirTwiceOnTheSameFolderDoesNotRedoTheWalk(): void
     {

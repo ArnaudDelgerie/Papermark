@@ -395,6 +395,37 @@ describe('the editor, with the master', () => {
         });
     });
 
+    describe('an open_path', () => {
+        it('that opened a file loads it', async () => {
+            await start(current);
+            files['/notes/opened.md'] = '# Opened';
+            current = { ...current, file: '/notes/opened.md' };
+
+            emit('editor:nav-open_path-succeeded', {
+                state: current,
+                action: { path: '/notes/opened.md', openMode: 'single' },
+            });
+            await settle();
+
+            expect(host.markdown()).toBe('# Opened');
+            expect(label()).toBe('/notes/opened.md');
+        });
+
+        it('that opened a folder empties the editor', async () => {
+            await start(current);
+            current = { ...current, mode: 'dir', file: null, dir: '/notes/project' };
+
+            emit('editor:nav-open_path-succeeded', {
+                state: current,
+                action: { path: '/notes/project', openMode: 'dir' },
+            });
+            await settle();
+
+            expect(host.markdown()).toBe('');
+            expect(label()).toBe('Untitled');
+        });
+    });
+
     it('loads and empties with a fresh document each time, so undo cannot bring another file back', async () => {
         await start(current);
         click('[data-action="click->editor#newFile"]');

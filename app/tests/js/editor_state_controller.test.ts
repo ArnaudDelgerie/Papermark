@@ -60,6 +60,24 @@ describe('editor-state (the master)', () => {
         expect(init.body).toBeUndefined();
     });
 
+    it('open_path posts the path to the open url and emits the state of the answer', async () => {
+        const action = { path: '/notes/opened', openMode: 'dir' };
+        fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes/opened' }, action }));
+        const succeeded = vi.fn();
+        on('editor:nav-open_path-succeeded', succeeded);
+
+        emit('editor:nav-open_path-requested', { action: { path: '/notes/opened' } });
+        await settle();
+
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe('/editor/open');
+        expect(init.method).toBe('POST');
+        expect(init.headers).toEqual({ 'X-CSRF-TOKEN': 'tk-app' });
+        expect((init.body as FormData).get('path')).toBe('/notes/opened');
+        expect(succeeded).toHaveBeenCalledWith({ state: { ...INITIAL, mode: 'dir', file: null, dir: '/notes/opened' }, action });
+        expect(toasts).toEqual([]);
+    });
+
     it('on a refusal, takes the state the server sent and toasts its message', async () => {
         fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'single', file: null, dir: '/notes' }, genericErrors: ['File not found'], mappedErrors: [] }, 404));
         const failed = vi.fn();

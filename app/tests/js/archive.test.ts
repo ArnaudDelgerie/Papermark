@@ -313,6 +313,40 @@ describe('the archive modal, with the master', () => {
         });
     });
 
+    describe('what follows an open_path', () => {
+        it('a folder, from single mode: the dir column shows, the tree reloads, the folder is named', async () => {
+            await start('single');
+
+            emit('editor:nav-open_path-succeeded', {
+                state: { ...INITIAL, mode: 'dir', file: null, dir: '/dest/project' },
+                action: { path: '/dest/project', openMode: 'dir' },
+            });
+            await settle();
+
+            expect($('[data-controller="mode-single"]').hidden).toBe(true);
+            expect($('[data-controller="mode-dir"]').hidden).toBe(false);
+            expect($('[data-mode="dir"]').classList.contains('is-active')).toBe(true);
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect($('[data-current-directory-target="path"]').textContent).toBe('/dest/project');
+        });
+
+        it('a file, from dir mode: the single column shows, and the file enters the history', async () => {
+            await start('dir');
+
+            emit('editor:nav-open_path-succeeded', {
+                state: { ...INITIAL, mode: 'single', file: '/dest/notes/doc.md' },
+                action: { path: '/dest/notes/doc.md', openMode: 'single' },
+            });
+            await settle();
+
+            expect($('[data-controller="mode-single"]').hidden).toBe(false);
+            expect($('[data-controller="mode-dir"]').hidden).toBe(true);
+            expect($('[data-mode="single"]').classList.contains('is-active')).toBe(true);
+            expect(history()).toEqual(['/dest/notes/doc.md']);
+            expect(reload).not.toHaveBeenCalled();
+        });
+    });
+
     describe('the export report', () => {
         const issue = (n: number): object => ({ originalTarget: `/very/long/path/${n}.png`, reason: 'not_found', referencingPath: `/notes/${n}.md` });
 
@@ -492,6 +526,19 @@ describe('the archive modal, with the master', () => {
 
             expect(kind()).toBe('file');
             expect(source()).toBe('/dest/notes/doc.md');
+        });
+
+        it('follows an open_path, over a kind chosen by hand', async () => {
+            await start('single', 'file');
+            pickKind('directory');
+
+            emit('editor:nav-open_path-succeeded', {
+                state: { ...INITIAL, mode: 'single', file: '/notes/opened.md' },
+                action: { path: '/notes/opened.md', openMode: 'single' },
+            });
+
+            expect(kind()).toBe('file');
+            expect(source()).toBe('/notes/opened.md');
         });
 
         it('keeps its choice when a failure comes', async () => {

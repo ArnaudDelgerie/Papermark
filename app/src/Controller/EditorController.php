@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Dto\Editor\OpenPathRequest;
 use App\Dto\Editor\SetDirRequest;
 use App\Dto\Editor\SetFileRequest;
 use App\Dto\Editor\SetModeRequest;
@@ -143,6 +144,21 @@ final class EditorController extends AbstractController
         $realPath = $this->editorNavigator->openDir($payload->path);
 
         return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
+    }
+
+    /**
+     * Opens a path without knowing in advance what it is (lot 04a): the
+     * server looks, switches the mode and sets the target — folder or file —
+     * in one write, refused without touching the state. Nothing in the
+     * interface asks for it yet; the Hub will (lot 04b).
+     */
+    #[Route('/editor/open', name: 'app_editor_open', methods: ['POST'])]
+    #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
+    public function openPath(#[MapRequestPayload(mapWhenEmpty: true)] OpenPathRequest $payload): JsonResponse
+    {
+        $opened = $this->editorNavigator->openPath($payload->path);
+
+        return new StateSuccessResponse($this->editorState, ['path' => $opened->path, 'openMode' => $opened->mode->value]);
     }
 
     /**

@@ -114,6 +114,7 @@ export default class extends Controller {
             on('editor:do-delete-succeeded', follow),
             on('editor:do-rename-succeeded', follow),
             on('editor:do-import-succeeded', follow),
+            on('editor:nav-open_path-succeeded', follow),
             on('editor:state-resynced', follow),
         ];
     }

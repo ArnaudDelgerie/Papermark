@@ -506,6 +506,56 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame('path', $this->responseData($client)['mappedErrors'][0]['field']);
     }
 
+    public function testOpenPathAnswersTheModeItSwitchedTo(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/open_path_' . uniqid();
+        mkdir($root);
+        file_put_contents($root . '/doc.md', '# Hello');
+
+        $this->post($client, '/editor/open', ['path' => $root]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['path' => $root, 'openMode' => 'dir'], $this->responseData($client)['action']);
+        $this->assertMatchesContract('state-success', $this->responseData($client));
+
+        $this->post($client, '/editor/open', ['path' => $root . '/doc.md']);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(['mode' => 'single', 'file' => $root . '/doc.md', 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['path' => $root . '/doc.md', 'openMode' => 'single'], $this->responseData($client)['action']);
+
+        $this->removeDirectory($root);
+    }
+
+    public function testOpenPathRejectsAnInvalidCsrfToken(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/editor/open', ['path' => '/tmp'], [], ['HTTP_X_CSRF_TOKEN' => 'invalid']);
+
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testOpenPathWithAMissingPathAnswersAnErrorAndKeepsTheState(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $path = $this->createFile('# Kept');
+        $this->post($client, '/editor/file', ['path' => $path]);
+
+        $this->post($client, '/editor/open', ['path' => '/tmp/this_file_does_not_exist_12345.md']);
+
+        self::assertResponseStatusCodeSame(404);
+        self::assertNotEmpty($this->responseData($client)['genericErrors']);
+        // A refusal changed nothing: the file shown before is still current.
+        self::assertSame($path, $this->responseState($client)['file']);
+
+        unlink($path);
+    }
+
     /**
      * A folder deleted from outside: the tree says it disappeared — not
      * "no folder open" — and the state, session included, forgets it (lot

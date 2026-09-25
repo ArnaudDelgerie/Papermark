@@ -130,8 +130,13 @@ export default class extends Controller<HTMLElement> {
                 }
                 showNewDir(state.dir);
             }),
-            // An archive that opened a folder is a change of folder.
+            // An archive or an open_path that opened a folder is a change of folder.
             on('editor:do-import-succeeded', ({ state, action }) => {
+                if (action.openMode === 'dir') {
+                    showNewDir(state.dir);
+                }
+            }),
+            on('editor:nav-open_path-succeeded', ({ state, action }) => {
                 if (action.openMode === 'dir') {
                     showNewDir(state.dir);
                 }

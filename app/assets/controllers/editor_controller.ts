@@ -2,7 +2,7 @@ import { Controller } from '@hotwired/stimulus';
 import AiClient from '../editor/ai-client';
 import CrepeHost, { type CrepeI18n, type ImageOrigin } from '../editor/crepe-host';
 import { type Draft, clearDraft, readDraft, writeDraft } from '../editor/draft';
-import { type EditorState, emit, on } from '../editor/events';
+import { type EditorMode, type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
 import LeaveGuard from '../editor/leave-guard';
 import PrintCopy from '../editor/print-copy';
@@ -390,17 +390,12 @@ export default class extends Controller<HTMLElement> {
             }),
             on('editor:do-save_as-failed', ({ action }) => this.#saveFailed(action.status, action.message ?? null)),
 
-            // An archive that opened a file shows it as a file the user opened;
-            // one that opened a folder empties the editor, as choosing a folder
-            // does. One that opened nothing leaves everything as it was.
-            on('editor:do-import-succeeded', ({ state, action }) => {
-                if (action.openMode === 'single') {
-                    this.#syncDirectory(state);
-                    this.#beginLoad();
-                } else if (action.openMode === 'dir') {
-                    this.#resetTo(state);
-                }
-            }),
+            // An archive or an open_path that opened a file shows it as a file
+            // the user opened; one that opened a folder empties the editor,
+            // as choosing a folder does. An import that opened nothing leaves
+            // everything as it was.
+            on('editor:do-import-succeeded', ({ state, action }) => this.#showOpened(state, action.openMode)),
+            on('editor:nav-open_path-succeeded', ({ state, action }) => this.#showOpened(state, action.openMode)),
 
             // Deleting the current file is an anomaly, not an intention: the
             // text stays and the path falls, and the toast says what happened
@@ -537,6 +532,16 @@ export default class extends Controller<HTMLElement> {
 
     #syncDirectory(state: EditorState): void {
         this.#directory = state.mode === 'dir' ? state.dir : null;
+    }
+
+    /** What an import or an open_path opened: a file is loaded, a folder empties the editor. */
+    #showOpened(state: EditorState, openMode: EditorMode | null): void {
+        if (openMode === 'single') {
+            this.#syncDirectory(state);
+            this.#beginLoad();
+        } else if (openMode === 'dir') {
+            this.#resetTo(state);
+        }
     }
 
     /**

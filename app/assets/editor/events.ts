@@ -33,6 +33,8 @@ interface Requests {
     'nav-change_file': { path: string };
     'nav-new_file': Record<string, never>;
     'nav-refresh_dir': Record<string, never>;
+    /** The path to open, folder or file alike: the server looks and answers `openMode`. */
+    'nav-open_path': { path: string };
     /**
      * `revision` is what GET /editor/file gave with the content: save()
      * refuses to write when the file changed since (409). Absent means
@@ -61,7 +63,12 @@ interface Results {
     'nav-change_file': { path: string };
     'nav-new_file': Record<string, never>;
     'nav-refresh_dir': Record<string, never>;
-    /** The renewed revision of what was written, even when nothing was. */
+    /**
+     * `openMode` says what the path turned out to be: the state ended up on
+     * a file (`single`) or on a folder (`dir`). Never `null`, unlike the
+     * import: an open that succeeded always opened something.
+     */
+    'nav-open_path': { path: string; openMode: EditorMode };
     'do-save': { path: string; revision: string };
     'do-save_as': { path: string; revision: string };
     'do-delete': { path: string };

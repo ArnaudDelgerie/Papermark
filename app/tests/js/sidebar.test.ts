@@ -469,6 +469,25 @@ describe('the left column, with the master', () => {
             expect($('.mode-history a[data-path="/notes/b.md"]').getAttribute('aria-current')).toBe('true');
         });
 
+        it('follows an open_path, file and folder alike', async () => {
+            await start(['/notes/a.md', '/notes/b.md']);
+
+            emit('editor:nav-open_path-succeeded', {
+                state: { ...INITIAL, file: '/notes/b.md' },
+                action: { path: '/notes/b.md', openMode: 'single' },
+            });
+
+            expect($('.mode-history a[data-path="/notes/a.md"]').hasAttribute('aria-current')).toBe(false);
+            expect($('.mode-history a[data-path="/notes/b.md"]').getAttribute('aria-current')).toBe('true');
+
+            emit('editor:nav-open_path-succeeded', {
+                state: { ...INITIAL, mode: 'dir', file: null, dir: '/notes' },
+                action: { path: '/notes', openMode: 'dir' },
+            });
+
+            expect($('.mode-history a[data-path="/notes/b.md"]').hasAttribute('aria-current')).toBe(false);
+        });
+
         it('marks the file in the tree and opens its folders, and re-marks after a frame load', async () => {
             await start(['/notes/a.md'], 'dir');
 

@@ -22,6 +22,7 @@ interface Urls {
     file: string;
     dir: string;
     refreshDir: string;
+    open: string;
     save: string;
     delete: string;
     rename: string;
@@ -43,6 +44,7 @@ const ROUTES: Record<ActionName, Route> = {
     'nav-change_file': { url: 'file', method: 'POST' },
     'nav-new_file': { url: 'file', method: 'DELETE' },
     'nav-refresh_dir': { url: 'refreshDir', method: 'POST' },
+    'nav-open_path': { url: 'open', method: 'POST' },
     'do-save': { url: 'save', method: 'POST' },
     'do-save_as': { url: 'save', method: 'POST' },
     'do-delete': { url: 'delete', method: 'POST' },
