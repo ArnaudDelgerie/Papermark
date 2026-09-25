@@ -69,7 +69,8 @@ interface Results {
      * import: an open that succeeded always opened something.
      */
     'nav-open_path': { path: string; openMode: EditorMode };
-    'do-save': { path: string; revision: string };
+    /** The renewed revision of what was written, even when nothing was. */
+    'do-save':{ path: string; revision: string };
     'do-save_as': { path: string; revision: string };
     'do-delete': { path: string };
     'do-rename': { oldPath: string; newPath: string };
