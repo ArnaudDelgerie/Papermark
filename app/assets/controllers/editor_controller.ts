@@ -336,14 +336,15 @@ export default class extends Controller<HTMLElement> {
 
         if (state.file !== null) {
             this.#beginLoad();
-        } else if (this.#pendingDraft !== null) {
+
+            return;
+        }
+        if (this.#pendingDraft !== null) {
             const draft = this.#pendingDraft;
             this.#pendingDraft = null;
             this.#restoreUntitledDraft(draft.markdown);
-            this.#emitReady();
-        } else {
-            this.#emitReady();
         }
+        this.#emitReady();
     }
 
     #listen(): void {
