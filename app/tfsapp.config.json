@@ -38,6 +38,10 @@
       "ipc": true,
       "bridge": false
     },
+    "close_guard": {
+      "ipc": true,
+      "bridge": true
+    },
     "picker": {
       "ipc": true
     }

@@ -443,6 +443,52 @@ describe('CrepeHost', () => {
         expect(host.isAiBusy()).toBe(true);
     });
 
+    describe('onAiBusyChange() (lot 02)', () => {
+        it('tells the listener at each transition, and only then', async () => {
+            const host = new CrepeHost(document.createElement('div'), I18N, callbacks());
+            await host.create({ aiEnabled: true, aiProvider: undefined });
+            const crepe = crepes[0];
+            const listener = vi.fn();
+            host.onAiBusyChange(listener);
+
+            // Nothing busy: a discard changes nothing, the listener stays silent.
+            host.discardAi();
+            expect(listener).not.toHaveBeenCalled();
+
+            // The streaming plugin reports work in progress (the busy
+            // plugin's view.update cannot run against the fake Crepe —
+            // discardAi()'s own reading stands in for it here).
+            crepe.viewState = { [keyOf(streamingPluginKey)]: { active: true } };
+            host.discardAi();
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(listener).toHaveBeenCalledWith(true);
+
+            // Still busy: no second call.
+            host.discardAi();
+            expect(listener).toHaveBeenCalledTimes(1);
+
+            crepe.viewState = {};
+            host.discardAi();
+            expect(listener).toHaveBeenCalledTimes(2);
+            expect(listener).toHaveBeenLastCalledWith(false);
+        });
+
+        it('a busy state that dies with a recreation is announced', async () => {
+            const host = new CrepeHost(document.createElement('div'), I18N, callbacks());
+            await host.create({ aiEnabled: true, aiProvider: undefined });
+            crepes[0].viewState = { [keyOf(streamingPluginKey)]: { active: true } };
+            host.discardAi();
+
+            const listener = vi.fn();
+            host.onAiBusyChange(listener);
+            // The listener survives the recreation, like onChange().
+            await host.recreate(false, () => undefined);
+
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(listener).toHaveBeenCalledWith(false);
+        });
+    });
+
     describe('insertImage()', () => {
         it('adds the image block at the selection, without clearing the block (FRT-02, top bar)', async () => {
             const host = new CrepeHost(document.createElement('div'), I18N, callbacks());

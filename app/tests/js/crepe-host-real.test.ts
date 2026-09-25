@@ -122,6 +122,32 @@ describe('CrepeHost recreate(), with the real engine (FRT-05)', () => {
 });
 
 /**
+ * Lot 02 (gardes de fermeture): the busy plugin's view.update runs on
+ * every editor update against the real engine — this proves it stays
+ * silent while nothing is busy. The transition to busy itself needs a
+ * live Crepe AI session, which Vitest cannot drive (see the lot's
+ * « Tranché à l'implémentation »); its reading is unit-tested in
+ * crepe-host.test.ts.
+ */
+describe('CrepeHost AI busy transitions, with the real engine (lot 02)', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('document updates never call the busy listener while nothing is busy', async () => {
+        const { host, prosemirror } = await mountedHost('Hello');
+        const listener = vi.fn();
+        host.onAiBusyChange(listener);
+
+        host.replace('Hello\n\nSecond');
+        select(prosemirror, 2, 4);
+        host.insertImage('/document/image?path=%2Ffoo.png');
+
+        expect(listener).not.toHaveBeenCalled();
+    });
+});
+
+/**
  * SET-04, lot 09: the texts Crepe itself renders, against the real engine —
  * the top bar's heading selector and the image block's caption come from the
  * server's i18n, not from Crepe's English defaults.

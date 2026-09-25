@@ -7,6 +7,7 @@ import { basename } from '../editor/file-entries';
 import LeaveGuard from '../editor/leave-guard';
 import PrintCopy from '../editor/print-copy';
 import EditorShortcuts from '../editor/shortcuts';
+import CloseGuard from '../utils/close-guard';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { saveConflictDialog } from '../utils/conflict-dialog';
 import { draftConflictDialog } from '../utils/draft-conflict-dialog';
@@ -190,6 +191,10 @@ export default class extends Controller<HTMLElement> {
     #fileRequest: AbortController | null = null;
     #unsubscribers: Array<() => void> = [];
     #guard!: LeaveGuard;
+    // The hub's close guard (lot 02): held while #shouldConfirmLeave() is
+    // true, so closing the window asks the hub's own confirmation. Its
+    // id is `editor` — one editor per window.
+    #closeGuard!: CloseGuard;
     #print!: PrintCopy;
     #shortcuts!: EditorShortcuts;
     // Bumped by disconnect(): a connect() that was still waiting on an await
@@ -221,6 +226,10 @@ export default class extends Controller<HTMLElement> {
             onLeave: () => this.#host.discardAi(),
             onStay: () => this.#host.focus(),
         });
+        this.#closeGuard = new CloseGuard('editor');
+        // The busy state changes without touching the text (a session
+        // starts, a diff waits): the transitions themselves resync the guard.
+        this.#host.onAiBusyChange(() => this.#syncCloseGuard());
         this.#print = new PrintCopy(() => this.#host.printCopy());
         // FRT-10 + UX-03, lot 08: the buttons do the work — disabled and
         // leave guard included.
@@ -295,6 +304,10 @@ export default class extends Controller<HTMLElement> {
         this.#fileRequest?.abort();
         this.#aiClient?.close();
         this.#host.destroy();
+        // The editor no longer exists: the window may close without asking.
+        // Set on the old instance — the one initialize() rebuilds right
+        // after would see a settled `false` and remove nothing.
+        this.#closeGuard.set(false);
         this.initialize();
     }
 
@@ -1049,6 +1062,9 @@ export default class extends Controller<HTMLElement> {
     }
 
     #updateDirtyIndicator(markdown?: string): void {
+        // Every change of the modified state goes through here — the
+        // hub's guard follows the same definition as the leave guard.
+        this.#syncCloseGuard();
         if (!this.hasDirtyIndicatorTarget) {
             return;
         }
@@ -1059,6 +1075,11 @@ export default class extends Controller<HTMLElement> {
         const current = markdown ?? this.#host.markdown();
 
         return current !== this.#savedRef;
+    }
+
+    /** Keeps the hub's close guard aligned with #shouldConfirmLeave() (lot 02). */
+    #syncCloseGuard(): void {
+        this.#closeGuard.set(this.#shouldConfirmLeave());
     }
 
     #updateFilePath(): void {

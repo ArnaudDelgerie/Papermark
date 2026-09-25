@@ -47,6 +47,9 @@ function fakeHost(): {
     type: (markdown: string) => void;
     replace: ReturnType<typeof vi.fn>;
     onChange: (listener: (markdown: string) => void) => void;
+    onAiBusyChange: (listener: (busy: boolean) => void) => void;
+    /** What a busy transition does: the state flips and the listener hears it (lot 02). */
+    aiBusy: (busy: boolean) => void;
     setEditable: ReturnType<typeof vi.fn>;
     focus: ReturnType<typeof vi.fn>;
     isAiBusy: ReturnType<typeof vi.fn>;
@@ -62,7 +65,9 @@ function fakeHost(): {
     let aiEnabled = false;
     let createdFlag = false;
     let changeListener: ((markdown: string) => void) | null = null;
+    let aiBusyListener: ((busy: boolean) => void) | null = null;
     const builds: CrepeBuild[] = [];
+    const isAiBusy = vi.fn((): boolean => false);
 
     return {
         create: vi.fn((options: { markdown?: string; aiEnabled: boolean; aiProvider?: unknown }) => {
@@ -103,9 +108,16 @@ function fakeHost(): {
         onChange: (listener: (markdown: string) => void) => {
             changeListener = listener;
         },
+        onAiBusyChange: (listener: (busy: boolean) => void) => {
+            aiBusyListener = listener;
+        },
+        aiBusy: (busy: boolean) => {
+            isAiBusy.mockReturnValue(busy);
+            aiBusyListener?.(busy);
+        },
         setEditable: vi.fn(),
         focus: vi.fn(),
-        isAiBusy: vi.fn(() => false),
+        isAiBusy,
         discardAi: vi.fn(),
         insertImage: vi.fn(),
         insertImageFromSlashMenu: vi.fn(),
@@ -264,9 +276,18 @@ describe('the editor, with the master', () => {
         });
         fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        invoke = vi.fn();
+        // The hub's close guard context (lot 02); every other command keeps
+        // the old default answer, undefined.
+        invoke = vi.fn((command: string) => {
+            if (command === 'close_guard_context') {
+                return Promise.resolve({ context: 'hub-document' });
+            }
+
+            return undefined;
+        });
         window.__TAURI__ = { core: { invoke: invoke as never } };
         vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
         vi.spyOn(window, 'print').mockImplementation(() => {});
         Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
         toasts.length = 0;
@@ -424,7 +445,8 @@ describe('the editor, with the master', () => {
         // The dialog opens in the current folder, in dir mode. The proposed
         // name and the filters come from the server's i18n (SET-09, lot 09).
         expect(invoke).toHaveBeenCalledWith('save_path', expect.objectContaining({ fileName: 'untitled.md', directory: '/notes' }));
-        expect(invoke.mock.calls[0][1].filters).toEqual([
+        const savePathCall = invoke.mock.calls.find(([command]) => command === 'save_path')! as [string, { filters: unknown[] }];
+        expect(savePathCall[1].filters).toEqual([
             { name: 'Markdown', extensions: ['md'] },
             { name: 'Text', extensions: ['txt'] },
         ]);
@@ -491,11 +513,13 @@ describe('the editor, with the master', () => {
 
             expect(saveButton().disabled).toBe(true);
             expect(saveAsButton().disabled).toBe(false);
-            // Even a click forced on the grayed button goes nowhere.
+            // Even a click forced on the grayed button goes nowhere. The
+            // close guard (lot 02) is the only one allowed to the hub here.
             click('[data-editor-target="saveButton"]');
             await settle();
 
-            expect(invoke).not.toHaveBeenCalled();
+            expect(invoke.mock.calls.filter(([command]) => command !== 'close_guard_context'
+                && command !== 'close_guard_register' && command !== 'close_guard_remove')).toEqual([]);
             expect(calls('POST', '/document/save')).toHaveLength(0);
         });
 
@@ -1162,6 +1186,57 @@ describe('the editor, with the master', () => {
 
             expect(confirmDialog).not.toHaveBeenCalled();
             expect(calls('POST', '/editor/mode')).toHaveLength(1);
+        });
+    });
+
+    describe("the hub's close guard (lot 02)", () => {
+        const closeGuardCalls = (command: string): unknown[][] => invoke.mock.calls.filter(([called]) => called === command);
+
+        it('registers once a keystroke makes the document dirty, and never again while it stays dirty', async () => {
+            await start(current);
+
+            host.type('# A, edited');
+            await settle();
+            expect(invoke).toHaveBeenCalledWith('close_guard_register', expect.objectContaining({ id: 'editor' }));
+
+            host.type('# A, edited again');
+            await settle();
+            expect(closeGuardCalls('close_guard_register')).toHaveLength(1);
+        });
+
+        it('removes the guard when the document is saved', async () => {
+            await start(current);
+            host.type('# A, edited');
+            await settle();
+
+            click('[data-editor-target="saveButton"]');
+            await settle();
+
+            expect(invoke).toHaveBeenCalledWith('close_guard_remove', expect.objectContaining({ id: 'editor' }));
+        });
+
+        it('follows the AI busy state on a clean document too', async () => {
+            await start(current);
+
+            host.aiBusy(true);
+            await settle();
+            expect(invoke).toHaveBeenCalledWith('close_guard_register', expect.objectContaining({ id: 'editor' }));
+
+            host.aiBusy(false);
+            await settle();
+            expect(invoke).toHaveBeenCalledWith('close_guard_remove', expect.objectContaining({ id: 'editor' }));
+        });
+
+        it('removes the guard when the editor is torn down', async () => {
+            await start(current);
+            host.type('# A, edited');
+            await settle();
+            invoke.mockClear();
+
+            document.body.innerHTML = '';
+            await settle();
+
+            expect(invoke).toHaveBeenCalledWith('close_guard_remove', expect.objectContaining({ id: 'editor' }));
         });
     });
 

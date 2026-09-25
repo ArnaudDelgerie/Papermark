@@ -7,10 +7,10 @@ import { clearDiffReviewCmd, diffPluginKey } from '@milkdown/kit/plugin/diff';
 import { addBlockTypeCommand, clearTextInCurrentBlockCommand, remarkPreserveEmptyLinePlugin } from '@milkdown/kit/preset/commonmark';
 import { streamingPluginKey } from '@milkdown/kit/plugin/streaming';
 import { DOMSerializer } from '@milkdown/kit/prose/model';
-import { TextSelection } from '@milkdown/kit/prose/state';
+import { Plugin, TextSelection } from '@milkdown/kit/prose/state';
 import { trailing } from '@milkdown/plugin-trailing';
 import { prism } from '@milkdown/plugin-prism';
-import { replaceAll } from '@milkdown/utils';
+import { $prose, replaceAll } from '@milkdown/utils';
 import { createCodeBlockView } from './code-block-view';
 
 /**
@@ -133,6 +133,9 @@ export default class CrepeHost {
     #aiEnabled = false;
     #recreation: Promise<string | null> | null = null;
     #changeListener: ((markdown: string) => void) | null = null;
+    #aiBusyListener: ((busy: boolean) => void) | null = null;
+    /** The last `isAiBusy()` the listener heard: only a transition reaches it. */
+    #aiBusy = false;
 
     constructor(root: Element, i18n: CrepeI18n, callbacks: CrepeHostCallbacks) {
         this.#root = root;
@@ -152,6 +155,7 @@ export default class CrepeHost {
     async create({ markdown = '', aiEnabled, aiProvider }: CreateOptions): Promise<void> {
         this.#aiEnabled = aiEnabled;
         this.#crepe = await this.#build(markdown, aiEnabled, aiProvider);
+        this.#notifyAiBusy();
     }
 
     /**
@@ -233,6 +237,25 @@ export default class CrepeHost {
         this.#changeListener = listener;
     }
 
+    /**
+     * Rebound like onChange(), and called on each *transition* of
+     * `isAiBusy()` — a busy state nothing else announces: a session can
+     * start without changing the text, and a rejected diff can change
+     * nothing (lot 02, gardes de fermeture).
+     */
+    onAiBusyChange(listener: (busy: boolean) => void): void {
+        this.#aiBusyListener = listener;
+    }
+
+    /** Tells the listener when `isAiBusy()` moved, and only then. */
+    #notifyAiBusy(): void {
+        const busy = this.isAiBusy();
+        if (busy !== this.#aiBusy) {
+            this.#aiBusy = busy;
+            this.#aiBusyListener?.(busy);
+        }
+    }
+
     setEditable(editable: boolean): void {
         const prosemirror = this.#root.querySelector('.ProseMirror');
         prosemirror?.setAttribute('contenteditable', editable ? 'true' : 'false');
@@ -243,6 +266,11 @@ export default class CrepeHost {
     }
 
     isAiBusy(): boolean {
+        // Without the AI feature nothing AI can be busy — and its command
+        // (read below) was never registered.
+        if (!this.#aiEnabled) {
+            return false;
+        }
         const editor = this.#crepe?.editor;
         if (!editor || editor.status !== EditorStatus.Created) {
             return false;
@@ -280,6 +308,10 @@ export default class CrepeHost {
                 commands.call(clearDiffReviewCmd.key);
             }
         });
+        // The abort's transactions go through the busy plugin, but an
+        // already-idle editor dispatches nothing: the state is read again
+        // regardless, so the listener settles on what is really left.
+        this.#notifyAiBusy();
     }
 
     /**
@@ -368,6 +400,9 @@ export default class CrepeHost {
 
         this.#aiEnabled = aiEnabled;
         this.#crepe = await this.#build(markdown, aiEnabled, aiProvider);
+        // A generation in progress died with the old Crepe: the new editor
+        // starts idle, and the listener hears the transition if there was one.
+        this.#notifyAiBusy();
 
         this.#restoreScroll(carriedScroll);
         this.#restoreSelection(carried);
@@ -589,6 +624,15 @@ export default class CrepeHost {
                 copyLabel: t.codeBlock.copy,
                 onCopy: onCopyCode,
             }));
+            // Lot 02 (gardes de fermeture): recalculates isAiBusy() after
+            // every editor update and tells the listener on each transition —
+            // a streaming start or a diff awaiting review changes no text,
+            // so nothing short of this reading would announce it.
+            editor.use($prose(() => new Plugin({
+                view: () => ({
+                    update: () => this.#notifyAiBusy(),
+                }),
+            })));
         });
 
         if (aiEnabled) {

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\MessageHandler;
 
+use App\Entity\AiRequest;
 use App\Enum\AiRequestStatus;
 use App\Message\AiInstructionMessage;
 use App\Repository\AiRequestRepository;
 use App\Repository\SettingRepository;
 use App\Service\Ai\AiPlatformFactory;
 use App\Service\Ai\ApiKeyResolver;
+use ArnaudDelgerie\TFSAppBundle\Bridge\BackendCloseGuardInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\Execution\Update\Progress;
@@ -66,6 +68,7 @@ final class AiInstructionHandler
         private readonly TranslatorInterface $translator,
         private readonly LoggerInterface $logger,
         private readonly LocaleSwitcher $localeSwitcher,
+        private readonly BackendCloseGuardInterface $closeGuards,
         /** The abort status is re-read from the database at most this often during a stream. */
         private readonly float $abortCheckInterval = 0.5,
     ) {
@@ -94,6 +97,41 @@ final class AiInstructionHandler
             return;
         }
 
+        // Lot 02 (gardes de fermeture): the guard is asked for before
+        // anything else runs — before the work starts, never after. A
+        // guard that could not be registered (no bridge, or a hub
+        // refusal) never blocks the instruction: the handler runs
+        // unguarded, and a failed remove is logged, never raised.
+        $guardId = 'ai:'.$message->requestId;
+        $guarded = false;
+        try {
+            $guarded = $this->closeGuards->register($guardId);
+        } catch (\Throwable $e) {
+            $this->logger->warning('AI close guard could not be registered: {message}', ['message' => $e->getMessage(), 'exception' => $e]);
+        }
+
+        try {
+            $this->process($message, $request);
+        } finally {
+            // Covers the refusals and the mid-stream aborts too: a request
+            // the handler walked away from is not work in progress anymore.
+            if ($guarded) {
+                try {
+                    $this->closeGuards->remove($guardId);
+                } catch (\Throwable $e) {
+                    $this->logger->warning('AI close guard could not be removed: {message}', ['message' => $e->getMessage(), 'exception' => $e]);
+                }
+            }
+        }
+    }
+
+    /**
+     * The treatment of a claimed request, from the configuration checks to
+     * the final event. Never raises, and its early returns are part of
+     * the deal — handle()'s finally covers them.
+     */
+    private function process(AiInstructionMessage $message, AiRequest $request): void
+    {
         $promptTokens = null;
         $completionTokens = null;
 

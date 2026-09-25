@@ -16,6 +16,7 @@ use App\Repository\SettingRepository;
 use App\Service\Ai\AiPlatformFactory;
 use App\Service\Ai\ApiKeyResolver;
 use App\Tests\Double\InMemorySecretStore;
+use App\Tests\Double\RecordingCloseGuard;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -37,6 +38,9 @@ final class AiInstructionHandlerTest extends KernelTestCase
     private array $published = [];
 
     private BufferingLogger $logger;
+
+    /** The guard double of the last handle() call, for the call assertions. */
+    private RecordingCloseGuard $guards;
 
     protected function setUp(): void
     {
@@ -270,6 +274,97 @@ final class AiInstructionHandlerTest extends KernelTestCase
         self::assertSame(AiRequestStatus::Failed, $this->requestRow()->getStatus());
     }
 
+    /**
+     * Lot 02 (gardes de fermeture): the worker holds a backend close guard
+     * for the whole treatment of a claimed request, so closing the last
+     * window while it runs asks the hub's confirmation.
+     */
+    public function testAClaimedRequestIsGuardedFromRegisterToRemove(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient($this->streamResponse(['Hel'])), ['anthropic' => 'key']);
+
+        self::assertSame([
+            ['register', 'ai:'.self::REQUEST_ID],
+            ['remove', 'ai:'.self::REQUEST_ID],
+        ], $this->guards->calls);
+    }
+
+    public function testARefusedConfigurationRemovesTheGuardToo(): void
+    {
+        $this->seedProviders(selected: null);
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient(), ['anthropic' => 'key']);
+
+        self::assertSame([
+            ['register', 'ai:'.self::REQUEST_ID],
+            ['remove', 'ai:'.self::REQUEST_ID],
+        ], $this->guards->calls);
+    }
+
+    public function testAnUnclaimedRequestNeverTouchesTheGuard(): void
+    {
+        $this->seedProviders(selected: ProviderName::Anthropic);
+
+        $this->handle(new MockHttpClient($this->streamResponse(['Hel'])), ['anthropic' => 'key']);
+
+        self::assertSame([], $this->guards->calls);
+    }
+
+    public function testAGuardTheBridgeRefusedIsNeverRemoved(): void
+    {
+        $guards = new RecordingCloseGuard();
+        $guards->available = false;
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient($this->streamResponse(['Hel'])), ['anthropic' => 'key'], null, $guards);
+
+        // register() answered false: no guard exists, remove would be a
+        // call for a guard this code does not own.
+        self::assertSame([['register', 'ai:'.self::REQUEST_ID]], $guards->calls);
+        self::assertSame(AiRequestStatus::Done, $this->requestRow()->getStatus());
+    }
+
+    public function testARegisterFailureIsLoggedAndTheInstructionRunsUnguarded(): void
+    {
+        $guards = new RecordingCloseGuard();
+        $guards->throwsOnRegister = true;
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient($this->streamResponse(['Hel'])), ['anthropic' => 'key'], null, $guards);
+
+        self::assertSame([$this->event(['type' => 'chunk', 'content' => 'Hel']), $this->event(['type' => 'done'])], $this->published);
+        self::assertSame(AiRequestStatus::Done, $this->requestRow()->getStatus());
+        $logs = $this->logger->cleanLogs();
+        self::assertCount(1, $logs);
+        self::assertSame('warning', $logs[0][0]);
+        self::assertSame('AI close guard could not be registered: {message}', $logs[0][1]);
+        self::assertInstanceOf(\Throwable::class, $logs[0][2]['exception']);
+    }
+
+    public function testARemoveFailureIsLoggedAndSwallowed(): void
+    {
+        $guards = new RecordingCloseGuard();
+        $guards->throwsOnRemove = true;
+        $this->seedProviders(selected: ProviderName::Anthropic);
+        $this->seedRequest();
+
+        $this->handle(new MockHttpClient($this->streamResponse(['Hel'])), ['anthropic' => 'key'], null, $guards);
+
+        // The instruction completed and nothing surfaced beyond the warning.
+        self::assertSame([$this->event(['type' => 'chunk', 'content' => 'Hel']), $this->event(['type' => 'done'])], $this->published);
+        $logs = $this->logger->cleanLogs();
+        self::assertCount(1, $logs);
+        self::assertSame('warning', $logs[0][0]);
+        self::assertSame('AI close guard could not be removed: {message}', $logs[0][1]);
+        self::assertInstanceOf(\Throwable::class, $logs[0][2]['exception']);
+    }
+
     private function seedProviders(?ProviderName $selected, ?string $model = 'claude-test'): void
     {
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
@@ -332,10 +427,11 @@ final class AiInstructionHandlerTest extends KernelTestCase
     /**
      * @param array<string, string> $secrets
      */
-    private function handle(MockHttpClient $httpClient, array $secrets, ?\Closure $publisher = null): MockHttpClient
+    private function handle(MockHttpClient $httpClient, array $secrets, ?\Closure $publisher = null, ?RecordingCloseGuard $guards = null): MockHttpClient
     {
         $container = self::getContainer();
         $container->set(SecretStoreInterface::class, new InMemorySecretStore($secrets));
+        $this->guards = $guards ?? new RecordingCloseGuard();
 
         $hub = new MockHub('http://localhost/.well-known/mercure', new StaticTokenProvider('token'), $publisher ?? function (Update $update): string {
             $this->published[] = json_decode($update->getData(), true);
@@ -352,6 +448,7 @@ final class AiInstructionHandlerTest extends KernelTestCase
             $container->get(TranslatorInterface::class),
             $this->logger,
             $container->get(LocaleSwitcher::class),
+            $this->guards,
             // The abort status is checked on every stream update, not throttled.
             0.0,
         );
