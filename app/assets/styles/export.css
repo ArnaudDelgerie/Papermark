@@ -131,6 +131,12 @@
     animation: export-spin 0.6s linear infinite;
 }
 
+/* The base display would override the hidden attribute, and the spinner
+   would show next to the label at rest. */
+.export-submit-spinner[hidden] {
+    display: none;
+}
+
 @keyframes export-spin {
     to {
         transform: rotate(360deg);
