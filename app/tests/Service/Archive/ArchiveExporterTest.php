@@ -12,12 +12,15 @@ use App\Service\Archive\ArchiveExporter;
 use App\Service\Archive\ArchiveExportPlanner;
 use App\Service\Archive\ArchiveTargetResolver;
 use App\Service\Archive\ArchiveWriter;
+use App\Service\CloseGuard\BackendCloseGuardRunner;
 use App\Service\MarkdownDestinationWriter;
 use App\Service\MarkdownReferenceRewriter;
 use App\Service\MarkdownReferenceScanner;
 use App\Service\Path\PathPolicy;
 use App\Service\Path\PathResolver;
+use App\Tests\Double\RecordingCloseGuard;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\ErrorHandler\BufferingLogger;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Validator\Validation;
 
@@ -25,18 +28,21 @@ final class ArchiveExporterTest extends TestCase
 {
     private string $root;
     private ArchiveExporter $exporter;
+    private RecordingCloseGuard $guards;
 
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/archive_exporter_test_' . uniqid();
         mkdir($this->root, 0o777, true);
 
+        $this->guards = new RecordingCloseGuard();
         $filesystem = new Filesystem();
         $this->exporter = new ArchiveExporter(
             new PathPolicy(new PathResolver($filesystem, Validation::createValidator())),
             new ArchiveTargetResolver(),
             new ArchiveExportPlanner(new MarkdownReferenceScanner(), new MarkdownDestinationWriter(), new MarkdownReferenceRewriter(), new PathResolver($filesystem, Validation::createValidator()), $filesystem),
             new ArchiveWriter(),
+            new BackendCloseGuardRunner($this->guards, new BufferingLogger()),
         );
     }
 
@@ -113,6 +119,56 @@ final class ArchiveExporterTest extends TestCase
             $this->exporter->export($docPath, $readOnlyDir . '/out', false);
         } finally {
             chmod($readOnlyDir, 0o755);
+        }
+    }
+
+    /** A running export guards the hub's last window for the whole operation, planning included (lot 03). */
+    public function testASuccessfulExportRegistersThenRemovesAGuardWithAnExportId(): void
+    {
+        $docPath = $this->root . '/doc.md';
+        file_put_contents($docPath, '# Hello');
+
+        $this->exporter->export($docPath, $this->root . '/out', false);
+
+        self::assertCount(2, $this->guards->calls);
+        self::assertSame('register', $this->guards->calls[0][0]);
+        self::assertStringStartsWith('export:', $this->guards->calls[0][1]);
+        self::assertSame($this->guards->calls[0][1], $this->guards->calls[1][1]);
+        self::assertSame('remove', $this->guards->calls[1][0]);
+    }
+
+    /** A refused export is not work in progress anymore: its guard goes away with the refusal. */
+    public function testARefusedExportRemovesItsGuardToo(): void
+    {
+        $sourceDir = $this->root . '/notes';
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/photo.png', 'PNG');
+
+        try {
+            $this->exporter->export($sourceDir, $this->root . '/out', false);
+            self::fail('Expected ArchiveExportRefusedException.');
+        } catch (ArchiveExportRefusedException) {
+            // expected
+        }
+
+        self::assertCount(2, $this->guards->calls);
+        self::assertSame('register', $this->guards->calls[0][0]);
+        self::assertStringStartsWith('export:', $this->guards->calls[0][1]);
+        self::assertSame('remove', $this->guards->calls[1][0]);
+    }
+
+    public function testTwoExportsUseTwoDistinctGuardIds(): void
+    {
+        $docPath = $this->root . '/doc.md';
+        file_put_contents($docPath, '# Hello');
+
+        $this->exporter->export($docPath, $this->root . '/out', false);
+        $this->exporter->export($docPath, $this->root . '/out2', false);
+
+        $ids = array_unique(array_column($this->guards->calls, 1));
+        self::assertCount(2, $ids);
+        foreach ($ids as $id) {
+            self::assertStringStartsWith('export:', $id);
         }
     }
 

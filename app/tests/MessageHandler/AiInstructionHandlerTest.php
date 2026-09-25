@@ -15,6 +15,7 @@ use App\Repository\AiRequestRepository;
 use App\Repository\SettingRepository;
 use App\Service\Ai\AiPlatformFactory;
 use App\Service\Ai\ApiKeyResolver;
+use App\Service\CloseGuard\BackendCloseGuardRunner;
 use App\Tests\Double\InMemorySecretStore;
 use App\Tests\Double\RecordingCloseGuard;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
@@ -343,7 +344,8 @@ final class AiInstructionHandlerTest extends KernelTestCase
         $logs = $this->logger->cleanLogs();
         self::assertCount(1, $logs);
         self::assertSame('warning', $logs[0][0]);
-        self::assertSame('AI close guard could not be registered: {message}', $logs[0][1]);
+        self::assertSame('Close guard {id} could not be registered: {message}', $logs[0][1]);
+        self::assertSame('ai:'.self::REQUEST_ID, $logs[0][2]['id']);
         self::assertInstanceOf(\Throwable::class, $logs[0][2]['exception']);
     }
 
@@ -361,7 +363,8 @@ final class AiInstructionHandlerTest extends KernelTestCase
         $logs = $this->logger->cleanLogs();
         self::assertCount(1, $logs);
         self::assertSame('warning', $logs[0][0]);
-        self::assertSame('AI close guard could not be removed: {message}', $logs[0][1]);
+        self::assertSame('Close guard {id} could not be removed: {message}', $logs[0][1]);
+        self::assertSame('ai:'.self::REQUEST_ID, $logs[0][2]['id']);
         self::assertInstanceOf(\Throwable::class, $logs[0][2]['exception']);
     }
 
@@ -448,7 +451,7 @@ final class AiInstructionHandlerTest extends KernelTestCase
             $container->get(TranslatorInterface::class),
             $this->logger,
             $container->get(LocaleSwitcher::class),
-            $this->guards,
+            new BackendCloseGuardRunner($this->guards, $this->logger),
             // The abort status is checked on every stream update, not throttled.
             0.0,
         );

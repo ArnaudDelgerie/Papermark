@@ -10,9 +10,12 @@ use App\Event\ArchiveImported;
 use App\Service\Archive\ArchiveImporter;
 use App\Exception\Archive\ArchiveImportRefusedException;
 use App\Service\Archive\ImportTargetResolver;
+use App\Service\CloseGuard\BackendCloseGuardRunner;
 use App\Service\Path\PathPolicy;
 use App\Service\Path\PathResolver;
+use App\Tests\Double\RecordingCloseGuard;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\ErrorHandler\BufferingLogger;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Validator\Validation;
@@ -23,6 +26,7 @@ final class ArchiveImporterTest extends TestCase
     private string $parentDir;
     private ArchiveImporter $importer;
     private EventDispatcher $eventDispatcher;
+    private RecordingCloseGuard $guards;
 
     /** @var object[] */
     private array $dispatchedEvents = [];
@@ -39,6 +43,7 @@ final class ArchiveImporterTest extends TestCase
             $this->dispatchedEvents[] = $event;
         });
 
+        $this->guards = new RecordingCloseGuard();
         $this->importer = $this->makeImporter();
     }
 
@@ -48,6 +53,7 @@ final class ArchiveImporterTest extends TestCase
             new PathPolicy(new PathResolver(new Filesystem(), Validation::createValidator())),
             new ImportTargetResolver(),
             $this->eventDispatcher,
+            new BackendCloseGuardRunner($this->guards, new BufferingLogger()),
             $maxTotalEntries,
             $maxTotalUncompressedBytes,
         );
@@ -342,6 +348,53 @@ final class ArchiveImporterTest extends TestCase
         $result = $this->importer->import($zipPath, $this->parentDir);
 
         self::assertSame($this->parentDir . '/archive (1)', $result->destination);
+    }
+
+    /** A running import guards the hub's last window for the whole operation, dispatch of ArchiveImported included (lot 03). */
+    public function testASuccessfulImportRegistersThenRemovesAGuardWithAnImportId(): void
+    {
+        $zipPath = $this->makeZip(['doc.md' => '# Hello']);
+
+        $this->importer->import($zipPath, $this->parentDir);
+
+        self::assertCount(2, $this->guards->calls);
+        self::assertSame('register', $this->guards->calls[0][0]);
+        self::assertStringStartsWith('import:', $this->guards->calls[0][1]);
+        self::assertSame($this->guards->calls[0][1], $this->guards->calls[1][1]);
+        self::assertSame('remove', $this->guards->calls[1][0]);
+    }
+
+    /** A refused import is not work in progress anymore: its guard goes away with the refusal. */
+    public function testARefusedImportRemovesItsGuardToo(): void
+    {
+        $zipPath = $this->makeZip(['../escape.md' => '# Hello']);
+
+        try {
+            $this->importer->import($zipPath, $this->parentDir);
+            self::fail('Expected ArchiveImportRefusedException.');
+        } catch (ArchiveImportRefusedException) {
+            // expected
+        }
+
+        self::assertCount(2, $this->guards->calls);
+        self::assertSame('register', $this->guards->calls[0][0]);
+        self::assertStringStartsWith('import:', $this->guards->calls[0][1]);
+        self::assertSame('remove', $this->guards->calls[1][0]);
+    }
+
+    public function testTwoImportsUseTwoDistinctGuardIds(): void
+    {
+        $firstZip = $this->makeZip(['doc.md' => '# Hello']);
+        $secondZip = $this->makeZip(['notes.md' => '# Notes'], 'other.zip');
+
+        $this->importer->import($firstZip, $this->parentDir);
+        $this->importer->import($secondZip, $this->parentDir);
+
+        $ids = array_unique(array_column($this->guards->calls, 1));
+        self::assertCount(2, $ids);
+        foreach ($ids as $id) {
+            self::assertStringStartsWith('import:', $id);
+        }
     }
 
     public function testRefusesNonZipFile(): void

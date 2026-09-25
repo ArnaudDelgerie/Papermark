@@ -11,6 +11,7 @@ use App\Enum\Setting\EditorMode;
 use App\Event\ArchiveImported;
 use App\Exception\Archive\ArchiveImportRefusedException;
 use App\Exception\Filesystem\WriteFailedException;
+use App\Service\CloseGuard\BackendCloseGuardRunner;
 use App\Service\MarkdownReferenceScanner;
 use App\Service\Path\PathPolicy;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -30,6 +31,11 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  * nothing to keep is refused outright, before any folder is created
  * (ARC-07). Dispatches ArchiveImported once extraction succeeds; the cached
  * tree and the editor's own state react to it, not to this class.
+ *
+ * The whole import, dispatch of ArchiveImported included, runs under a hub
+ * close guard: it writes to the user's disk, cutting it mid-flight is no
+ * more desirable than cutting an export. A fresh random id per call keeps
+ * two imports of the same archive distinct works.
  */
 final class ArchiveImporter
 {
@@ -39,6 +45,7 @@ final class ArchiveImporter
         private readonly PathPolicy $pathPolicy,
         private readonly ImportTargetResolver $targetResolver,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly BackendCloseGuardRunner $closeGuards,
         // Same ceiling as DirectoryTree::DEFAULT_MAX_ITEMS: the editor's own
         // folder tree doesn't exclude node_modules/vendor either, so a
         // directory export of a real project routinely produces archives
@@ -50,35 +57,37 @@ final class ArchiveImporter
 
     public function import(string $archivePath, string $parentDir): ImportResult
     {
-        $realArchivePath = $this->pathPolicy->importArchive($archivePath);
-        $realParentDir = $this->pathPolicy->importInto($parentDir);
+        return $this->closeGuards->run('import:'.bin2hex(random_bytes(8)), function () use ($archivePath, $parentDir): ImportResult {
+            $realArchivePath = $this->pathPolicy->importArchive($archivePath);
+            $realParentDir = $this->pathPolicy->importInto($parentDir);
 
-        if ('zip' !== strtolower(pathinfo($realArchivePath, \PATHINFO_EXTENSION))) {
-            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
-        }
+            if ('zip' !== strtolower(pathinfo($realArchivePath, \PATHINFO_EXTENSION))) {
+                throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
+            }
 
-        // A 0-byte file open()s as a fresh, empty archive (deprecated since
-        // PHP 8.1) instead of failing: caught here, before that call, so it
-        // takes the same "nothing to extract" refusal as ARC-07 rather than
-        // a deprecation warning.
-        if (0 === filesize($realArchivePath)) {
-            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::Empty);
-        }
+            // A 0-byte file open()s as a fresh, empty archive (deprecated since
+            // PHP 8.1) instead of failing: caught here, before that call, so it
+            // takes the same "nothing to extract" refusal as ARC-07 rather than
+            // a deprecation warning.
+            if (0 === filesize($realArchivePath)) {
+                throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::Empty);
+            }
 
-        $zip = new \ZipArchive();
-        if (true !== $zip->open($realArchivePath)) {
-            throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
-        }
+            $zip = new \ZipArchive();
+            if (true !== $zip->open($realArchivePath)) {
+                throw new ArchiveImportRefusedException(ArchiveImportRefusalReason::NotAZip);
+            }
 
-        try {
-            $result = $this->importFromZip($zip, $realArchivePath, $realParentDir);
-        } finally {
-            $zip->close();
-        }
+            try {
+                $result = $this->importFromZip($zip, $realArchivePath, $realParentDir);
+            } finally {
+                $zip->close();
+            }
 
-        $this->eventDispatcher->dispatch(new ArchiveImported($result->destination, $result->openMode, $result->openPath));
+            $this->eventDispatcher->dispatch(new ArchiveImported($result->destination, $result->openMode, $result->openPath));
 
-        return $result;
+            return $result;
+        });
     }
 
     private function importFromZip(\ZipArchive $zip, string $archivePath, string $parentDir): ImportResult
