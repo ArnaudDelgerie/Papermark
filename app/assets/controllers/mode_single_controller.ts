@@ -4,6 +4,7 @@ import { on } from '../editor/events';
 import { FileEntries, type FileEntryI18n, basename, entryPath } from '../editor/file-entries';
 import { onModeShown } from '../editor/mode-shown';
 import { markCurrentFile } from '../utils/mark-current';
+import { DOCUMENT_EXTENSIONS } from '../utils/extensions';
 import { type IpcI18n, pickPath } from '../utils/tauri';
 import type EditorStateController from './editor_state_controller';
 
@@ -12,6 +13,8 @@ const STORAGE_KEY = 'editor.single.history';
 /** The column's own texts, beyond what its file entries show. */
 export interface ModeSingleI18n extends FileEntryI18n {
     ipc: IpcI18n;
+    /** The Open picker's documents filter name, translated. */
+    documentFilter: string;
 }
 
 /**
@@ -93,7 +96,9 @@ export default class extends Controller<HTMLElement> {
         this.openButtonTarget.disabled = true;
         let path: string | null;
         try {
-            path = await pickPath('file', this.i18nValue.ipc);
+            path = await pickPath('file', this.i18nValue.ipc, [
+                { name: this.i18nValue.documentFilter, extensions: DOCUMENT_EXTENSIONS },
+            ]);
         } finally {
             this.openButtonTarget.disabled = false;
         }

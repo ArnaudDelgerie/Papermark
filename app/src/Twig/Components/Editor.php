@@ -75,6 +75,8 @@ final class Editor
             ],
             // FRT-08, lot 08: the picked file is not an image the app can serve.
             'imageInvalid' => $this->trans('image_invalid'),
+            // Lot 01 hub-integration: the image picker's filter, translated.
+            'imageFilter' => $this->translator->trans('components.pick_filter.images', [], self::TRANSLATION_DOMAIN),
             'slashMenu' => [
                 'text' => $this->trans('slash_menu.text'),
                 'paragraph' => $this->trans('slash_menu.paragraph'),

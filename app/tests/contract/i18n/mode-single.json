@@ -8,6 +8,7 @@
     "deleteConfirmQuestion": "Delete {name}?",
     "deleted": "File deleted",
     "renamed": "File renamed",
+    "documentFilter": "Documents (Markdown, text)",
     "ipc": {
         "unavailable": "This action requires the Hub",
         "rejected": "The file picker failed"

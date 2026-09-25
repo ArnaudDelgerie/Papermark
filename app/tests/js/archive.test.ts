@@ -8,6 +8,7 @@ import ModeDirController from '../../assets/controllers/mode_dir_controller';
 import ModeSingleController from '../../assets/controllers/mode_single_controller';
 import ModeSwitchController from '../../assets/controllers/mode_switch_controller';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
+import { DOCUMENT_EXTENSIONS } from '../../assets/utils/extensions';
 import { type EditorState, emit } from '../../assets/editor/events';
 import { INITIAL, attr, masterHtml, sidebarHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
@@ -613,6 +614,47 @@ describe('the archive modal, with the master', () => {
             expect(fetchMock.mock.calls.filter(([url]) => url === '/archive/export')).toHaveLength(0);
             expect(toasts).toEqual([{ type: 'error', message: EXPORT_I18N.ipc.unavailable }]);
             expect($<HTMLButtonElement>('[data-export-target="exportButton"]').disabled).toBe(false);
+        });
+
+        it('a file source is browsed under a documents filter', async () => {
+            invoke.mockResolvedValue('/notes/a.md');
+            await start('single', 'file');
+
+            click('[data-export-target="browseButton"]');
+            await settle();
+
+            expect(invoke).toHaveBeenCalledWith('pick_path', {
+                kind: 'file',
+                filters: [{ name: EXPORT_I18N.documentFilter, extensions: DOCUMENT_EXTENSIONS }],
+            });
+        });
+
+        it('a folder source is browsed with no filter at all', async () => {
+            invoke.mockResolvedValue('/notes');
+            await start('dir', 'directory');
+
+            click('[data-export-target="browseButton"]');
+            await settle();
+
+            expect(invoke).toHaveBeenCalledWith('pick_path', { kind: 'directory' });
+        });
+
+        it('the archive is picked under a zip filter, the destination folder without any', async () => {
+            invoke.mockResolvedValue('/tmp/notes.zip');
+            await start();
+
+            click('.browse-archive');
+            await settle();
+            expect(invoke).toHaveBeenCalledWith('pick_path', {
+                kind: 'file',
+                filters: [{ name: IMPORT_I18N.zipFilter, extensions: ['zip'] }],
+            });
+
+            invoke.mockClear();
+            invoke.mockResolvedValue('/dest');
+            click('.browse-parent');
+            await settle();
+            expect(invoke).toHaveBeenCalledWith('pick_path', { kind: 'directory' });
         });
     });
 });

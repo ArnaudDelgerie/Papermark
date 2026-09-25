@@ -5,6 +5,7 @@
     "noArchiveSelected": "No archive selected",
     "noParentSelected": "No destination folder selected",
     "done": "Imported into {path}",
+    "zipFilter": "Zip archive",
     "ipc": { "unavailable": "This action requires the Hub", "rejected": "The file picker failed" },
     "report": {
         "title": "Ignored entries",

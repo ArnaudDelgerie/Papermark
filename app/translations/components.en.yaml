@@ -135,6 +135,10 @@ components:
     ipc:
         unavailable: This action requires the Hub
         rejected: The file picker failed
+    pick_filter:
+        documents: Documents (Markdown, text)
+        images: Images
+        zip: Zip archive
     mode:
         single: File
         dir: Folder

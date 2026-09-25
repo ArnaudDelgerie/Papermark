@@ -10,6 +10,7 @@ import EditorShortcuts from '../editor/shortcuts';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { saveConflictDialog } from '../utils/conflict-dialog';
 import { draftConflictDialog } from '../utils/draft-conflict-dialog';
+import { IMAGE_EXTENSIONS } from '../utils/extensions';
 import { request } from '../utils/http';
 import { showPath } from '../utils/path-label';
 import { type IpcI18n, pickPath, savePath } from '../utils/tauri';
@@ -48,6 +49,8 @@ export interface I18n extends CrepeI18n {
     untitledFileName: string;
     /** The native save dialog's file type filters, translated. */
     saveFilters: { markdown: string; text: string };
+    /** The native image picker's filter name, translated. */
+    imageFilter: string;
     unsaved: { confirm: string; cancel: string; continue: string };
     conflict: { question: string; cancel: string; saveAs: string; overwrite: string };
     loadError: string;
@@ -971,11 +974,13 @@ export default class extends Controller<HTMLElement> {
      * slash menu clears its `/image` command block, the top bar adds the
      * node at the selection and lets the text be. FRT-08, lot 08: the
      * service URL is checked first; a 404 (session, path, type, size — the
-     * picker filters nothing) or a network error inserts nothing, the
-     * selection is kept and a toast says why.
+     * picker filters, but the server stays the sole judge) or a network
+     * error inserts nothing, the selection is kept and a toast says why.
      */
     async #insertImageFromPicker(origin: ImageOrigin): Promise<void> {
-        const path = await pickPath('file', this.i18nValue.ipc);
+        const path = await pickPath('file', this.i18nValue.ipc, [
+            { name: this.i18nValue.imageFilter, extensions: IMAGE_EXTENSIONS },
+        ]);
         if (path === null) {
             return;
         }

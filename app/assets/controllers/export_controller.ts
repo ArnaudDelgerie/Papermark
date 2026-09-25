@@ -1,6 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { type EditorState, emit, on } from '../editor/events';
 import { confirmDialog } from '../utils/confirm-dialog';
+import { DOCUMENT_EXTENSIONS } from '../utils/extensions';
 import { request } from '../utils/http';
 import { renderReportHeader } from '../utils/report-header';
 import { type IpcI18n, pickPath, savePath } from '../utils/tauri';
@@ -24,6 +25,8 @@ export interface I18n {
     ipc: IpcI18n;
     /** The save dialog's zip filter name, translated (SET-09, lot 09). */
     zipFilter: string;
+    /** The source file picker's documents filter name, translated. */
+    documentFilter: string;
     unsaved: { confirm: string; cancel: string; continue: string };
     report: { title: string; empty: string; count_one: string; count_other: string; clear: string; reason: Record<string, string> };
 }
@@ -145,7 +148,13 @@ export default class extends Controller {
         this.browseButtonTarget.disabled = true;
         let path: string | null;
         try {
-            path = await pickPath(this.#kind, this.i18nValue.ipc);
+            // Only a file source is narrowed to documents: a directory
+            // picker has no filter.
+            path = await pickPath(
+                this.#kind,
+                this.i18nValue.ipc,
+                this.#kind === 'file' ? [{ name: this.i18nValue.documentFilter, extensions: DOCUMENT_EXTENSIONS }] : [],
+            );
         } finally {
             this.browseButtonTarget.disabled = false;
         }

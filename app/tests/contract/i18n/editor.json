@@ -14,6 +14,7 @@
         "markdown": "Markdown",
         "text": "Text"
     },
+    "imageFilter": "Images",
     "unsaved": {
         "confirm": "Continue and lose unsaved changes?",
         "cancel": "Cancel",

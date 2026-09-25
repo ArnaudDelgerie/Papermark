@@ -74,6 +74,8 @@ final class ArchiveController extends AbstractController
             'failed' => $trans('failed'),
             // SET-09, lot 09: the save dialog's zip filter, translated.
             'zipFilter' => $trans('zip_filter'),
+            // Lot 01 hub-integration: the source picker's documents filter, translated.
+            'documentFilter' => $this->translator->trans('components.pick_filter.documents', [], self::TRANSLATION_DOMAIN),
             // HUB-06, lot 08: the source and target pickers.
             'ipc' => [
                 'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),
@@ -113,6 +115,8 @@ final class ArchiveController extends AbstractController
             'noArchiveSelected' => $trans('no_archive_selected'),
             'noParentSelected' => $trans('no_parent_selected'),
             'done' => $trans('done'),
+            // Lot 01 hub-integration: the archive picker's zip filter, translated.
+            'zipFilter' => $this->translator->trans('components.pick_filter.zip', [], self::TRANSLATION_DOMAIN),
             // HUB-06, lot 08: the archive and parent folder pickers.
             'ipc' => [
                 'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),

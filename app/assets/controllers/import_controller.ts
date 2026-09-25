@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { emit, on } from '../editor/events';
 import { renderReportHeader } from '../utils/report-header';
-import { type IpcI18n, pickPath } from '../utils/tauri';
+import { type IpcI18n, type PathFilter, pickPath } from '../utils/tauri';
 import { showToast } from '../utils/toast';
 
 export interface I18n {
@@ -10,6 +10,8 @@ export interface I18n {
     noArchiveSelected: string;
     noParentSelected: string;
     done: string;
+    /** The archive picker's zip filter name, translated. */
+    zipFilter: string;
     ipc: IpcI18n;
     report: { title: string; empty: string; count_one: string; count_other: string; clear: string };
 }
@@ -79,7 +81,9 @@ export default class extends Controller {
     }
 
     async browseArchive(): Promise<void> {
-        const path = await this.#pick(this.archiveBrowseButtonTarget, 'file');
+        const path = await this.#pick(this.archiveBrowseButtonTarget, 'file', [
+            { name: this.i18nValue.zipFilter, extensions: ['zip'] },
+        ]);
         if (path === null) {
             return;
         }
@@ -128,12 +132,17 @@ export default class extends Controller {
 
     /**
      * The Browse button stays down until the picker answers, whatever the
-     * invoke does with it (FRT-07, lot 08).
+     * invoke does with it (FRT-07, lot 08). The parent folder picker passes
+     * no filter: a directory picker has none.
      */
-    async #pick(button: HTMLButtonElement, kind: 'file' | 'directory'): Promise<string | null> {
+    async #pick(
+        button: HTMLButtonElement,
+        kind: 'file' | 'directory',
+        filters: PathFilter[] = [],
+    ): Promise<string | null> {
         button.disabled = true;
         try {
-            return await pickPath(kind, this.i18nValue.ipc);
+            return await pickPath(kind, this.i18nValue.ipc, filters);
         } finally {
             button.disabled = false;
         }

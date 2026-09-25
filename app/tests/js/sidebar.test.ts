@@ -9,6 +9,7 @@ import ModeSingleController from '../../assets/controllers/mode_single_controlle
 import ModeSwitchController from '../../assets/controllers/mode_switch_controller';
 import { emit } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
+import { DOCUMENT_EXTENSIONS } from '../../assets/utils/extensions';
 import { renameDialog } from '../../assets/utils/rename-dialog';
 import { CURRENT_DIRECTORY_I18N, INITIAL, MODE_DIR_I18N, MODE_SINGLE_I18N, masterHtml, sidebarHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
@@ -334,6 +335,10 @@ describe('the left column, with the master', () => {
             click('[data-action="click->mode-single#openFile"]');
             await settle();
 
+            expect(invoke).toHaveBeenCalledWith('pick_path', {
+                kind: 'file',
+                filters: [{ name: MODE_SINGLE_I18N.documentFilter, extensions: DOCUMENT_EXTENSIONS }],
+            });
             expect(history()).toEqual(['/notes/c.md', '/notes/a.md']);
             const [url, init] = fetchMock.mock.calls[0];
             expect(url).toBe('/editor/file');

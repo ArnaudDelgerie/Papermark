@@ -46,6 +46,8 @@ final class ModeSingle
             'deleteConfirmQuestion' => $this->trans('delete_confirm_question'),
             'deleted' => $this->trans('deleted'),
             'renamed' => $this->trans('renamed'),
+            // Lot 01 hub-integration: the Open picker's documents filter, translated.
+            'documentFilter' => $this->translator->trans('components.pick_filter.documents', [], self::TRANSLATION_DOMAIN),
             // HUB-06, lot 08: the Open file picker.
             'ipc' => [
                 'unavailable' => $this->translator->trans('components.ipc.unavailable', [], self::TRANSLATION_DOMAIN),

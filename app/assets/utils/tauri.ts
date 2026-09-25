@@ -14,13 +14,21 @@ export interface IpcI18n {
     rejected: string;
 }
 
-export function pickPath(kind: PickKind, i18n: IpcI18n): Promise<string | null> {
-    return invokePathPicker('pick_path', { kind }, i18n);
+/**
+ * One entry of a picker's file type filters. Same shape for pick_path and
+ * save_path (CONTRACT.md §7): a translated name, and the extensions it
+ * covers, without the dot.
+ */
+export interface PathFilter {
+    name: string;
+    /** `readonly` so the frozen extension lists fit without a copy. */
+    extensions: readonly string[];
 }
 
-export interface SaveFilter {
-    name: string;
-    extensions: string[];
+export function pickPath(kind: PickKind, i18n: IpcI18n, filters: PathFilter[] = []): Promise<string | null> {
+    // No filter sent, no `filters` key: a call without filters stays exactly
+    // the `{ kind }` it always was, directory pickers the first.
+    return invokePathPicker('pick_path', filters.length > 0 ? { kind, filters } : { kind }, i18n);
 }
 
 /**
@@ -32,7 +40,7 @@ export function savePath(
     i18n: IpcI18n,
     fileName: string,
     directory?: string | null,
-    filters: SaveFilter[] = [],
+    filters: PathFilter[] = [],
 ): Promise<string | null> {
     return invokePathPicker('save_path', { filters, fileName, ...(directory ? { directory } : {}) }, i18n);
 }

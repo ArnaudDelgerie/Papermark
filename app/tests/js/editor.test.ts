@@ -8,6 +8,7 @@ import { type EditorState, emit, on } from '../../assets/editor/events';
 import { confirmDialog } from '../../assets/utils/confirm-dialog';
 import { saveConflictDialog } from '../../assets/utils/conflict-dialog';
 import { draftConflictDialog } from '../../assets/utils/draft-conflict-dialog';
+import { IMAGE_EXTENSIONS } from '../../assets/utils/extensions';
 import { INITIAL, attr, masterHtml } from './fixtures';
 import { jsonResponse, mount, settle, unmount } from './stimulus';
 import EDITOR_I18N from '../contract/i18n/editor.json';
@@ -1167,6 +1168,19 @@ describe('the editor, with the master', () => {
     describe('an image picked (FRT-02 + FRT-08 + HUB-06, lot 08)', () => {
         /** What Crepe's Image entries run: the controller's picker. */
         const insertImage = (origin: 'slash-menu' | 'top-bar'): void => hostCallbacks!.onInsertImage(origin);
+
+        it('asks the picker for images only, under its translated label', async () => {
+            invoke.mockResolvedValue(null);
+            await start(current);
+
+            insertImage('top-bar');
+            await settle();
+
+            expect(invoke).toHaveBeenCalledWith('pick_path', {
+                kind: 'file',
+                filters: [{ name: EDITOR_I18N.imageFilter, extensions: IMAGE_EXTENSIONS }],
+            });
+        });
 
         it('lands from the top bar without clearing, once the route agrees', async () => {
             imageAnswer = 'ok';
