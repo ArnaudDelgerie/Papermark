@@ -165,6 +165,13 @@ components:
             delete_confirm_question: 'Delete "{name}"?'
             deleted: File deleted
             renamed: File renamed
+    open_with:
+        question: 'Open “{name}”?'
+        ignored:
+            count_one: '+ {count} other item ignored'
+            count_other: '+ {count} other items ignored'
+        open: Open
+        dismiss: Dismiss
     settings:
         title: Settings
         tabs_label: Settings sections

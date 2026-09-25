@@ -27,6 +27,10 @@
     <aside class="editor-sidebar">
         {% include 'components/_mode_switch.html.twig' %}
 
+        {# The hub's open requests (lot 4b): hidden until one is shown, on
+           top of the columns so it is seen before anything else. #}
+        {{ component('open-with') }}
+
         {# Single mode: nothing to fetch, the history comes from sessionStorage;
            the controller replaces its loader once it has read it. #}
         {{ component('mode-single', { active: mode == 'single' }) }}

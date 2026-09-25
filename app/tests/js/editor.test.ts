@@ -973,6 +973,72 @@ describe('the editor, with the master', () => {
         });
     });
 
+    describe('editor:ready (lot 4b)', () => {
+        it('is emitted once, free, on an editor with no file and no draft', async () => {
+            current = { ...current, file: null };
+            const ready = vi.fn();
+            const stop = on('editor:ready', ready);
+
+            await start(current);
+
+            expect(ready).toHaveBeenCalledTimes(1);
+            expect(ready).toHaveBeenCalledWith({ free: true });
+            stop();
+        });
+
+        it('is not free when an untitled draft was restored', async () => {
+            current = { ...current, file: null };
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: null, markdown: 'scratch', revision: null }));
+            const ready = vi.fn();
+            const stop = on('editor:ready', ready);
+
+            await start(current);
+
+            expect(ready).toHaveBeenCalledTimes(1);
+            expect(ready).toHaveBeenCalledWith({ free: false });
+            stop();
+        });
+
+        it('is emitted after the current file has landed, free on a clean document', async () => {
+            const ready = vi.fn();
+            const stop = on('editor:ready', ready);
+
+            await start(current);
+            expect(host.markdown()).toBe('# A');
+
+            expect(ready).toHaveBeenCalledTimes(1);
+            expect(ready).toHaveBeenCalledWith({ free: true });
+            stop();
+        });
+
+        it('waits for a draft dialog to settle before saying whether the space is free', async () => {
+            vi.mocked(draftConflictDialog).mockReturnValue(new Promise(() => {}));
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ path: '/notes/a.md', markdown: '# A, edited', revision: 'r_stale' }));
+            const ready = vi.fn();
+            const stop = on('editor:ready', ready);
+
+            await start(current);
+
+            expect(ready).not.toHaveBeenCalled();
+            stop();
+        });
+
+        it('is not re-emitted by the loads that follow', async () => {
+            files['/notes/b.md'] = '# B';
+            const ready = vi.fn();
+            const stop = on('editor:ready', ready);
+
+            await start(current);
+            current = { ...current, file: '/notes/b.md' };
+            emit('editor:nav-change_file-succeeded', { state: current, action: { path: '/notes/b.md' } });
+            await settle();
+
+            expect(host.markdown()).toBe('# B');
+            expect(ready).toHaveBeenCalledTimes(1);
+            stop();
+        });
+    });
+
     describe('a load that fails (FRT-04)', () => {
         it('shows an explicit error state with Retry, not the old document', async () => {
             fetchMock.mockImplementation(async () => jsonResponse({ genericErrors: ['Open failed'] }, 500));

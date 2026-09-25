@@ -48,6 +48,15 @@ final class EditorControllerTest extends WebTestCase
         // dialog (UX-14, lot 09).
         self::assertSame('Open file…', trim($crawler->filter('button[data-action="click->mode-single#openFile"]')->text()));
 
+        // The hub's open requests (lot 4b): in the column, above the modes'
+        // panels, hidden until the controller has one to show.
+        $openWith = $crawler->filter('div[data-controller="open-with"]');
+        self::assertSame(1, $openWith->count());
+        self::assertSame('status', $openWith->attr('role'));
+        self::assertNotNull($openWith->attr('hidden'));
+        self::assertSame('Open', trim($crawler->filter('button[data-action="click->open-with#accept"]')->text()));
+        self::assertSame('Dismiss', trim($crawler->filter('button[data-action="click->open-with#dismiss"]')->text()));
+
         // Only the tree is behind a frame; Open folder stays in the column.
         self::assertSame('/editor/dir', $crawler->filter('turbo-frame#mode-dir-tree')->attr('src'));
 
@@ -143,6 +152,7 @@ final class EditorControllerTest extends WebTestCase
         $this->assertMatchesContract('i18n/mode-single', json_decode((string) $crawler->filter('div[data-controller="mode-single"]')->attr('data-mode-single-i18n-value'), true));
         $this->assertMatchesContract('i18n/mode-dir', json_decode((string) $crawler->filter('div[data-controller="mode-dir"]')->attr('data-mode-dir-i18n-value'), true));
         $this->assertMatchesContract('i18n/current-directory', json_decode((string) $crawler->filter('div[data-controller="current-directory"]')->attr('data-current-directory-i18n-value'), true));
+        $this->assertMatchesContract('i18n/open-with', json_decode((string) $crawler->filter('div[data-controller="open-with"]')->attr('data-open-with-i18n-value'), true));
     }
 
     public function testGetStateReturnsTheSessionState(): void

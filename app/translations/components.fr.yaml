@@ -165,6 +165,13 @@ components:
             delete_confirm_question: 'Supprimer « {name} » ?'
             deleted: Fichier supprimé
             renamed: Fichier renommé
+    open_with:
+        question: 'Ouvrir « {name} » ?'
+        ignored:
+            count_one: '+ {count} autre élément ignoré'
+            count_other: '+ {count} autres éléments ignorés'
+        open: Ouvrir
+        dismiss: Ignorer
     settings:
         title: Réglages
         tabs_label: Sections des réglages

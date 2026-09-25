@@ -200,6 +200,9 @@ export default class extends Controller<HTMLElement> {
     // Bumped by disconnect(): a connect() that was still waiting on an await
     // when the teardown came stops there, and poses no listener (FRT-11).
     #generation = 0;
+    // editor:ready went out (lot 4b): it is once per connection, at the end
+    // of whichever startup path settles the initial document.
+    #readyEmitted = false;
 
     initialize(): void {
         this.#pendingDraft = readDraft();
@@ -291,6 +294,8 @@ export default class extends Controller<HTMLElement> {
         } catch (error) {
             console.error('The editor could not be created:', error);
             showToast('error', this.i18nValue.initFailed);
+            // The editor never settled: nothing is free to open over it.
+            this.#emitReady(false);
         }
     }
 
@@ -335,6 +340,9 @@ export default class extends Controller<HTMLElement> {
             const draft = this.#pendingDraft;
             this.#pendingDraft = null;
             this.#restoreUntitledDraft(draft.markdown);
+            this.#emitReady();
+        } else {
+            this.#emitReady();
         }
     }
 
@@ -591,6 +599,7 @@ export default class extends Controller<HTMLElement> {
                 } else {
                     showToast('error', result.data?.genericErrors?.[0] || this.i18nValue.toast.fileNotFound);
                 }
+                this.#emitReady();
 
                 return;
             }
@@ -648,10 +657,13 @@ export default class extends Controller<HTMLElement> {
         // must still find it.
         const draft = this.#pendingDraft;
         if (draft !== null && draft.path === path) {
-            void this.#restoreDraft(draft);
+            // editor:ready waits for the dialog: what the document ends up
+            // being after it decides whether the space is free (lot 4b).
+            void this.#restoreDraft(draft).then(() => this.#emitReady());
         } else {
             this.#pendingDraft = null;
             this.#syncDraft(this.#savedRef);
+            this.#emitReady();
         }
     }
 
@@ -846,6 +858,8 @@ export default class extends Controller<HTMLElement> {
         }
         this.#updateSaveButton('');
         this.#applyEditable();
+        // The initial document settled on the error state: ready, on it.
+        this.#emitReady();
     }
 
     /**
@@ -1096,6 +1110,21 @@ export default class extends Controller<HTMLElement> {
 
     #shouldConfirmLeave(): boolean {
         return this.#isDirty() || this.#host.isAiBusy();
+    }
+
+    /**
+     * editor:ready, once per connection (lot 4b): the initial document is
+     * settled, and `free` says whether opening another one now would lose
+     * work. A later load (a change of file) settles a document too, but the
+     * flag keeps it at the first — the open-with box only asks about the
+     * startup, the leave guard covers everything after.
+     */
+    #emitReady(free = !this.#shouldConfirmLeave()): void {
+        if (this.#readyEmitted) {
+            return;
+        }
+        this.#readyEmitted = true;
+        emit('editor:ready', { free });
     }
 
 }

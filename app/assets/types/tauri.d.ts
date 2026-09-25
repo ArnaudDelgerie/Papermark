@@ -5,5 +5,10 @@ interface Window {
         core?: {
             invoke<T = unknown>(command: string, args?: Record<string, unknown>): Promise<T>;
         };
+        webviewWindow?: {
+            getCurrentWebviewWindow(): {
+                listen(event: string, handler: () => void): Promise<() => void>;
+            };
+        };
     };
 }

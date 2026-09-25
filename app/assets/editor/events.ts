@@ -139,6 +139,13 @@ export type EditorEvents = {
     /** The master re-read the state after an anomaly. */
     'editor:state-resynced': { state: EditorState; anomaly: Anomaly };
     /**
+     * The editor emits it once per connection, when its initial document is
+     * settled — draft dialog included. `free` says whether opening something
+     * now would lose work (the leave guard's own question, lot 4b: the
+     * cold-start open). Later loads never repeat it.
+     */
+    'editor:ready': { free: boolean };
+    /**
      * A synchronous query, answered by the editor: whether it holds unsaved
      * changes for that exact path. The delete confirmation asks before
      * showing its single dialog, so it can say both things at once (lot 03).

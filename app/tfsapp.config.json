@@ -44,6 +44,13 @@
     },
     "picker": {
       "ipc": true
+    },
+    "open_files": {
+      "ipc": true,
+      "directories": true
     }
+  },
+  "file_associations": {
+    "mime_types": ["text/markdown", "inode/directory"]
   }
 }

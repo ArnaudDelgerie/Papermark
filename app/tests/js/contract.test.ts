@@ -11,6 +11,7 @@ import type { I18n as ImportI18n } from '../../assets/controllers/import_control
 import type { ModeSingleI18n } from '../../assets/controllers/mode_single_controller';
 import type { ModeDirI18n } from '../../assets/controllers/mode_dir_controller';
 import type { CurrentDirectoryI18n } from '../../assets/controllers/current_directory_controller';
+import type { OpenWithI18n } from '../../assets/controllers/open_with_controller';
 import type { I18n as ThemeSwitchI18n } from '../../assets/controllers/theme_switch_controller';
 import type { EditorState } from '../../assets/editor/events';
 import type { FileEntryI18n } from '../../assets/editor/file-entries';
@@ -29,6 +30,7 @@ import importI18nExample from '../contract/i18n/import.json';
 import modeSingleI18nExample from '../contract/i18n/mode-single.json';
 import modeDirI18nExample from '../contract/i18n/mode-dir.json';
 import currentDirectoryI18nExample from '../contract/i18n/current-directory.json';
+import openWithI18nExample from '../contract/i18n/open-with.json';
 
 /**
  * Only the key shape of T matters here (PHPUnit's ContractAssertions checks
@@ -55,6 +57,7 @@ describe('the contract examples satisfy their TS type', () => {
         const modeSingleI18n: Shape<ModeSingleI18n> = modeSingleI18nExample;
         const modeDirI18n: Shape<ModeDirI18n> = modeDirI18nExample;
         const currentDirectoryI18n: Shape<CurrentDirectoryI18n> = currentDirectoryI18nExample;
+        const openWithI18n: Shape<OpenWithI18n> = openWithI18nExample;
 
         expect([
             editorState,
@@ -72,6 +75,7 @@ describe('the contract examples satisfy their TS type', () => {
             modeSingleI18n,
             modeDirI18n,
             currentDirectoryI18n,
-        ]).toHaveLength(15);
+            openWithI18n,
+        ]).toHaveLength(16);
     });
 });

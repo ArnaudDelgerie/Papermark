@@ -415,3 +415,46 @@ turbo-frame {
     border-radius: 50%;
     animation: sidebar-spin 0.6s linear infinite;
 }
+
+/* The hub's open requests (lot 4b): a quiet framed box at the top of the
+   column, not a floating bubble — it stays until decided, so it must sit in
+   the column's own flow. */
+.open-with {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+}
+
+.open-with[hidden] {
+    display: none;
+}
+
+.open-with-question,
+.open-with-ignored {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.open-with-path {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}
+
+.open-with-ignored {
+    color: var(--color-muted);
+}
+
+/* The column's own buttons, side by side. */
+.open-with-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.open-with-actions .editor-sidebar-btn {
+    flex: 1;
+}
