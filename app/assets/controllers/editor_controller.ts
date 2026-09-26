@@ -5,6 +5,7 @@ import { type Draft, clearDraft, readDraft, writeDraft } from '../editor/draft';
 import { type EditorMode, type EditorState, emit, on } from '../editor/events';
 import { basename } from '../editor/file-entries';
 import LeaveGuard from '../editor/leave-guard';
+import LinkFollower from '../editor/link-follower';
 import PrintCopy from '../editor/print-copy';
 import EditorShortcuts from '../editor/shortcuts';
 import CloseGuard from '../utils/close-guard';
@@ -191,6 +192,9 @@ export default class extends Controller<HTMLElement> {
     #fileRequest: AbortController | null = null;
     #unsubscribers: Array<() => void> = [];
     #guard!: LeaveGuard;
+    // The document's links to other documents (EDITOR_LINKS.md), behind the
+    // leave guard: a followed link leaves the document like any navigation.
+    #links!: LinkFollower;
     // The hub's close guard (lot 02): held while #shouldConfirmLeave() is
     // true, so closing the window asks the hub's own confirmation. Its
     // id is `editor` — one editor per window.
@@ -228,6 +232,10 @@ export default class extends Controller<HTMLElement> {
             shouldConfirm: () => this.#shouldConfirmLeave(),
             onLeave: () => this.#host.discardAi(),
             onStay: () => this.#host.focus(),
+        });
+        this.#links = new LinkFollower(this.element, {
+            isReadonly: () => this.#isReadonly,
+            confirmLeave: (action) => this.#guard.confirmLeave(action),
         });
         this.#closeGuard = new CloseGuard('editor');
         // The busy state changes without touching the text (a session
@@ -277,6 +285,7 @@ export default class extends Controller<HTMLElement> {
             // Capture phase, on window: covers the sidebar (mode-single / mode-dir),
             // not just this element, since navigation there also drops unsaved work.
             this.#guard.listen();
+            this.#links.listen();
             this.#shortcuts.listen();
             this.#listen();
 
@@ -303,6 +312,7 @@ export default class extends Controller<HTMLElement> {
         this.#generation++;
         this.#print.stop();
         this.#guard.stop();
+        this.#links.stop();
         this.#shortcuts.stop();
         this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
         this.#unsubscribers = [];

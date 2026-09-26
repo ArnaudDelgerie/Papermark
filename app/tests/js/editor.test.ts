@@ -244,6 +244,12 @@ describe('the editor, with the master', () => {
                     current = { ...current, file: null };
 
                     return reply({});
+                case 'POST /editor/file':
+                    // The server resolves the path (a link is relative);
+                    // this fake only records what was asked for.
+                    current = { ...current, file: body!.get('path') as string };
+
+                    return reply({ path: current.file });
                 case 'POST /document/save': {
                     const path = body!.get('path') as string;
                     if (conflictNextSave) {
@@ -511,6 +517,156 @@ describe('the editor, with the master', () => {
             expect(button.getAttribute('aria-pressed')).toBe('false');
             expect($('[data-editor-target="toggleLabel"]').textContent).toBe(EDITOR_I18N.toggle.readonly);
             expect(saveButton().disabled).toBe(false);
+        });
+    });
+
+    describe("the document's links (EDITOR_LINKS.md)", () => {
+        /** A link as Crepe renders it, inside the editor's element. */
+        const addLink = (href: string): HTMLAnchorElement => {
+            const link = document.createElement('a');
+            link.setAttribute('href', href);
+            link.textContent = href;
+            $('[data-controller="editor"]').append(link);
+
+            return link;
+        };
+        const clickLink = (link: HTMLAnchorElement, ctrl = false): MouseEvent => {
+            const event = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: ctrl });
+            link.dispatchEvent(event);
+
+            return event;
+        };
+        const askedPath = (): string =>
+            (calls('POST', '/editor/file')[0]?.[1]!.body as FormData).get('path') as string;
+
+        beforeEach(() => {
+            files['TODO.md'] = '# TODO';
+        });
+
+        it('follows a plain click in read-only, and shows the document asked for', async () => {
+            await start(current);
+            click('[data-editor-target="toggleButton"]');
+            await settle();
+
+            const event = clickLink(addLink('TODO.md'));
+            await settle();
+
+            expect(event.defaultPrevented).toBe(true);
+            expect(askedPath()).toBe('TODO.md');
+            expect(host.markdown()).toBe('# TODO');
+            expect(label()).toBe('TODO.md');
+        });
+
+        it('ignores a plain click in edit mode, follows a Ctrl+click', async () => {
+            await start(current);
+            const link = addLink('TODO.md');
+
+            clickLink(link);
+            await settle();
+            expect(calls('POST', '/editor/file')).toHaveLength(0);
+
+            clickLink(link, true);
+            await settle();
+
+            expect(askedPath()).toBe('TODO.md');
+        });
+
+        it('sends the path without its fragment, and leaves schemes and lone anchors to the browser', async () => {
+            await start(current);
+            click('[data-editor-target="toggleButton"]');
+            await settle();
+
+            const external = clickLink(addLink('https://example.com/doc.md'));
+            const anchor = clickLink(addLink('#section'));
+            await settle();
+
+            expect(external.defaultPrevented).toBe(false);
+            expect(anchor.defaultPrevented).toBe(false);
+            expect(calls('POST', '/editor/file')).toHaveLength(0);
+
+            const followed = clickLink(addLink('TODO.md#section'));
+            await settle();
+
+            expect(followed.defaultPrevented).toBe(true);
+            expect(askedPath()).toBe('TODO.md');
+        });
+
+        it("sends the path decoded, and a malformed escape for the server's refusal", async () => {
+            files['mon fichier.md'] = '# Mon fichier';
+            await start(current);
+            click('[data-editor-target="toggleButton"]');
+            await settle();
+
+            const encoded = clickLink(addLink('mon%20fichier.md'));
+            await settle();
+
+            expect(encoded.defaultPrevented).toBe(true);
+            expect(askedPath()).toBe('mon fichier.md');
+
+            // "%C3" alone is not a valid escape: it travels undecoded, for
+            // the server to refuse what it cannot read.
+            const malformed = clickLink(addLink('r%C3sum%C3.md'));
+            await settle();
+
+            expect(malformed.defaultPrevented).toBe(true);
+            const lastAsk = calls('POST', '/editor/file').at(-1)![1]!.body as FormData;
+            expect(lastAsk.get('path')).toBe('r%C3sum%C3.md');
+        });
+
+        it('carries the Ctrl state as a class, for the pointer cursor in edit mode', async () => {
+            await start(current);
+            const shell = $('[data-controller="editor"]');
+
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+            expect(shell.classList.contains('is-ctrl-down')).toBe(true);
+
+            window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', ctrlKey: false }));
+            expect(shell.classList.contains('is-ctrl-down')).toBe(false);
+
+            // Held, then a dialog or the window itself takes the focus: the
+            // keyup never reaches the page, blur clears the state.
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+            window.dispatchEvent(new Event('blur'));
+            expect(shell.classList.contains('is-ctrl-down')).toBe(false);
+        });
+
+        it('catches up with a lost Ctrl keyup on the next mousemove', async () => {
+            await start(current);
+            const shell = $('[data-controller="editor"]');
+
+            // Ctrl held, the keyup swallowed by the hub: the class stays.
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+            expect(shell.classList.contains('is-ctrl-down')).toBe(true);
+
+            // Any mouse move over the editor re-reads the modifier state,
+            // and the cursor only matters once the mouse is over it anyway.
+            shell.dispatchEvent(new MouseEvent('mousemove', { ctrlKey: false }));
+            expect(shell.classList.contains('is-ctrl-down')).toBe(false);
+
+            // And the mouse can hold Ctrl without the keyboard, too.
+            shell.dispatchEvent(new MouseEvent('mousemove', { ctrlKey: true }));
+            expect(shell.classList.contains('is-ctrl-down')).toBe(true);
+        });
+
+        it('asks the leave guard about unsaved changes, and follows only once accepted', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+            await start(current);
+            host.type('# A, edited');
+
+            clickLink(addLink('TODO.md'), true);
+            await settle();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+            expect(calls('POST', '/editor/file')).toHaveLength(0);
+            // Refused: the document is still the one being edited.
+            expect(host.markdown()).toBe('# A, edited');
+
+            vi.mocked(confirmDialog).mockResolvedValue(true);
+            clickLink(addLink('TODO.md'), true);
+            await settle();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(2);
+            expect(askedPath()).toBe('TODO.md');
         });
     });
 

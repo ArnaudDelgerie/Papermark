@@ -87,13 +87,15 @@ final class EditorController extends AbstractController
 
     /**
      * Makes a file the current one, without reading it for the editor: it
-     * fetches the content itself once it hears of the change.
+     * fetches the content itself once it hears of the change. A relative
+     * path — a link followed in the document (EDITOR_LINKS.md) — resolves
+     * against the folder of the current file, passed as the anchor.
      */
     #[Route('/editor/file', name: 'app_editor_set_file', methods: ['POST'])]
     #[IsCsrfTokenValid('papermark_app', tokenKey: 'X-CSRF-TOKEN', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
     public function setFile(#[MapRequestPayload(mapWhenEmpty: true)] SetFileRequest $payload): JsonResponse
     {
-        $realPath = $this->editorNavigator->openFile($payload->path);
+        $realPath = $this->editorNavigator->openFile($payload->path, $this->editorState->getFile());
 
         return new StateSuccessResponse($this->editorState, ['path' => $realPath]);
     }

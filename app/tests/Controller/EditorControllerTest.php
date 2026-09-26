@@ -293,6 +293,103 @@ final class EditorControllerTest extends WebTestCase
     }
 
     /**
+     * A link followed in a document (EDITOR_LINKS.md): relative to the
+     * folder of the current file, refused without one.
+     */
+    public function testSetFileResolvesARelativeLinkAgainstTheCurrentFile(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/editor_links_' . uniqid();
+        mkdir($root);
+        file_put_contents($root . '/doc.md', '# Doc');
+        file_put_contents($root . '/other.md', '# Other');
+
+        $this->post($client, '/editor/file', ['path' => $root . '/doc.md']);
+        $this->post($client, '/editor/file', ['path' => 'other.md']);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($root . '/other.md', $this->responseData($client)['action']['path']);
+        self::assertSame($root . '/other.md', $this->responseState($client)['file']);
+
+        $client->request('GET', '/document');
+        self::assertSame('# Other', $this->responseData($client)['content']);
+
+        $this->removeDirectory($root);
+    }
+
+    public function testSetFileResolvesDotDotInTheLink(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/editor_links_' . uniqid();
+        mkdir($root . '/sub', 0777, true);
+        file_put_contents($root . '/sub/doc.md', '# Doc');
+        file_put_contents($root . '/other.md', '# Other');
+
+        $this->post($client, '/editor/file', ['path' => $root . '/sub/doc.md']);
+        $this->post($client, '/editor/file', ['path' => '../other.md']);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($root . '/other.md', $this->responseState($client)['file']);
+
+        $this->removeDirectory($root);
+    }
+
+    public function testSetFileRefusesARelativeLinkWhenNothingIsCurrent(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $this->post($client, '/editor/file', ['path' => 'other.md']);
+
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame(['Path not found'], $this->responseData($client)['genericErrors']);
+        self::assertNull($this->responseState($client)['file']);
+    }
+
+    public function testSetFileRefusesARelativeLinkToAMissingFile(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/editor_links_' . uniqid();
+        mkdir($root);
+        $doc = $root . '/doc.md';
+        file_put_contents($doc, '# Doc');
+
+        $this->post($client, '/editor/file', ['path' => $doc]);
+        $this->post($client, '/editor/file', ['path' => 'missing.md']);
+
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame(['Path not found'], $this->responseData($client)['genericErrors']);
+        self::assertSame($doc, $this->responseState($client)['file']);
+
+        $this->removeDirectory($root);
+    }
+
+    /** The link's extension is the raw one, before any resolution: refused by the validator. */
+    public function testSetFileRefusesARelativeLinkWithAnUnsupportedExtension(): void
+    {
+        $client = $this->createClientWithTokens();
+
+        $root = sys_get_temp_dir() . '/editor_links_' . uniqid();
+        mkdir($root);
+        $doc = $root . '/doc.md';
+        file_put_contents($doc, '# Doc');
+
+        $this->post($client, '/editor/file', ['path' => $doc]);
+        $this->post($client, '/editor/file', ['path' => 'image.png']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            [['field' => 'path', 'message' => 'Only Markdown and text files are supported']],
+            $this->responseData($client)['mappedErrors'],
+        );
+        self::assertSame($doc, $this->responseState($client)['file']);
+
+        $this->removeDirectory($root);
+    }
+
+    /**
      * FIL-09 (lot 03): a non-UTF-8 file is refused, not converted — and the
      * state doesn't change, so the file shown before keeps opening after a
      * reload instead of falling into a 500 loop.

@@ -399,12 +399,19 @@
     display: none;
 }
 
-/* Readonly turns contenteditable off, so the browser follows links again. A
-   local one (other.md, ./img.png, #section) resolves against the app's own
-   origin and lands on a missing route: make it inert. External ones stay
-   clickable, the hub opens them in the user's browser. */
-.editor-shell.is-readonly .ProseMirror a:not([href^="http:" i], [href^="https:" i], [href^="mailto:" i]) {
-    pointer-events: none;
+/* Local links are the link follower's (link-follower.ts, EDITOR_LINKS.md):
+   a plain click opens the document in read-only, Ctrl+click in edit mode.
+   The follower stops the navigation the browser would attempt once
+   contenteditable is off; external ones stay clickable, the hub opens them
+   in the user's browser. */
+.editor-shell.is-readonly .ProseMirror a {
+    cursor: pointer;
+}
+
+/* Ctrl held: the pointer announces what a Ctrl+click does. CSS cannot see
+   modifiers — link-follower.ts carries the key's state as this class. */
+.editor-shell.is-ctrl-down .ProseMirror a {
+    cursor: pointer;
 }
 
 /* The frame, flex column and hidden x-overflow below used to come by

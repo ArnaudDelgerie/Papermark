@@ -92,4 +92,56 @@ describe('LeaveGuard', () => {
         expect(confirmDialog).not.toHaveBeenCalled();
         expect(clicked).toHaveBeenCalledTimes(1);
     });
+
+    /** A leave that is not a click on a marked element (EDITOR_LINKS.md): a followed link. */
+    describe('confirmLeave()', () => {
+        let action: ReturnType<typeof vi.fn<() => void>>;
+
+        beforeEach(() => {
+            action = vi.fn();
+        });
+
+        it('runs the action at once when shouldConfirm() is false', () => {
+            shouldConfirm.mockReturnValue(false);
+
+            guard.confirmLeave(action);
+
+            expect(confirmDialog).not.toHaveBeenCalled();
+            expect(action).toHaveBeenCalledTimes(1);
+        });
+
+        it('asks, and runs nothing while the dialog hangs', () => {
+            vi.mocked(confirmDialog).mockReturnValue(new Promise(() => {}));
+
+            guard.confirmLeave(action);
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+            expect(action).not.toHaveBeenCalled();
+        });
+
+        it('refused: calls onStay() and never runs the action', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(false);
+
+            guard.confirmLeave(action);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(onStay).toHaveBeenCalledTimes(1);
+            expect(onLeave).not.toHaveBeenCalled();
+            expect(action).not.toHaveBeenCalled();
+        });
+
+        it('accepted: calls onLeave() before running the action once', async () => {
+            vi.mocked(confirmDialog).mockResolvedValue(true);
+
+            guard.confirmLeave(action);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(onLeave).toHaveBeenCalledTimes(1);
+            expect(action).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(onLeave).mock.invocationCallOrder[0])
+                .toBeLessThan(vi.mocked(action).mock.invocationCallOrder[0]);
+        });
+    });
 });

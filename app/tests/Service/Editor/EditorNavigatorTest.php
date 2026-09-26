@@ -73,6 +73,57 @@ final class EditorNavigatorTest extends KernelTestCase
         self::assertSame($path, $this->editorState->getFile());
     }
 
+    /** A link followed in a document (EDITOR_LINKS.md): relative to the current file. */
+    public function testOpenFileResolvesARelativePathAgainstTheAnchor(): void
+    {
+        $doc = $this->createFile('doc.md', '# Doc');
+        $other = $this->createFile('other.md', '# Other');
+        $this->navigator->openFile($doc);
+
+        $realPath = $this->navigator->openFile('other.md', $this->editorState->getFile());
+
+        self::assertSame($other, $realPath);
+        self::assertSame($other, $this->editorState->getFile());
+    }
+
+    public function testOpenFileResolvesDotDotAgainstTheAnchor(): void
+    {
+        mkdir($this->root . '/sub');
+        $doc = $this->createFile('sub/doc.md', '# Doc');
+        $other = $this->createFile('other.md', '# Other');
+        $this->navigator->openFile($doc);
+
+        $realPath = $this->navigator->openFile('../other.md', $this->editorState->getFile());
+
+        self::assertSame($other, $realPath);
+        self::assertSame($other, $this->editorState->getFile());
+    }
+
+    /** Absolute paths come from the picker, the tree, the history: the anchor does not apply. */
+    public function testOpenFileIgnoresTheAnchorOnAnAbsolutePath(): void
+    {
+        $doc = $this->createFile('doc.md', '# Doc');
+        $other = $this->createFile('other.md', '# Other');
+
+        $realPath = $this->navigator->openFile($other, $doc);
+
+        self::assertSame($other, $realPath);
+    }
+
+    /** No current file: a relative path has nowhere to resolve against. */
+    public function testOpenFileRefusesARelativePathWithoutAnAnchor(): void
+    {
+        $kept = $this->createFile('kept.md', '# Kept');
+
+        try {
+            $this->navigator->openFile('kept.md');
+            self::fail('Expected PathNotFoundException.');
+        } catch (PathNotFoundException) {
+        }
+
+        self::assertNull($this->editorState->getFile());
+    }
+
     public function testOpenFileDropsTheCurrentFileOnlyWhenItIsTheOneNotFound(): void
     {
         $kept = $this->createFile('kept.md', '# Kept');

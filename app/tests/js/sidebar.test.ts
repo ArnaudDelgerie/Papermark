@@ -327,12 +327,19 @@ describe('the left column, with the master', () => {
     });
 
     describe('change_file', () => {
-        it('puts the picked file on top of the history and asks the master', async () => {
+        it('puts the opened file on top of the history once the server agrees, not at click', async () => {
+            let answer!: (response: Response) => void;
             invoke.mockResolvedValue('/notes/c.md');
-            fetchMock.mockResolvedValue(jsonResponse({ state: { file: '/notes/c.md' }, action: { path: '/notes/c.md' } }));
+            fetchMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
             await start(['/notes/a.md']);
 
             click('[data-action="click->mode-single#openFile"]');
+            await settle();
+
+            // Nothing before the answer: a refused open never entered.
+            expect(history()).toEqual(['/notes/a.md']);
+
+            answer(jsonResponse({ state: { file: '/notes/c.md' }, action: { path: '/notes/c.md' } }));
             await settle();
 
             expect(invoke).toHaveBeenCalledWith('pick_path', {
@@ -345,14 +352,16 @@ describe('the left column, with the master', () => {
             expect((init.body as FormData).get('path')).toBe('/notes/c.md');
         });
 
-        it('drops a history entry whose open fails: the file is gone', async () => {
+        it('adds nothing when the open fails: a refused path never entered', async () => {
             fetchMock.mockResolvedValue(jsonResponse({ state: { file: null }, genericErrors: ['File not found'], mappedErrors: [] }, 404));
             await start(['/notes/a.md', '/notes/gone.md']);
 
             click('.mode-history a[data-path="/notes/gone.md"]');
             await settle();
 
-            expect(history()).toEqual(['/notes/a.md']);
+            // The entry stays — only a successful open reorders, and delete
+            // or a found-gone current file removes (see the class docblock).
+            expect(history()).toEqual(['/notes/a.md', '/notes/gone.md']);
             expect(toasts).toEqual([{ type: 'error', message: 'File not found' }]);
         });
 
@@ -364,6 +373,8 @@ describe('the left column, with the master', () => {
             await settle();
 
             expect((fetchMock.mock.calls[0][1].body as FormData).get('path')).toBe('/notes/b.md');
+            // Dir mode: the open is shown, but never enters the single history.
+            expect(history()).toEqual([]);
         });
     });
 

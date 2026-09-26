@@ -36,14 +36,19 @@ final class EditorNavigator
      * file, not UTF-8): DocumentStore::read does both jobs, the conversion
      * and the revision are simply unused here.
      *
+     * `$anchor` — the current file — resolves a relative `$path` (a link
+     * followed in a document, see EDITOR_LINKS.md): PathResolver joins it
+     * with the anchor's folder. An absolute path ignores it, and without an
+     * anchor a relative path simply has nowhere to resolve against.
+     *
      * @return string the real path
      *
      * @throws PathNotFoundException
      */
-    public function openFile(string $path): string
+    public function openFile(string $path, ?string $anchor = null): string
     {
         try {
-            $document = $this->documentStore->read($path);
+            $document = $this->documentStore->read($path, $anchor);
         } catch (PathNotFoundException $e) {
             // Only the current file found gone is dropped — a bad path
             // picked by hand must not clear it.

@@ -16,6 +16,11 @@ interface LeaveGuardCallbacks {
  * Guards clicks on elements marked data-editor-leave-guard, links and JS
  * actions alike. The click is stopped before the element's own handlers or
  * navigation; once confirmed, the click is replayed, skipping the guard.
+ *
+ * Leaves that are not a click on a marked element — following a document
+ * link (EDITOR_LINKS.md) — go through confirmLeave() instead: the same
+ * confirmation, then the caller's own action, which cannot be a replayed
+ * click (the replay would lose the Ctrl of a Ctrl+click).
  */
 export default class LeaveGuard {
     #i18n: LeaveGuardI18n;
@@ -35,6 +40,34 @@ export default class LeaveGuard {
 
     stop(): void {
         window.removeEventListener('click', this.#onClick, true);
+    }
+
+    /**
+     * Runs `action` behind the same confirmation a guarded click asks for,
+     * for a leave that is not a click on a marked element. Nothing is
+     * replayed: the action itself runs, only once, confirmed.
+     */
+    confirmLeave(action: () => void): void {
+        if (!this.#callbacks.shouldConfirm()) {
+            action();
+
+            return;
+        }
+
+        void confirmDialog({
+            question: this.#i18n.confirm,
+            cancelLabel: this.#i18n.cancel,
+            continueLabel: this.#i18n.continue,
+        }).then((confirmed) => {
+            if (!confirmed) {
+                this.#callbacks.onStay();
+
+                return;
+            }
+
+            this.#callbacks.onLeave();
+            action();
+        });
     }
 
     #guardLeave(event: MouseEvent): void {

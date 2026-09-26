@@ -19,10 +19,11 @@ export interface ModeSingleI18n extends FileEntryI18n {
 
 /**
  * History of files opened in single mode: sessionStorage only (lost on app
- * restart, accepted — see EDITOR_FOLDER_MODE.md). An entry goes on top as
- * soon as the user picks or clicks a path — the leave guard runs first, so a
- * cancelled open never reaches here — and goes away if that open fails: a
- * file found gone is dropped on click. Save as, delete and rename are
+ * restart, accepted — see EDITOR_FOLDER_MODE.md). An entry goes on top when a
+ * server answer makes a file the current one in single mode, whatever the
+ * action that led there — a picker, a history click, a link followed, an
+ * import, an open_path, a Save as. Nothing is added at click time, so a
+ * refused open never entered and needs no cleanup. Delete and rename are
  * followed whoever acted, and so is a current file found gone (the anomaly).
  *
  * UX-09, lot 10: the entry of the file the editor shows carries
@@ -52,9 +53,11 @@ export default class extends Controller<HTMLElement> {
         if (this.hasEditorStateOutlet) {
             this.#currentFile = this.editorStateOutlet.state.file;
         }
-        // The file an import or an open_path opened, same as one the user just created.
+        // A server answer that made a file the current one in single mode:
+        // the real path (realpath'd by the server), whatever the action that
+        // led there. A file opened in dir mode never enters.
         const pushOpenedFile = (state: EditorState): void => {
-            if (state.file !== null) {
+            if (state.mode === 'single' && state.file !== null) {
                 this.#push(state.file);
             }
         };
@@ -66,12 +69,15 @@ export default class extends Controller<HTMLElement> {
                 this.#currentFile = file;
                 this.#mark();
             }),
-            on('editor:nav-change_file-failed', ({ action }) => this.#remove(action.path)),
-            // A new path the user just created, not yet in the history built
-            // from Open and history clicks (see EDITOR_FIX.md #5).
-            on('editor:do-save_as-succeeded', ({ action }) => this.#push(action.path)),
-            // The file an archive or an open_path opened, same as one the
-            // user just created.
+            // Every open, whatever asked for it — the picker, a history
+            // entry, a link followed in the document (EDITOR_LINKS.md).
+            on('editor:nav-change_file-succeeded', ({ state }) => pushOpenedFile(state)),
+            // The path "Save as" just created and made current: its own
+            // event, the same entry rule as any open (EDITOR_FIX.md #5).
+            on('editor:do-save_as-succeeded', ({ state }) => pushOpenedFile(state)),
+            // The file an archive or an open_path opened: `openMode` says it,
+            // not the state — an import that opened nothing leaves the
+            // current file where it was, without re-entering it.
             on('editor:do-import-succeeded', ({ state, action }) => {
                 if (action.openMode === 'single') {
                     pushOpenedFile(state);
@@ -118,14 +124,14 @@ export default class extends Controller<HTMLElement> {
             return;
         }
 
-        this.#push(path);
+        // No #push: the entry goes in when the server answers (see the
+        // class docblock), so a refused open never entered.
         this.#entries.open(path);
     }
 
     openHistoryEntry(event: Event): void {
         event.preventDefault();
         const path = entryPath(event);
-        this.#push(path);
         this.#entries.open(path);
     }
 
