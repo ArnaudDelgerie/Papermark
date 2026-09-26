@@ -12,6 +12,13 @@ body {
     padding: var(--space-3);
     gap: var(--space-3);
     box-sizing: border-box;
+
+    /* The whole page scrolls by itself, never: both columns own their
+       scroll. Without this, anything that makes a column taller than the
+       viewport (a long history, a tree) overflows the document, and the
+       wheel chains to the page once the editor's scroll hits its bottom
+       (seen in the hub, EDITOR_LINKS.md). */
+    overflow: hidden;
 }
 
 .editor-page > [data-controller="editor"] {

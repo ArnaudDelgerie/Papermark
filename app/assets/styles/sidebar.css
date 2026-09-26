@@ -8,6 +8,12 @@
     flex-direction: column;
     gap: var(--space-3);
     overflow-y: auto;
+
+    /* Clamps the column to the page's height, so overflow-y engages. The
+       history grows with every open now (EDITOR_LINKS.md), and a flex item
+       would otherwise stretch to its content and overflow the page. */
+    min-height: 0;
+    overscroll-behavior: contain;
 }
 
 /* Both columns are in the page from the start; the inactive one hides itself

@@ -422,11 +422,13 @@
 
 /* .editor-content is the wrapper crepe-host.ts creates around .ProseMirror;
    it owns the scroll instead so the scrollable area covers the padding/desk
-   background around the sheet too, not just .ProseMirror. */
+   background around the sheet too, not just .ProseMirror. The wheel stops
+   at its bottom: whatever else overflows, it never chains to the page. */
 .editor-shell .editor-content {
     flex: 1;
     min-height: 0;
     overflow: hidden auto;
+    overscroll-behavior: contain;
 }
 
 .editor-shell .ProseMirror {
