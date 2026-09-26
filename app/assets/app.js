@@ -1,9 +1,14 @@
 import { config } from '@hotwired/turbo';
 import './stimulus_bootstrap.js';
+import { turboConfirm } from './utils/turbo-confirm.js';
 
 // Turbo Frames only: no Drive navigation. Frames stay enabled by default,
 // unlike data-turbo="false" on <body>, which frames would inherit.
 config.drive.enabled = false;
+
+// data-turbo-confirm goes through the app's dialog, not the webview's missing
+// confirm() (see utils/turbo-confirm.ts).
+config.forms.confirm = turboConfirm;
 
 /*
  * Welcome to your app's main JavaScript file!

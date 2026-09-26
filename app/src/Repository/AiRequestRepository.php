@@ -8,6 +8,8 @@ use App\Entity\AiRequest;
 use App\Enum\AiRequestStatus;
 use App\Enum\ProviderName;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\Tools\Pagination\Paginator;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -17,6 +19,9 @@ class AiRequestRepository extends ServiceEntityRepository
 {
     /** Past this age, a queued request is expired at take: a redelivered message never calls the provider. */
     private const MAX_AGE_SECONDS = 300;
+
+    /** The statuses the history shows: the request ended with an answer from the API. */
+    private const HISTORY_STATUSES = [AiRequestStatus::Done, AiRequestStatus::Failed];
 
     public function __construct(ManagerRegistry $registry)
     {
@@ -114,5 +119,74 @@ class AiRequestRepository extends ServiceEntityRepository
             'UPDATE ai_request SET status = ? WHERE id = ? AND status = ?',
             [$status->value, $id, AiRequestStatus::Pending->value],
         );
+    }
+
+    /**
+     * The history modal's page (EDITOR_AI_HISTORY.md, decision 2): the
+     * requests that reached the API and ended with an answer, newest first.
+     * The paginator counts the whole filtered set, for the page links.
+     *
+     * @return Paginator<AiRequest>
+     */
+    public function findHistoryPage(int $page, int $pageSize): Paginator
+    {
+        $query = $this->historyQuery()
+            ->orderBy('r.createdAt', 'DESC')
+            ->setMaxResults($pageSize)
+            ->setFirstResult(($page - 1) * $pageSize)
+            ->getQuery();
+
+        return new Paginator($query);
+    }
+
+    /**
+     * The size of the history's filtered set, without paging through it.
+     */
+    public function countHistory(): int
+    {
+        return (int) $this->historyQuery()
+            ->select('COUNT(r.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Removes one line from the history. True when there was one to remove:
+     * the caller answers 404 to anything else, including a request the
+     * history does not show (a pending one stays for its worker).
+     */
+    public function deleteById(string $id): bool
+    {
+        $deleted = $this->withHistoryFilter(
+            $this->getEntityManager()->createQueryBuilder()
+                ->delete(AiRequest::class, 'r')
+                ->andWhere('r.id = :id')
+                ->setParameter('id', $id),
+        )->getQuery()->execute();
+
+        return $deleted > 0;
+    }
+
+    private function historyQuery(): QueryBuilder
+    {
+        return $this->withHistoryFilter($this->createQueryBuilder('r'));
+    }
+
+    /**
+     * The history's one filter, shared by its page, its count and its
+     * deletion: a model means the request reached the API (recordRun sets it
+     * just before the call), and done/failed means it ended with an answer.
+     * Refusals from before the call, pending, aborted and expired requests
+     * stay out.
+     */
+    private function withHistoryFilter(QueryBuilder $query): QueryBuilder
+    {
+        return $query
+            ->andWhere('r.model IS NOT NULL')
+            ->andWhere('r.status IN (:statuses)')
+            ->setParameter('statuses', array_map(
+                static fn (AiRequestStatus $status): string => $status->value,
+                self::HISTORY_STATUSES,
+            ));
     }
 }

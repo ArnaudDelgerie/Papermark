@@ -1,5 +1,12 @@
-/* The modals (Settings, Archive): a native <dialog> without padding (a click
+/* The modals (Settings, Archive, AI history): a native <dialog> without padding (a click
    on itself is a click on its backdrop), the header, and the frame inside. */
+
+/* A modal that shows a list (AI history): a fixed height, so it doesn't
+   shrink when its frame re-renders with less rows (page 2 of the pagination)
+   — the body keeps the overflow. */
+.modal-dialog--fixed-height {
+    height: min(480px, calc(100vh - 2 * var(--space-4)));
+}
 
 .modal-dialog {
     width: min(600px, calc(100vw - 2 * var(--space-4)));

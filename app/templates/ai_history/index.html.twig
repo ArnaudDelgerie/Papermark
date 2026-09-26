@@ -1,0 +1,68 @@
+{# The content of the AI history modal's frame (templates/components/editor.html.twig).
+   Not a page: no layout, and no `src` on the frame — Turbo would see a frame
+   that references itself. The pagination links and the delete forms navigate
+   inside the frame; the reload after an AI request ends is frame_reload_controller's
+   job, on the master's frame. #}
+<turbo-frame id="ai-history">
+    {% if requests|length > 0 %}
+    <table class="ai-history-table">
+        <thead>
+            <tr>
+                <th scope="col">{{ 'components.ai_history.col.date'|trans({}, 'components') }}</th>
+                <th scope="col">{{ 'components.ai_history.col.provider'|trans({}, 'components') }}</th>
+                <th scope="col">{{ 'components.ai_history.col.model'|trans({}, 'components') }}</th>
+                <th scope="col">{{ 'components.ai_history.col.prompt_tokens'|trans({}, 'components') }}</th>
+                <th scope="col">{{ 'components.ai_history.col.completion_tokens'|trans({}, 'components') }}</th>
+                <th scope="col">{{ 'components.ai_history.col.status'|trans({}, 'components') }}</th>
+                <th scope="col"><span class="visually-hidden">{{ 'components.ai_history.delete'|trans({}, 'components') }}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for request in requests %}
+            <tr>
+                <td>{{ request.createdAt|date('Y-m-d H:i') }}</td>
+                {# Always set here: the history's filter requires a model, recorded with the provider. #}
+                <td>{{ request.provider|trans }}</td>
+                <td class="ai-history-model">{{ request.model }}</td>
+                <td>{{ request.promptTokens ?? '—' }}</td>
+                <td>{{ request.completionTokens ?? '—' }}</td>
+                <td>{{ ('components.ai_history.status.' ~ request.status.value)|trans({}, 'components') }}</td>
+                <td>
+                    {# The confirmation goes through Turbo's data-turbo-confirm, which
+                       app.js wires on the app's dialog; the labels travel with the form. #}
+                    <form method="post" action="{{ path('app_ai_history_delete', {id: request.id, page: page}) }}"
+                          data-turbo-confirm="{{ 'components.ai_history.delete_confirm'|trans({}, 'components') }}"
+                          data-turbo-confirm-cancel="{{ 'components.ai_history.cancel'|trans({}, 'components') }}"
+                          data-turbo-confirm-continue="{{ 'components.ai_history.continue'|trans({}, 'components') }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('papermark_app') }}">
+                        <button type="submit" class="ai-history-delete" title="{{ 'components.ai_history.delete'|trans({}, 'components') }}">
+                            <span class="visually-hidden">{{ 'components.ai_history.delete'|trans({}, 'components') }}</span>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="ai-history-empty">{{ 'components.ai_history.empty'|trans({}, 'components') }}</p>
+    {% endif %}
+
+    {% if last_page > 1 %}
+    <nav class="ai-history-pagination" aria-label="{{ 'components.ai_history.pagination.label'|trans({}, 'components') }}">
+        {% if page > 1 %}
+        <a href="{{ path('app_ai_history', {page: page - 1}) }}" rel="prev">{{ 'components.ai_history.pagination.previous'|trans({}, 'components') }}</a>
+        {% endif %}
+        {% for p in 1..last_page %}
+            {% if p == page %}
+            <span class="ai-history-page" aria-current="page">{{ p }}</span>
+            {% else %}
+            <a href="{{ path('app_ai_history', {page: p}) }}">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if page < last_page %}
+        <a href="{{ path('app_ai_history', {page: page + 1}) }}" rel="next">{{ 'components.ai_history.pagination.next'|trans({}, 'components') }}</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+</turbo-frame>

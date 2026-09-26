@@ -99,8 +99,8 @@ final class EditorComponentTest extends KernelTestCase
         $html = $this->twig()->createTemplate("{{ component('editor') }}")->render([]);
         $crawler = new Crawler($html);
 
-        // Five groups around the file path, told apart by three dividers.
-        self::assertSame(3, $crawler->filter('.editor-file-bar > .editor-filebar-divider')->count());
+        // Six groups around the file path, told apart by four dividers.
+        self::assertSame(4, $crawler->filter('.editor-file-bar > .editor-filebar-divider')->count());
 
         $theme = $crawler->filter('button[data-controller="theme-switch"]');
         self::assertSame('light', $theme->attr('data-theme-switch-current-value'));
@@ -117,11 +117,11 @@ final class EditorComponentTest extends KernelTestCase
         // The hidden submit is what the leave guard intercepts.
         self::assertSame(1, $locale->filter('button[type="submit"][data-editor-leave-guard]')->count());
 
-        // Archive and Settings open a modal instead of leaving: no leave guard on
-        // the buttons, and a lazy frame each. Archive comes first in the bar.
+        // Archive, AI history and Settings open a modal instead of leaving: no leave
+        // guard on the buttons, and a lazy frame each. They come in this order in the bar.
         $modals = $crawler->filter('[data-controller="modal"]');
-        self::assertCount(2, $modals);
-        foreach (['archive' => [0, '/archive'], 'settings' => [1, '/settings']] as $id => [$index, $src]) {
+        self::assertCount(3, $modals);
+        foreach (['archive' => [0, '/archive'], 'ai-history' => [1, '/ai/history'], 'settings' => [2, '/settings']] as $id => [$index, $src]) {
             $modal = $modals->eq($index);
             self::assertSame(1, $modal->filter('button[data-action="click->modal#open"]:not([data-editor-leave-guard])')->count());
             $frame = $modal->filter('dialog turbo-frame#' . $id);

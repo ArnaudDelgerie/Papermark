@@ -26,6 +26,10 @@ interface PendingRequest {
  * controller so it only needs URLs/Mercure config, not the editor
  * instance itself — aborting the in-editor generation (Crepe commands) stays
  * the controller's job, see #discardAi in editor_controller.ts.
+ *
+ * The final `done` or `error` of each request is announced on window as
+ * `ai:request-ended` (EDITOR_AI_HISTORY.md, decision 8): the AI history
+ * frame reloads on it, once loaded.
  */
 export default class AiClient {
     #urls: AiClientOptions['urls'];
@@ -96,10 +100,12 @@ export default class AiClient {
                     yield payload.content;
                 } else if (payload.type === 'done') {
                     finished = true;
+                    window.dispatchEvent(new CustomEvent('ai:request-ended'));
                     return;
                 } else if (payload.type === 'error') {
                     // A lost connection leaves the worker running: let finally abort it.
                     finished = !payload.connectionLost;
+                    window.dispatchEvent(new CustomEvent('ai:request-ended'));
                     throw new Error(payload.error || this.#requestFailedMessage);
                 }
             }

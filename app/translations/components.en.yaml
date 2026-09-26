@@ -10,6 +10,8 @@ components:
         export: Archive
         export_title: Export or import an archive
         settings: Settings
+        ai_history: AI history
+        ai_history_title: See the token usage of the AI requests
         theme_button: 'Theme: {theme}'
         locale_button: 'Language: {language}'
         untitled: Untitled
@@ -250,3 +252,25 @@ components:
     archive:
         title: Archive
         close: Close
+    ai_history:
+        title: AI history
+        close: Close
+        empty: No finished request yet
+        delete: Delete
+        delete_confirm: Delete this entry from the history?
+        cancel: Cancel
+        continue: Delete
+        col:
+            date: Date
+            provider: Provider
+            model: Model
+            prompt_tokens: Input tokens
+            completion_tokens: Output tokens
+            status: Status
+        status:
+            done: Done
+            failed: Failed
+        pagination:
+            label: History pagination
+            previous: Previous
+            next: Next

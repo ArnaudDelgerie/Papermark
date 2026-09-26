@@ -92,6 +92,32 @@
 
         <span class="editor-filebar-divider" aria-hidden="true"></span>
 
+        {# The AI: the history modal, its frame loads on the first opening (lazy: the
+           closed dialog is not visible) and is never emptied afterwards. frame-reload
+           re-fetches it once an AI request ends, keeping the page it shows. #}
+        <div class="editor-filebar-actions" data-controller="modal">
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.ai_history_title'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--ai-history" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.ai_history'|trans({}, 'components') }}</span>
+            </button>
+
+            <dialog class="modal-dialog modal-dialog--fixed-height" data-modal-target="dialog" data-action="click->modal#backdrop" aria-labelledby="ai-history-dialog-title">
+                <div class="modal-dialog-header">
+                    <h2 id="ai-history-dialog-title">{{ 'components.ai_history.title'|trans({}, 'components') }}</h2>
+                    <button type="button" class="modal-dialog-close" data-action="click->modal#close" title="{{ 'components.ai_history.close'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.ai_history.close'|trans({}, 'components') }}</span>
+                    </button>
+                </div>
+                {# UX-13, lot 10: what the modal shows until the frame's first answer. #}
+                <turbo-frame id="ai-history" class="modal-dialog-body" src="{{ path('app_ai_history') }}" loading="lazy"
+                        data-controller="frame-reload" data-frame-reload-event-value="ai:request-ended">{% include 'components/_sidebar_loading.html.twig' %}</turbo-frame>
+                {# UX-06, lot 10: the modal's own toast zone, above its backdrop. #}
+                <div class="toast-container toast-container--modal" aria-live="polite"></div>
+            </dialog>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
         {# The app #}
         <div class="editor-filebar-actions" data-controller="modal">
             <button type="button" class="editor-filebar-btn" data-controller="theme-switch"

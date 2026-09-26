@@ -10,6 +10,8 @@ components:
         export: Archive
         export_title: Exporter ou importer une archive
         settings: Réglages
+        ai_history: Historique IA
+        ai_history_title: Voir la consommation des demandes IA
         theme_button: 'Thème : {theme}'
         locale_button: 'Langue : {language}'
         untitled: Sans titre
@@ -250,3 +252,25 @@ components:
     archive:
         title: Archive
         close: Fermer
+    ai_history:
+        title: Historique de l'IA
+        close: Fermer
+        empty: Aucune demande terminée pour le moment
+        delete: Supprimer
+        delete_confirm: Supprimer cette entrée de l'historique ?
+        cancel: Annuler
+        continue: Supprimer
+        col:
+            date: Date
+            provider: Fournisseur
+            model: Modèle
+            prompt_tokens: Jetons en entrée
+            completion_tokens: Jetons en sortie
+            status: Statut
+        status:
+            done: Terminée
+            failed: Échouée
+        pagination:
+            label: Pagination de l'historique
+            previous: Précédent
+            next: Suivant

@@ -256,4 +256,56 @@ describe('AiClient', () => {
         await settle();
         await first;
     });
+
+    /**
+     * Collects the ai:request-ended announcements on window (decision 8 of
+     * EDITOR_AI_HISTORY.md): one per request that ends with a done or an
+     * error, never one for a cancelled generation.
+     */
+    function trackRequestEnds(): { ends: string[]; stop: () => void } {
+        const ends: string[] = [];
+        const onEnd = (event: Event): void => {
+            ends.push(event.type);
+        };
+        window.addEventListener('ai:request-ended', onEnd);
+
+        return { ends, stop: () => window.removeEventListener('ai:request-ended', onEnd) };
+    }
+
+    it('announces ai:request-ended when the request ends with done', async () => {
+        const { ends, stop } = trackRequestEnds();
+        const { first, id, source } = await startGeneration();
+
+        source.message({ id, type: 'done' });
+        await settle();
+        await expect(first).resolves.toEqual({ value: undefined, done: true });
+
+        expect(ends).toEqual(['ai:request-ended']);
+        stop();
+    });
+
+    it('announces ai:request-ended when the request ends with an error', async () => {
+        const { ends, stop } = trackRequestEnds();
+        const { first, id, source } = await startGeneration();
+        const rejection = expect(first).rejects.toThrow('Provider exploded');
+
+        source.message({ id, type: 'error', error: 'Provider exploded' });
+        await settle();
+        await rejection;
+
+        expect(ends).toEqual(['ai:request-ended']);
+        stop();
+    });
+
+    it('announces nothing when the user aborts the generation', async () => {
+        const { ends, stop } = trackRequestEnds();
+        const { first, controller } = await startGeneration();
+
+        controller.abort();
+        await settle();
+        await expect(first).resolves.toEqual({ value: undefined, done: true });
+
+        expect(ends).toEqual([]);
+        stop();
+    });
 });
