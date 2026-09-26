@@ -242,11 +242,20 @@ export default class extends Controller<HTMLElement> {
         // starts, a diff waits): the transitions themselves resync the guard.
         this.#host.onAiBusyChange(() => this.#syncCloseGuard());
         this.#print = new PrintCopy(() => this.#host.printCopy());
-        // FRT-10 + UX-03, lot 08: the buttons do the work — disabled and
-        // leave guard included.
+        // FRT-10 + UX-03, lot 08, then EDITOR_SHORTCUTS.md: the buttons do
+        // the work — disabled and leave guard included.
         this.#shortcuts = new EditorShortcuts({
             save: () => (this.hasSaveButtonTarget ? this.saveButtonTarget : null),
+            saveAs: () => (this.hasSaveAsButtonTarget ? this.saveAsButtonTarget : null),
             newFile: () => (this.hasNewButtonTarget ? this.newButtonTarget : null),
+            print: () => (this.hasPrintButtonTarget ? this.printButtonTarget : null),
+            // The open buttons live in the sidebar, each in its mode's panel
+            // (mode-single / mode-dir): the visible one is the current
+            // mode's. The inactive panel is hidden, not absent.
+            open: () => visibleOpenButton(),
+            // The mode switch's inactive button: change() ignores the active
+            // one, and the leave guard on the button asks about unsaved work.
+            switchMode: () => document.querySelector<HTMLButtonElement>('.mode-selector-link:not(.is-active)'),
         });
     }
 
@@ -1137,5 +1146,17 @@ export default class extends Controller<HTMLElement> {
         this.#readyEmitted = true;
         emit('editor:ready', { free });
     }
+}
 
+/**
+ * Ctrl+O's button (EDITOR_SHORTCUTS.md): the open button of the current
+ * mode, the one whose panel is not hidden. A `[hidden]` ancestor means the
+ * mode is not the one on screen.
+ */
+function visibleOpenButton(): HTMLButtonElement | null {
+    const buttons = document.querySelectorAll<HTMLButtonElement>(
+        '[data-mode-single-target="openButton"], [data-current-directory-target="openButton"]',
+    );
+
+    return Array.from(buttons).find((button) => button.closest('[hidden]') === null) ?? null;
 }
