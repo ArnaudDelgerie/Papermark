@@ -153,6 +153,10 @@ function editorHtml(): string {
     <div data-controller="editor" data-editor-editor-state-outlet="#editor-state"
          data-editor-urls-value="${attr({ file: '/document', copy: '/document/copy', image: '/document/image', aiSubscribe: '', aiInstruct: '', aiAbort: '' })}"
          data-editor-i18n-value="${attr(EDITOR_I18N)}">
+        <div class="editor-file-bar" data-action="mousedown->editor#keepFocus">
+            <button type="button" class="editor-filebar-btn" data-open-modal>Settings</button>
+            <dialog><button type="button" class="editor-filebar-btn" data-in-modal>Inside</button></dialog>
+        </div>
         <button type="button" data-editor-target="newButton" data-action="click->editor#newFile" data-editor-leave-guard>New</button>
         <button type="button" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled>Save</button>
         <button type="button" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled>Save as</button>
@@ -498,6 +502,27 @@ describe('the editor, with the master', () => {
         expect(label()).toBe('/notes/new.md');
         expect(toasts).toEqual([]);
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+    });
+
+    describe('the file bar buttons and the focus', () => {
+        function mousedown(selector: string): MouseEvent {
+            const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+            $(selector).dispatchEvent(event);
+
+            return event;
+        }
+
+        it('a file bar button clicked does not take the focus, so a modal gives it back to the editor', async () => {
+            await start(current);
+
+            expect(mousedown('[data-open-modal]').defaultPrevented).toBe(true);
+        });
+
+        it('a button inside a modal still takes the focus', async () => {
+            await start(current);
+
+            expect(mousedown('[data-in-modal]').defaultPrevented).toBe(false);
+        });
     });
 
     describe('the readonly toggle (UX-10, lot 10)', () => {

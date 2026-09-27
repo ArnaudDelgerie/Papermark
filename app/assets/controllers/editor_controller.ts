@@ -662,6 +662,20 @@ export default class extends Controller<HTMLElement> {
         }
     }
 
+    /**
+     * A file bar button clicked with the mouse leaves the focus where it
+     * was: a native <dialog> gives it back on close to what had it before,
+     * the editor then, not the button — which a Space would click again
+     * while the editor still shows its caret. Buttons inside the modals,
+     * and the keyboard, keep the usual focus.
+     */
+    keepFocus(event: MouseEvent): void {
+        const button = (event.target as Element).closest('.editor-filebar-btn');
+        if (button !== null && button.closest('dialog') === null) {
+            event.preventDefault();
+        }
+    }
+
     toggleReadonly(): void {
         this.#isReadonly = !this.#isReadonly;
         this.#applyReadonlyState();

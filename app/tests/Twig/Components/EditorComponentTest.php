@@ -101,6 +101,8 @@ final class EditorComponentTest extends KernelTestCase
 
         // Six groups around the file path, told apart by four dividers.
         self::assertSame(4, $crawler->filter('.editor-file-bar > .editor-filebar-divider')->count());
+        // Its buttons leave the focus in the editor when clicked.
+        self::assertSame('mousedown->editor#keepFocus', $crawler->filter('.editor-file-bar')->attr('data-action'));
 
         $theme = $crawler->filter('button[data-controller="theme-switch"]');
         self::assertSame('light', $theme->attr('data-theme-switch-current-value'));

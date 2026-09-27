@@ -15,7 +15,7 @@
      {% if readonly %}data-editor-readonly-value="true"{% endif %}
      data-editor-i18n-value="{{ i18n|json_encode }}"
      style="height: {{ css_height }};">
-    <div class="editor-file-bar">
+    <div class="editor-file-bar" data-action="mousedown->editor#keepFocus">
         {# The file #}        <div class="editor-filebar-actions">
             <button type="button" class="editor-filebar-btn" data-editor-target="newButton" data-action="click->editor#newFile" data-editor-leave-guard title="{{ 'components.editor.new_title'|trans({}, 'components') }}">
                 <span class="editor-filebar-icon editor-filebar-icon--new" aria-hidden="true"></span>
