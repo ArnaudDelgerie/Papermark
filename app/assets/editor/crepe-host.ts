@@ -11,6 +11,7 @@ import { Plugin, TextSelection } from '@milkdown/kit/prose/state';
 import { trailing } from '@milkdown/plugin-trailing';
 import { prism } from '@milkdown/plugin-prism';
 import { $prose, replaceAll } from '@milkdown/utils';
+import { aiBlockRange } from './ai-block-range';
 import { createCodeBlockView } from './code-block-view';
 
 /**
@@ -633,6 +634,9 @@ export default class CrepeHost {
                     update: () => this.#notifyAiBusy(),
                 }),
             })));
+            // An AI answer replacing whole blocks is parsed as blocks: a
+            // translated heading no longer lands inside the old one as "## ...".
+            editor.use(aiBlockRange);
         });
 
         if (aiEnabled) {

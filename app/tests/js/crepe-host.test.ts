@@ -40,7 +40,7 @@ vi.mock('@milkdown/kit/component/image-block', () => ({
 // The real replaceAll() returns a function that needs a real editor to run;
 // the fake Crepe's editor.action() pattern-matches on this plain shape
 // instead (same trick editor.test.ts used to use).
-vi.mock('@milkdown/utils', () => ({ replaceAll: (markdown: string, flush = false) => ({ replaceAll: markdown, flush }) }));
+vi.mock('@milkdown/utils', () => ({ $prose: vi.fn(), replaceAll: (markdown: string, flush = false) => ({ replaceAll: markdown, flush }) }));
 
 const I18N: CrepeI18n = EDITOR_I18N;
 
