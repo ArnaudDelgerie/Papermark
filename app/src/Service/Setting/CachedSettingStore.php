@@ -19,11 +19,13 @@ use Symfony\Contracts\Cache\CacheInterface;
  * in memory on top of the pool: a long-lived worker (FrankenPHP, Messenger)
  * would otherwise read stale values.
  *
- * @phpstan-type Values array{defaultMode: EditorMode, themeMode: ThemeMode, locale: AppLocale, selectedProviderName: ?ProviderName}
+ * @phpstan-type Values array{defaultMode: EditorMode, themeMode: ThemeMode, locale: AppLocale, selectedProviderName: ?ProviderName, autosave: bool, autosaveAfterAi: bool}
  */
 final class CachedSettingStore implements SettingStoreInterface
 {
-    private const KEY = 'setting';
+    // Versioned: the shape of the entry changed once (the autosave settings),
+    // and a stale entry from before would miss the new keys.
+    private const KEY = 'setting.v2';
 
     public function __construct(
         #[Target('setting.cache')]
@@ -52,6 +54,16 @@ final class CachedSettingStore implements SettingStoreInterface
         return $this->values()['selectedProviderName'];
     }
 
+    public function isAutosave(): bool
+    {
+        return $this->values()['autosave'];
+    }
+
+    public function isAutosaveAfterAi(): bool
+    {
+        return $this->values()['autosaveAfterAi'];
+    }
+
     public function update(Setting $setting): void
     {
         // A beta of INF forces the callback to run: the entry is rewritten in one go.
@@ -76,6 +88,8 @@ final class CachedSettingStore implements SettingStoreInterface
             'themeMode' => $setting->getThemeMode(),
             'locale' => $setting->getLocale(),
             'selectedProviderName' => $setting->getSelectedProvider()?->getName(),
+            'autosave' => $setting->isAutosave(),
+            'autosaveAfterAi' => $setting->isAutosaveAfterAi(),
         ];
     }
 }

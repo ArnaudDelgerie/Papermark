@@ -155,6 +155,8 @@ final class SettingsController extends AbstractController
             'providers' => $this->providers->findAllByName(),
             'selected' => $this->settingStore->getSelectedProviderName(),
             'defaultMode' => $this->settingStore->getDefaultMode(),
+            'autosave' => $this->settingStore->isAutosave(),
+            'autosaveAfterAi' => $this->settingStore->isAutosaveAfterAi(),
         ], [
             // Stateless token, checked by the request's origin (config/packages/csrf.yaml).
             'csrf_token_id' => 'papermark_app',

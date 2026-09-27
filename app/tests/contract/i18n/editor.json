@@ -64,8 +64,6 @@
         "confirmButton": "Confirm"
     },
     "toast": {
-        "saved": "File saved",
-        "savedAs": "File saved as {name}",
         "copiedMarkdown": "Markdown copied to clipboard",
         "copyMarkdownFailed": "Failed to copy markdown",
         "copiedCode": "Code copied to clipboard",
@@ -73,7 +71,8 @@
         "currentFileDeleted": "\"{name}\" has been deleted: its content stays open, unsaved. Save it under another name to keep it.",
         "currentFileGone": "\"{name}\" no longer exists: its content stays open, unsaved. Save it under another name to keep it.",
         "fileNotFound": "File not found",
-        "draftRestored": "Unsaved changes recovered"
+        "draftRestored": "Unsaved changes recovered",
+        "autosaveFailed": "The automatic save failed and is suspended: save by hand to restart it."
     },
     "draftConflict": {
         "question": "The file was modified on disk since your draft. What should happen to your unsaved changes?",

@@ -35,6 +35,12 @@ class Setting
     #[ORM\Column(length: 16, enumType: AppLocale::class)]
     private AppLocale $locale = AppLocale::En;
 
+    #[ORM\Column]
+    private bool $autosave = false;
+
+    #[ORM\Column]
+    private bool $autosaveAfterAi = false;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -78,5 +84,25 @@ class Setting
     public function setLocale(AppLocale $locale): void
     {
         $this->locale = $locale;
+    }
+
+    public function isAutosave(): bool
+    {
+        return $this->autosave;
+    }
+
+    public function setAutosave(bool $autosave): void
+    {
+        $this->autosave = $autosave;
+    }
+
+    public function isAutosaveAfterAi(): bool
+    {
+        return $this->autosaveAfterAi;
+    }
+
+    public function setAutosaveAfterAi(bool $autosaveAfterAi): void
+    {
+        $this->autosaveAfterAi = $autosaveAfterAi;
     }
 }

@@ -43,7 +43,7 @@ describe('editor-state (the master)', () => {
         expect((init.body as FormData).get('mode')).toBe('dir');
         // readonly is not sent by the routes: it is kept. ai_enabled is, but not by this one.
         expect(succeeded).toHaveBeenCalledWith({
-            state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true },
+            state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true, autosave: false, autosave_after_ai: false },
             action: { mode: 'dir' },
         });
     });

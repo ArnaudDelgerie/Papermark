@@ -69,8 +69,7 @@ components:
             upload_placeholder: or paste link
             confirm_button: Confirm
         toast:
-            saved: File saved
-            saved_as: 'File saved as {name}'
+            autosave_failed: "The automatic save failed and is suspended: save by hand to restart it."
             copied_markdown: Markdown copied to clipboard
             copy_markdown_failed: Failed to copy markdown
             copied_code: Code copied to clipboard
@@ -190,6 +189,9 @@ components:
         errors_title: 'These settings were not saved:'
         error_line: '{field}: {message}'
         mode_title: Default mode
+        save_title: Saving
+        autosave: Automatic save
+        autosave_after_ai: Save after an AI task
         cancel: Cancel
         delete_key: Delete key
         delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.

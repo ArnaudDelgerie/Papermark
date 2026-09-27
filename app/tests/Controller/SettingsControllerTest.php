@@ -69,8 +69,8 @@ final class SettingsControllerTest extends WebTestCase
         // A Turbo frame would otherwise capture the form's submit.
         self::assertSame('false', $crawler->filter('form.settings-form')->attr('data-turbo'));
 
-        // One fieldset per provider, plus one each for default mode and updates.
-        self::assertSelectorCount(5, 'fieldset.settings-fieldset');
+        // One fieldset per provider, plus one each for default mode, autosave and updates.
+        self::assertSelectorCount(6, 'fieldset.settings-fieldset');
         self::assertSelectorCount(3, '.settings-provider');
         self::assertSelectorCount(3, 'input[type="radio"][name="settings[selected]"]');
 
@@ -236,6 +236,49 @@ final class SettingsControllerTest extends WebTestCase
         self::assertSame('single', $body['state']['mode']);
         $this->client->request('GET', '/editor/state');
         self::assertSame('single', json_decode((string) $this->client->getResponse()->getContent(), true)['state']['mode']);
+    }
+
+    /**
+     * EDITOR_AUTOSAVE.md: two switches in the Editor tab, off by default,
+     * stored with the rest of the form and answered in the state — the write
+     * routes' answer and the state route alike.
+     */
+    public function testTheAutosaveSettingsSaveFromTheEditorTabAndTravelInTheState(): void
+    {
+        $crawler = $this->client->request('GET', '/settings');
+
+        // Off by default, and each saves the form by itself like every field.
+        foreach (['autosave', 'autosaveAfterAi'] as $field) {
+            $checkbox = $crawler->filter(\sprintf('input[name="settings[%s]"]', $field));
+            self::assertCount(1, $checkbox);
+            self::assertSame('checkbox', $checkbox->attr('type'));
+            self::assertNull($checkbox->attr('checked'));
+            self::assertSame('change->settings#autosave', $checkbox->attr('data-action'));
+        }
+
+        $body = $this->save(['autosave' => '1', 'autosaveAfterAi' => '1']);
+        self::assertResponseIsSuccessful();
+        self::assertTrue($body['state']['autosave']);
+        self::assertTrue($body['state']['autosave_after_ai']);
+
+        $this->client->request('GET', '/editor/state');
+        $state = json_decode((string) $this->client->getResponse()->getContent(), true)['state'];
+        self::assertTrue($state['autosave']);
+        self::assertTrue($state['autosave_after_ai']);
+
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        $setting = static::getContainer()->get(SettingRepository::class)->getOrCreate();
+        self::assertTrue($setting->isAutosave());
+        self::assertTrue($setting->isAutosaveAfterAi());
+
+        // An unchecked box is absent from the post: back to off.
+        $body = $this->save([]);
+        self::assertResponseIsSuccessful();
+        self::assertFalse($body['state']['autosave']);
+        self::assertFalse($body['state']['autosave_after_ai']);
+
+        static::getContainer()->get(EntityManagerInterface::class)->clear();
+        self::assertFalse(static::getContainer()->get(SettingRepository::class)->getOrCreate()->isAutosave());
     }
 
     public function testSetKeyStoresItInTheKeyringAndTurnsTheAiOn(): void

@@ -34,9 +34,10 @@ interface CrepeBuild {
  * one build at create(), more through recreate() — governed by `serialize`,
  * reassignable per test, for the recreated document's markdown. replace()
  * and type() (what typing in the editor does) both swap the current
- * markdown and deliver it to whatever onChange() registered. The serial
- * ordering of concurrent recreate() calls is CrepeHost's own, tested in
- * crepe-host.test.ts; this fake only records the calls, in order.
+ * markdown and deliver it to whatever onChange() registered. discardAi()
+ * ends a busy state like the real one: the busy listener hears it. The
+ * serial ordering of concurrent recreate() calls is CrepeHost's own, tested
+ * in crepe-host.test.ts; this fake only records the calls, in order.
  */
 function fakeHost(): {
     create: ReturnType<typeof vi.fn>;
@@ -118,7 +119,14 @@ function fakeHost(): {
         setEditable: vi.fn(),
         focus: vi.fn(),
         isAiBusy,
-        discardAi: vi.fn(),
+        // The real one aborts, then tells the listener what is left (crepe-host.ts).
+        discardAi: vi.fn(() => {
+            const wasBusy = isAiBusy();
+            isAiBusy.mockReturnValue(false);
+            if (wasBusy) {
+                aiBusyListener?.(false);
+            }
+        }),
         insertImage: vi.fn(),
         insertImageFromSlashMenu: vi.fn(),
         printCopy: vi.fn(() => null),
@@ -467,7 +475,7 @@ describe('the editor, with the master', () => {
         expect((init!.body as FormData).get('revision')).toBe('r0');
         expect(files['/notes/a.md']).toBe('# A, edited');
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
-        expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.saved }]);
+        expect(toasts).toEqual([]);
     });
 
     it('Save as takes the path the server answers with', async () => {
@@ -488,7 +496,7 @@ describe('the editor, with the master', () => {
             { name: 'Text', extensions: ['txt'] },
         ]);
         expect(label()).toBe('/notes/new.md');
-        expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.savedAs.replace('{name}', 'new.md') }]);
+        expect(toasts).toEqual([]);
         expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
     });
 
@@ -734,7 +742,7 @@ describe('the editor, with the master', () => {
             expect(saveButton().disabled).toBe(true);
             expect(saveAsButton().disabled).toBe(false);
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
-            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.saved }]);
+            expect(toasts).toEqual([]);
         });
 
         it('renews the revision at each save and sends it back on the next one', async () => {
@@ -761,7 +769,7 @@ describe('the editor, with the master', () => {
             click('[data-editor-target="saveButton"]');
             await settle();
 
-            // The 409 itself is never toasted — only the overwrite's success.
+            // The 409 itself is never toasted, and neither is any save's success.
             expect(saveConflictDialog).toHaveBeenCalledWith(expect.objectContaining({
                 message: 'The file was modified outside of Papermark',
                 question: EDITOR_I18N.conflict.question,
@@ -776,7 +784,7 @@ describe('the editor, with the master', () => {
             expect((init!.body as FormData).get('content')).toBe('# A, edited');
             expect(files['/notes/a.md']).toBe('# A, edited');
             expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
-            expect(toasts).toEqual([{ type: 'success', message: EDITOR_I18N.toast.saved }]);
+            expect(toasts).toEqual([]);
         });
 
         it('on a 409, Save as goes through the picker', async () => {
@@ -794,6 +802,236 @@ describe('the editor, with the master', () => {
             const [, init] = calls('POST', '/document/save')[1];
             expect((init!.body as FormData).get('path')).toBe('/notes/copy.md');
             expect((init!.body as FormData).get('revision')).toBe(null);
+        });
+    });
+
+    describe('the automatic save (EDITOR_AUTOSAVE.md)', () => {
+        // The delay is a timer: mounting waits on the real ones, the rest of
+        // the test walks them by hand. Each test fakes them once mounted.
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        // The answers of the routes asked while the timers are faked: the
+        // chains are microtasks, no timer to wait on.
+        const flush = async (): Promise<void> => {
+            for (let i = 0; i < 10; i++) {
+                await Promise.resolve();
+            }
+        };
+        const saves = (): number => calls('POST', '/document/save').length;
+
+        it('saves after 2 s without a change, each change restarting the count', async () => {
+            current = { ...current, autosave: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            host.type('# A, edited');
+            await vi.advanceTimersByTimeAsync(1999);
+            expect(saves()).toBe(0);
+            host.type('# A, edited more');
+            await vi.advanceTimersByTimeAsync(1999);
+            expect(saves()).toBe(0);
+            await vi.advanceTimersByTimeAsync(1);
+
+            expect(saves()).toBe(1);
+            expect(files['/notes/a.md']).toBe('# A, edited more');
+            expect((calls('POST', '/document/save')[0][1]!.body as FormData).get('revision')).toBe('r0');
+            await flush();
+            // Clean again, and no toast: the dot's disappearance says it.
+            expect($('[data-editor-target="dirtyIndicator"]').hidden).toBe(true);
+            expect(toasts).toEqual([]);
+        });
+
+        it('saves nothing without a path: an untitled document is Save as\'s to save', async () => {
+            current = { ...current, file: null, autosave: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            host.type('# Untitled');
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(saves()).toBe(0);
+        });
+
+        it('saves nothing in read only', async () => {
+            current = { ...current, autosave: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            click('[data-editor-target="toggleButton"]');
+            host.type('# A, edited');
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(saves()).toBe(0);
+        });
+
+        it('saves nothing with the setting off', async () => {
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            host.type('# A, edited');
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(saves()).toBe(0);
+        });
+
+        it('on a 409, toasts instead of the conflict dialog, suspends, and a successful manual save resumes', async () => {
+            current = { ...current, autosave: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+            conflictNextSave = true;
+
+            host.type('# A, edited');
+            await vi.advanceTimersByTimeAsync(2000);
+            await flush();
+
+            expect(saves()).toBe(1);
+            expect(saveConflictDialog).not.toHaveBeenCalled();
+            expect(toasts).toEqual([{ type: 'error', message: EDITOR_I18N.toast.autosaveFailed }]);
+
+            // Suspended: new typing no longer saves by itself.
+            host.type('# A, edited again');
+            await vi.advanceTimersByTimeAsync(3000);
+            await flush();
+            expect(saves()).toBe(1);
+
+            // A manual save that succeeds re-arms the automatic one.
+            click('[data-editor-target="saveButton"]');
+            await flush();
+            expect(saves()).toBe(2);
+
+            host.type('# A, more');
+            await vi.advanceTimersByTimeAsync(2000);
+            await flush();
+            expect(saves()).toBe(3);
+            expect(files['/notes/a.md']).toBe('# A, more');
+        });
+
+        it('saves when an AI task ends on a modified document, not on a clean one, and never while it runs', async () => {
+            current = { ...current, autosave_after_ai: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            // A task that ends on the untouched document: nothing to write.
+            host.aiBusy(true);
+            host.aiBusy(false);
+            await flush();
+            expect(saves()).toBe(0);
+
+            host.type('# A, edited');
+            host.aiBusy(true);
+            // The changes while it runs — its own stream included — never
+            // reach a timer: no delayed setting is on anyway.
+            host.type('# A, more');
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(saves()).toBe(0);
+
+            host.aiBusy(false);
+            await flush();
+            expect(saves()).toBe(1);
+            expect(files['/notes/a.md']).toBe('# A, more');
+        });
+
+        it('saves nothing when the leave guard discards a running task: that end was asked for, not concluded', async () => {
+            current = { ...current, autosave_after_ai: true };
+            vi.mocked(confirmDialog).mockResolvedValue(true);
+            await start(current);
+
+            // The document is modified and a task runs: leaving asks, the
+            // answer is "continue without saving" — and that is what happens.
+            host.type('# A, edited');
+            host.aiBusy(true);
+            click('[data-editor-target="newButton"]');
+            await settle();
+            await flush();
+
+            expect(confirmDialog).toHaveBeenCalledTimes(1);
+            expect(host.discardAi).toHaveBeenCalled();
+            expect(saves()).toBe(0);
+            // The document left behind is gone: an empty, untitled one.
+            expect(host.markdown()).toBe('');
+            expect(label()).toBe(EDITOR_I18N.untitled);
+        });
+
+        it('saves nothing when the disappearing file discards a running task', async () => {
+            current = { ...current, autosave_after_ai: true };
+            await start(current);
+
+            host.type('# A, edited');
+            host.aiBusy(true);
+            emit('editor:state-resynced', { state: { ...current, file: null }, anomaly: { file: '/notes/a.md' } });
+            await flush();
+
+            expect(host.discardAi).toHaveBeenCalled();
+            // Not even to the path that is already gone.
+            expect(saves()).toBe(0);
+            expect(label()).toBe(EDITOR_I18N.untitled);
+        });
+
+        it('restarts the delay when a task ends, with only the delayed setting on', async () => {
+            current = { ...current, autosave: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            host.type('# A, edited');
+            host.aiBusy(true);
+            // The count that had started is void: nothing while it runs.
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(saves()).toBe(0);
+
+            host.aiBusy(false);
+            await vi.advanceTimersByTimeAsync(1999);
+            expect(saves()).toBe(0);
+            await vi.advanceTimersByTimeAsync(1);
+            expect(saves()).toBe(1);
+        });
+
+        it('follows the settings saves without a reload: on schedules, off cancels', async () => {
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            host.type('# A, edited');
+            emit('editor:do-save_settings-succeeded', { state: { ...current, autosave: true }, action: {} });
+            await vi.advanceTimersByTimeAsync(2000);
+            await flush();
+            expect(saves()).toBe(1);
+
+            host.type('# A, more');
+            emit('editor:do-save_settings-succeeded', { state: { ...current, autosave: false }, action: {} });
+            await vi.advanceTimersByTimeAsync(3000);
+            await flush();
+            expect(saves()).toBe(1);
+        });
+
+        it('a save still in flight when the delay expires restarts it, if the document is still modified', async () => {
+            current = { ...current, autosave: true };
+            await start(current);
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            host.type('# A, edited');
+            let answer!: (response: Response) => void;
+            fetchMock.mockImplementation((url: string) => {
+                if (url === '/document/save') {
+                    return new Promise((resolve) => { answer = resolve; });
+                }
+                throw new Error(`Unexpected ${url}`);
+            });
+            click('[data-editor-target="saveButton"]');
+            await flush();
+            expect(saves()).toBe(1);
+
+            // The delay expires while the answer is still pending: nothing.
+            host.type('# A, edited more');
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(saves()).toBe(1);
+
+            answer(jsonResponse({ state: current, action: { path: '/notes/a.md', revision: 'r1' } }));
+            // Back to the real routes: the restarted delay's save goes through the server.
+            server();
+            await flush();
+            // Still modified: the delay restarted by itself.
+            await vi.advanceTimersByTimeAsync(2000);
+            await flush();
+            expect(saves()).toBe(2);
+            expect(files['/notes/a.md']).toBe('# A, edited more');
         });
     });
 

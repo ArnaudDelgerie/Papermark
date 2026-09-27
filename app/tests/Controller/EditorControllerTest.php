@@ -115,7 +115,7 @@ final class EditorControllerTest extends WebTestCase
 
         $master = $crawler->filter('div[data-controller="editor-state"]');
         self::assertSame(
-            ['mode' => 'single', 'file' => realpath($path), 'dir' => null, 'ai_enabled' => false, 'readonly' => false],
+            ['mode' => 'single', 'file' => realpath($path), 'dir' => null, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false, 'readonly' => false],
             json_decode((string) $master->attr('data-editor-state-state-value'), true),
         );
         $urls = json_decode((string) $master->attr('data-editor-state-urls-value'), true);
@@ -166,7 +166,7 @@ final class EditorControllerTest extends WebTestCase
         $client->request('GET', '/editor/state');
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'single', 'file' => realpath($path), 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'single', 'file' => realpath($path), 'dir' => null, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         $this->assertMatchesContract('editor-state', $this->responseState($client));
 
         unlink($path);
@@ -237,7 +237,7 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/mode', ['mode' => 'dir']);
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => null, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         self::assertSame(['mode' => 'dir'], $this->responseData($client)['action']);
         $this->assertMatchesContract('state-success', $this->responseData($client));
 
@@ -280,7 +280,7 @@ final class EditorControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         // No content in the answer: the editor fetches it on the update.
         self::assertSame(
-            ['state' => ['mode' => 'single', 'file' => $path, 'dir' => null, 'ai_enabled' => false], 'action' => ['path' => $path]],
+            ['state' => ['mode' => 'single', 'file' => $path, 'dir' => null, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], 'action' => ['path' => $path]],
             $this->responseData($client),
         );
 
@@ -540,7 +540,7 @@ final class EditorControllerTest extends WebTestCase
         $client->request('DELETE', '/editor/file', [], [], ['HTTP_X_CSRF_TOKEN' => $this->token]);
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => null, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => null, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         // An empty action is still an object, like every other one.
         self::assertStringContainsString('"action":{}', (string) $client->getResponse()->getContent());
 
@@ -571,7 +571,7 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/dir', ['path' => $root]);
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         self::assertSame(['path' => $root], $this->responseData($client)['action']);
 
         $this->removeDirectory($root);
@@ -625,14 +625,14 @@ final class EditorControllerTest extends WebTestCase
         $this->post($client, '/editor/open', ['path' => $root]);
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'dir', 'file' => null, 'dir' => $root, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         self::assertSame(['path' => $root, 'openMode' => 'dir'], $this->responseData($client)['action']);
         $this->assertMatchesContract('state-success', $this->responseData($client));
 
         $this->post($client, '/editor/open', ['path' => $root . '/doc.md']);
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'single', 'file' => $root . '/doc.md', 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'single', 'file' => $root . '/doc.md', 'dir' => $root, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         self::assertSame(['path' => $root . '/doc.md', 'openMode' => 'single'], $this->responseData($client)['action']);
 
         $this->removeDirectory($root);
@@ -767,7 +767,7 @@ final class EditorControllerTest extends WebTestCase
 
         $this->post($client, '/editor/dir/refresh', []);
         self::assertResponseIsSuccessful();
-        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root, 'ai_enabled' => false], $this->responseState($client));
+        self::assertSame(['mode' => 'single', 'file' => null, 'dir' => $root, 'ai_enabled' => false, 'autosave' => false, 'autosave_after_ai' => false], $this->responseState($client));
         self::assertSame([], $this->responseData($client)['action']);
 
         $crawler = $client->request('GET', '/editor/dir');

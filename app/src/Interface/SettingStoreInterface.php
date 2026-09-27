@@ -27,6 +27,12 @@ interface SettingStoreInterface
 
     public function getSelectedProviderName(): ?ProviderName;
 
+    /** Saves the document after a delay without typing (EDITOR_AUTOSAVE.md). */
+    public function isAutosave(): bool;
+
+    /** Saves the document when an AI task ends on a modified document. */
+    public function isAutosaveAfterAi(): bool;
+
     /**
      * Called after the Setting row was written: replaces what reads see.
      */

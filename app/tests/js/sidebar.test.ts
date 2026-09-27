@@ -187,7 +187,7 @@ describe('the left column, with the master', () => {
 
         it('shows the refresh button only once a folder is open', async () => {
             invoke.mockResolvedValue('/notes');
-            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true }, action: { path: '/notes' } }));
+            fetchMock.mockResolvedValue(jsonResponse({ state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true, autosave: false, autosave_after_ai: false }, action: { path: '/notes' } }));
             // Rendered without a folder: the server hides it.
             sessionStorage.setItem(HISTORY_KEY, '[]');
             application = await mount(masterHtml({ ...INITIAL, mode: 'dir', dir: null }, sidebarHtml('dir', null)), {
@@ -637,7 +637,7 @@ describe('the left column, with the master', () => {
         it('reloads the tree on the folder the failure left the state in', async () => {
             await start([], 'dir');
 
-            emit('editor:nav-change_dir-failed', { state: { mode: 'dir', file: null, dir: '/other', readonly: false, ai_enabled: true }, action: { path: '/other' } });
+            emit('editor:nav-change_dir-failed', { state: { mode: 'dir', file: null, dir: '/other', readonly: false, ai_enabled: true, autosave: false, autosave_after_ai: false }, action: { path: '/other' } });
             await settle();
 
             expect($('turbo-frame').childElementCount).toBe(0);
@@ -647,7 +647,7 @@ describe('the left column, with the master', () => {
         it('leaves the tree alone when the state still shows the folder it displays', async () => {
             await start([], 'dir');
 
-            emit('editor:nav-change_dir-failed', { state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true }, action: { path: '/notes' } });
+            emit('editor:nav-change_dir-failed', { state: { mode: 'dir', file: null, dir: '/notes', readonly: false, ai_enabled: true, autosave: false, autosave_after_ai: false }, action: { path: '/notes' } });
             await settle();
 
             expect($('turbo-frame .mode-tree')).not.toBeNull();

@@ -24,6 +24,9 @@ export interface EditorState {
     dir: string | null;
     readonly: boolean;
     ai_enabled: boolean;
+    /** Saves after a delay without typing (EDITOR_AUTOSAVE.md), like the one below. */
+    autosave: boolean;
+    autosave_after_ai: boolean;
 }
 
 /** What each action asks for, as the child emits it. */

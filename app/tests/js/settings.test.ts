@@ -158,7 +158,7 @@ describe('the settings form', () => {
             expect($('[data-settings-target="activity"]').hidden).toBe(false);
             expect($('form').getAttribute('aria-busy')).toBe('true');
 
-            emit('editor:do-save_settings-succeeded', { state: { mode: 'single', file: null, dir: null, readonly: false, ai_enabled: false }, action: {} });
+            emit('editor:do-save_settings-succeeded', { state: { mode: 'single', file: null, dir: null, readonly: false, ai_enabled: false, autosave: false, autosave_after_ai: false }, action: {} });
 
             expect($('[data-settings-target="activity"]').hidden).toBe(true);
             expect($('form').getAttribute('aria-busy')).toBe('false');
@@ -176,7 +176,7 @@ describe('the settings form', () => {
     });
 
     describe('the error zone', () => {
-        const state = { mode: 'single', file: null, dir: null, readonly: false, ai_enabled: false } as const;
+        const state = { mode: 'single', file: null, dir: null, readonly: false, ai_enabled: false, autosave: false, autosave_after_ai: false } as const;
 
         it('lists the messages of a refused save, and hides them once a save goes through', async () => {
             type(model('anthropic'), 'bad!');
@@ -217,7 +217,7 @@ describe('the settings form', () => {
     });
 
     describe('the key block', () => {
-        const state = { mode: 'single', file: null, dir: null, readonly: false, ai_enabled: true } as const;
+        const state = { mode: 'single', file: null, dir: null, readonly: false, ai_enabled: true, autosave: false, autosave_after_ai: false } as const;
 
         it('shows the field when there is no key, and the status with delete when there is one', () => {
             expect(block('anthropic', 'set').hidden).toBe(false);

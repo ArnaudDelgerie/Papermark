@@ -62,8 +62,9 @@ export interface I18n extends CrepeI18n {
     /** FRT-08, lot 08: the picked file is not an image the app can serve. */
     imageInvalid: string;
     toast: {
-        saved: string;
-        savedAs: string;
+        /** The success of a save is not toasted (EDITOR_AUTOSAVE.md): the
+         * disappearance of the "unsaved" dot says it. */
+        autosaveFailed: string;
         copiedMarkdown: string;
         copyMarkdownFailed: string;
         copiedCode: string;
@@ -95,7 +96,12 @@ interface InFlightSave {
     markdown: string;
     /** What the file was on disk when it was read; the server checks it (409). */
     revision: string | null;
+    /** An automatic save (EDITOR_AUTOSAVE.md): no conflict dialog on a 409, and its failure suspends the next ones. */
+    automatic: boolean;
 }
+
+/** 2 s without a change, then the document saves by itself (EDITOR_AUTOSAVE.md). */
+const AUTOSAVE_DELAY_MS = 2000;
 
 /**
  * The editor. Invariant: it shows the current file of the state. It reads
@@ -176,6 +182,21 @@ export default class extends Controller<HTMLElement> {
     // The revision of the loaded file, as GET /editor/file gave it: save()
     // sends it back, and the server refuses a write on a stale one (409).
     #revision: string | null = null;
+    // The two autosave settings (EDITOR_AUTOSAVE.md), read at load and
+    // followed on the settings saves, like `ai_enabled`.
+    #autosave = false;
+    #autosaveAfterAi = false;
+    // An automatic save failed: every next one stays off until a manual save
+    // succeeds or the file changes. Local to this controller, like
+    // #revision — the state doesn't carry it.
+    #autosaveSuspended = false;
+    // The delay in count, restarted by each change, cancelled by every way
+    // out of the document.
+    #autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+    // Set while the controller itself ends what the AI was doing — leaving
+    // the document, or its file disappearing. That end is no task
+    // concluding: #aiBusyChanged saves and schedules nothing for it.
+    #discardingAi = false;
     // Read once, in initialize() — before #reset() or anything else can touch
     // sessionStorage — and consumed at most once, by whichever of startup's
     // paths turns out to match its path: the load that follows, or directly
@@ -227,10 +248,11 @@ export default class extends Controller<HTMLElement> {
             this.#updateCopyMarkdownButton(markdown);
             this.#updateDirtyIndicator(markdown);
             this.#syncDraft(markdown);
+            this.#scheduleAutosave();
         });
         this.#guard = new LeaveGuard(this.i18nValue.unsaved, {
             shouldConfirm: () => this.#shouldConfirmLeave(),
-            onLeave: () => this.#host.discardAi(),
+            onLeave: () => this.#discardAi(),
             onStay: () => this.#host.focus(),
         });
         this.#links = new LinkFollower(this.element, {
@@ -239,8 +261,9 @@ export default class extends Controller<HTMLElement> {
         });
         this.#closeGuard = new CloseGuard('editor');
         // The busy state changes without touching the text (a session
-        // starts, a diff waits): the transitions themselves resync the guard.
-        this.#host.onAiBusyChange(() => this.#syncCloseGuard());
+        // starts, a diff waits): the transitions themselves resync the guard,
+        // and the end of a task can save (EDITOR_AUTOSAVE.md).
+        this.#host.onAiBusyChange((busy) => this.#aiBusyChanged(busy));
         this.#print = new PrintCopy(() => this.#host.printCopy());
         // FRT-10 + UX-03, lot 08, then EDITOR_SHORTCUTS.md: the buttons do
         // the work — disabled and leave guard included.
@@ -275,10 +298,12 @@ export default class extends Controller<HTMLElement> {
         this.#isReadonly = this.readonlyValue;
 
         try {
-            const { ai_enabled: aiEnabled } = await this.#stateReady;
+            const { ai_enabled: aiEnabled, autosave, autosave_after_ai: autosaveAfterAi } = await this.#stateReady;
             if (this.#generation !== generation) {
                 return;
             }
+            this.#autosave = autosave;
+            this.#autosaveAfterAi = autosaveAfterAi;
             this.#connectAiClient(aiEnabled);
 
             await this.#host.create({ aiEnabled, aiProvider: this.#aiClient?.createProvider() });
@@ -319,6 +344,7 @@ export default class extends Controller<HTMLElement> {
 
     disconnect(): void {
         this.#generation++;
+        this.#cancelAutosave();
         this.#print.stop();
         this.#guard.stop();
         this.#links.stop();
@@ -406,15 +432,14 @@ export default class extends Controller<HTMLElement> {
                 }
             }),
 
-            on('editor:do-save-succeeded', ({ action }) => this.#saved(this.i18nValue.toast.saved, action.revision)),
+            on('editor:do-save-succeeded', ({ action }) => this.#saved(action.revision)),
             on('editor:do-save-failed', ({ action }) => this.#saveFailed(action.status, action.message ?? null)),
             on('editor:do-save_as-succeeded', ({ state, action }) => {
                 // The server made the new file the current one, realpath'd.
                 this.#currentPath = action.path;
                 this.#syncDirectory(state);
                 this.#updateFilePath();
-                const template = this.i18nValue.toast.savedAs;
-                this.#saved(template.replace('{name}', basename(action.path)), action.revision);
+                this.#saved(action.revision);
             }),
             on('editor:do-save_as-failed', ({ action }) => this.#saveFailed(action.status, action.message ?? null)),
 
@@ -443,10 +468,18 @@ export default class extends Controller<HTMLElement> {
                 this.#updateFilePath();
             }),
 
-            // Saving the settings, setting or deleting a key can turn the AI on or off.
-            on('editor:do-save_settings-succeeded', ({ state }) => void this.#followAi(state)),
-            on('editor:do-set_key-succeeded', ({ state }) => void this.#followAi(state)),
-            on('editor:do-delete_key-succeeded', ({ state }) => void this.#followAi(state)),
+            // Saving the settings follows either autosave setting; setting or
+            // deleting a key can only turn the AI on or off.
+            on('editor:do-save_settings-succeeded', ({ state }) => {
+                this.#followAutosave(state);
+                void this.#followAi(state);
+            }),
+            on('editor:do-set_key-succeeded', ({ state }) => {
+                void this.#followAi(state);
+            }),
+            on('editor:do-delete_key-succeeded', ({ state }) => {
+                void this.#followAi(state);
+            }),
 
             // Same anomaly on a re-read: the file was there, the re-read says
             // it isn't anymore (lot 03).
@@ -523,6 +556,112 @@ export default class extends Controller<HTMLElement> {
         this.#syncDraft();
     }
 
+    /**
+     * The two autosave settings follow the state (EDITOR_AUTOSAVE.md), which
+     * the settings saves refresh without a reload. Turning the delayed one on
+     * with a modified document starts its count at once; turning it off
+     * cancels the one in flight.
+     */
+    #followAutosave(state: EditorState): void {
+        this.#autosave = state.autosave;
+        this.#autosaveAfterAi = state.autosave_after_ai;
+        if (this.#autosave) {
+            this.#scheduleAutosave();
+        } else {
+            this.#cancelAutosave();
+        }
+    }
+
+    /**
+     * The delay without typing (EDITOR_AUTOSAVE.md), restarted by each
+     * change: scheduled only where a save could conclude — a document with
+     * a path, in edit mode, dirty, no task running, and not suspended by an
+     * earlier failure. Every other case cancels whatever was pending: the
+     * timer that fires must never have to guess.
+     */
+    #scheduleAutosave(): void {
+        this.#cancelAutosave();
+        if (
+            !this.#autosave ||
+            this.#autosaveSuspended ||
+            this.#isReadonly ||
+            this.#loadingFile ||
+            this.#loadFailed ||
+            this.#currentPath === null ||
+            this.#host.isAiBusy() ||
+            !this.#host.created ||
+            !this.#isDirty()
+        ) {
+            return;
+        }
+        this.#autosaveTimer = setTimeout(() => {
+            this.#autosaveTimer = null;
+            this.#autosaveSave();
+        }, AUTOSAVE_DELAY_MS);
+    }
+
+    #cancelAutosave(): void {
+        if (this.#autosaveTimer !== null) {
+            clearTimeout(this.#autosaveTimer);
+            this.#autosaveTimer = null;
+        }
+    }
+
+    /**
+     * What the delay concluding asks: the same guards as saveFile(), as an
+     * automatic save. A save already in flight is left alone: its success
+     * restarts the delay if the document is still modified.
+     *
+     * Returns whether it began a save.
+     */
+    #autosaveSave(): boolean {
+        if (this.#isReadonly || this.#inFlightSave !== null || !this.#host.created || this.#currentPath === null || !this.#isDirty()) {
+            return false;
+        }
+
+        this.#beginSave('do-save', this.#currentPath, this.#host.markdown(), this.#revision, true);
+
+        return true;
+    }
+
+    /**
+     * A busy transition of the AI: the guard resyncs, and the end of a task
+     * saves at once when the setting is on, a rejected task included — only
+     * a modified document has something to write. Otherwise the delayed
+     * setting restarts its count, if it is on. While a task runs, nothing
+     * is scheduled: its result is still moving. The end of a discard the
+     * controller itself asked for — #discardAi() — is none of that: the
+     * document behind it is being left, not concluded.
+     */
+    #aiBusyChanged(busy: boolean): void {
+        this.#syncCloseGuard();
+        if (busy) {
+            this.#cancelAutosave();
+
+            return;
+        }
+        if (this.#discardingAi) {
+            return;
+        }
+        if (!(this.#autosaveAfterAi && this.#autosaveSave())) {
+            this.#scheduleAutosave();
+        }
+    }
+
+    /**
+     * discardAi() ends the busy state like a task would, and the host
+     * tells #aiBusyChanged synchronously: the flag makes that end say what
+     * it is — the controller's own doing, on a document on its way out.
+     */
+    #discardAi(): void {
+        this.#discardingAi = true;
+        try {
+            this.#host.discardAi();
+        } finally {
+            this.#discardingAi = false;
+        }
+    }
+
     toggleReadonly(): void {
         this.#isReadonly = !this.#isReadonly;
         this.#applyReadonlyState();
@@ -531,6 +670,10 @@ export default class extends Controller<HTMLElement> {
     #applyReadonlyState(): void {
         this.#applyEditable();
         this.#updateSaveButton(this.#host.markdown());
+        // Read only: no automatic save (EDITOR_AUTOSAVE.md), pending or future.
+        if (this.#isReadonly) {
+            this.#cancelAutosave();
+        }
 
         if (this.hasToggleLabelTarget) {
             this.toggleLabelTarget.textContent = this.#isReadonly
@@ -660,6 +803,10 @@ export default class extends Controller<HTMLElement> {
         this.element.classList.remove('is-load-failed');
         this.#currentPath = path;
         this.#revision = revision;
+        // Another document: the delay of the old one is void, and a failure
+        // of its automatic save suspends nothing here (EDITOR_AUTOSAVE.md).
+        this.#cancelAutosave();
+        this.#autosaveSuspended = false;
         this.#host.replace(content);
         this.#savedRef = this.#host.markdown();
         this.#applyEditable();
@@ -718,6 +865,7 @@ export default class extends Controller<HTMLElement> {
         this.#loadFailed = false;
         this.element.classList.remove('is-load-failed');
         this.#revision = null;
+        this.#cancelAutosave();
         if (!this.#host.created) {
             return;
         }
@@ -789,8 +937,8 @@ export default class extends Controller<HTMLElement> {
      * the native picker already confirmed the overwrite; a null revision on
      * do-save is Écraser after a conflict: the server writes blind.
      */
-    #beginSave(action: 'do-save' | 'do-save_as', path: string, markdown: string, revision: string | null): void {
-        this.#inFlightSave = { action, path, markdown, revision };
+    #beginSave(action: 'do-save' | 'do-save_as', path: string, markdown: string, revision: string | null, automatic = false): void {
+        this.#inFlightSave = { action, path, markdown, revision, automatic };
         this.#updateSaveButton(markdown);
 
         if (action === 'do-save' && revision !== null) {
@@ -808,29 +956,52 @@ export default class extends Controller<HTMLElement> {
         emit('editor:do-save_as-requested', { action: { path, content: markdown } });
     }
 
-    #saved(message: string, revision: string): void {
+    /**
+     * The success of a save, manual or automatic: no toast (EDITOR_AUTOSAVE.md)
+     * — the dot's disappearance says it. A manual success re-arms the
+     * automatic one if a failure had suspended it; and if the document was
+     * modified while the answer was coming back, the delay restarts.
+     */
+    #saved(revision: string): void {
         const save = this.#inFlightSave;
         this.#inFlightSave = null;
         if (save !== null) {
             this.#savedRef = save.markdown;
+            if (!save.automatic) {
+                this.#autosaveSuspended = false;
+            }
         }
         this.#revision = revision;
         this.#updateSaveButton(this.#host.markdown());
         this.#updateDirtyIndicator();
         this.#syncDraft();
-        showToast('success', message);
+        this.#scheduleAutosave();
     }
 
     /**
      * A save that failed without a server answer (the network) only frees
      * the buttons — the master already toasted. A 409 opens the conflict
      * dialog: Enregistrer sous, or Écraser — the same save again, without a
-     * revision, on fresh markdown (lot 03).
+     * revision, on fresh markdown (lot 03). An automatic save that failed
+     * never asks (EDITOR_AUTOSAVE.md): a toast that says the suspension —
+     * the reason itself reaches the user through the manual save's dialog —
+     * and the automatic ones stay suspended
+     * until a manual save succeeds or the file changes.
      */
     #saveFailed(status: number | undefined, message: string | null): void {
         const save = this.#inFlightSave;
         this.#inFlightSave = null;
         this.#updateSaveButton(this.#host.markdown());
+
+        if (save !== null && save.automatic) {
+            this.#autosaveSuspended = true;
+            this.#cancelAutosave();
+            if (status === 409) {
+                showToast('error', this.i18nValue.toast.autosaveFailed);
+            }
+
+            return;
+        }
 
         if (status !== 409 || save === null) {
             return;
@@ -893,10 +1064,11 @@ export default class extends Controller<HTMLElement> {
      * there is nothing to lose.
      */
     #currentFileGone(message: string): void {
-        this.#host.discardAi();
+        this.#discardAi();
         this.#currentPath = null;
         this.#revision = null;
         this.#savedRef = '';
+        this.#cancelAutosave();
         this.#updateSaveButton(this.#host.markdown());
         this.#updateDirtyIndicator();
         this.#syncDraft();

@@ -109,8 +109,7 @@ final class Editor
                 'confirmButton' => $this->trans('image_block.confirm_button'),
             ],
             'toast' => [
-                'saved' => $this->trans('toast.saved'),
-                'savedAs' => $this->trans('toast.saved_as'),
+                'autosaveFailed' => $this->trans('toast.autosave_failed'),
                 'copiedMarkdown' => $this->trans('toast.copied_markdown'),
                 'copyMarkdownFailed' => $this->trans('toast.copy_markdown_failed'),
                 'copiedCode' => $this->trans('toast.copied_code'),

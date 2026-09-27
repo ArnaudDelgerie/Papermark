@@ -114,6 +114,17 @@
                 </label>
                 {% endfor %}
             </fieldset>
+            <fieldset class="settings-fieldset">
+                <legend>{{ 'components.settings.save_title'|trans({}, 'components') }}</legend>
+                <label class="settings-mode-option">
+                    {{ form_widget(form.autosave, {attr: {'data-action': 'change->settings#autosave'}}) }}
+                    {{ form_label(form.autosave) }}
+                </label>
+                <label class="settings-mode-option">
+                    {{ form_widget(form.autosaveAfterAi, {attr: {'data-action': 'change->settings#autosave'}}) }}
+                    {{ form_label(form.autosaveAfterAi) }}
+                </label>
+            </fieldset>
         </div>
 
         <div class="settings-tabpanel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" data-settings-target="panel" data-tab="updates" hidden>

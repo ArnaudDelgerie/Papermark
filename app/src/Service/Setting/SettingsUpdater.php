@@ -67,6 +67,8 @@ final class SettingsUpdater
         $this->editorState->keepMode();
         $setting->setSelectedProvider($selected !== null ? $providersByName[$selected->value] : null);
         $setting->setDefaultMode($form->get('defaultMode')->getData());
+        $setting->setAutosave($form->get('autosave')->getData());
+        $setting->setAutosaveAfterAi($form->get('autosaveAfterAi')->getData());
         $this->settings->update($setting);
 
         $this->editorState->refreshAiEnabled();

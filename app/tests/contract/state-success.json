@@ -3,7 +3,9 @@
         "mode": "single",
         "file": "/notes/a.md",
         "dir": null,
-        "ai_enabled": true
+        "ai_enabled": true,
+        "autosave": false,
+        "autosave_after_ai": false
     },
     "action": {}
 }

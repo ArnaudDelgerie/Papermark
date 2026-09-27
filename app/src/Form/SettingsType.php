@@ -8,6 +8,7 @@ use App\Entity\Provider;
 use App\Enum\ProviderName;
 use App\Enum\Setting\EditorMode;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -18,9 +19,10 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * provider (keyed by name), plus a single radio group for the selected
  * provider. Each radio is rendered inside its provider block by the template
  * (form.selected[name]). Theme and language are not here: they have their own
- * buttons in the file bar.
+ * buttons in the file bar. The two autosave switches (EDITOR_AUTOSAVE.md)
+ * live with the default mode, in the Editor tab.
  *
- * @extends AbstractType<array{providers: array<string, Provider>, selected: ?ProviderName, defaultMode: EditorMode}>
+ * @extends AbstractType<array{providers: array<string, Provider>, selected: ?ProviderName, defaultMode: EditorMode, autosave: bool, autosaveAfterAi: bool}>
  */
 final class SettingsType extends AbstractType
 {
@@ -43,6 +45,14 @@ final class SettingsType extends AbstractType
                 'class' => EditorMode::class,
                 'expanded' => true,
                 'choice_label' => static fn (EditorMode $mode): string => 'components.mode.' . $mode->value,
+            ])
+            ->add('autosave', CheckboxType::class, [
+                'label' => 'components.settings.autosave',
+                'required' => false,
+            ])
+            ->add('autosaveAfterAi', CheckboxType::class, [
+                'label' => 'components.settings.autosave_after_ai',
+                'required' => false,
             ]);
     }
 

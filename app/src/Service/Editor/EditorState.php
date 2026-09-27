@@ -147,7 +147,11 @@ final class EditorState
     }
 
     /**
-     * @return array{mode: string, file: ?string, dir: ?string, ai_enabled: bool}
+     * The autosave settings travel along (EDITOR_AUTOSAVE.md), read from the
+     * settings store each time — unlike `ai_enabled`, nothing here needs the
+     * session cache: the store is already one.
+     *
+     * @return array{mode: string, file: ?string, dir: ?string, ai_enabled: bool, autosave: bool, autosave_after_ai: bool}
      */
     public function toArray(): array
     {
@@ -156,6 +160,8 @@ final class EditorState
             'file' => $this->getFile(),
             'dir' => $this->getDir(),
             'ai_enabled' => $this->isAiEnabled(),
+            'autosave' => $this->settings->isAutosave(),
+            'autosave_after_ai' => $this->settings->isAutosaveAfterAi(),
         ];
     }
 }

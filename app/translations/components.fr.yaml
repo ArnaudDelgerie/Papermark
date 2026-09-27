@@ -69,8 +69,7 @@ components:
             upload_placeholder: ou collez un lien
             confirm_button: Confirmer
         toast:
-            saved: Fichier enregistré
-            saved_as: 'Fichier enregistré sous {name}'
+            autosave_failed: "La sauvegarde automatique a échoué et est suspendue : enregistrez à la main pour la relancer."
             copied_markdown: Markdown copié dans le presse-papier
             copy_markdown_failed: Échec de la copie du markdown
             copied_code: Code copié dans le presse-papier
@@ -190,6 +189,9 @@ components:
         errors_title: 'Ces réglages n''ont pas été enregistrés :'
         error_line: '{field} : {message}'
         mode_title: Mode par défaut
+        save_title: Sauvegarde
+        autosave: Sauvegarde automatique
+        autosave_after_ai: Enregistrer après une tâche IA
         cancel: Annuler
         delete_key: Supprimer la clé
         delete_key_confirm_message: Ceci supprime la clé API stockée pour ce fournisseur. Vous devrez la saisir à nouveau pour utiliser l'IA avec lui.

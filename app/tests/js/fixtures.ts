@@ -9,7 +9,7 @@ import modeSingleI18n from '../contract/i18n/mode-single.json';
 import modeDirI18n from '../contract/i18n/mode-dir.json';
 import currentDirectoryI18n from '../contract/i18n/current-directory.json';
 
-export const INITIAL: EditorState = { mode: 'single', file: '/notes/a.md', dir: '/notes', readonly: false, ai_enabled: true };
+export const INITIAL: EditorState = { mode: 'single', file: '/notes/a.md', dir: '/notes', readonly: false, ai_enabled: true, autosave: false, autosave_after_ai: false };
 
 /** A Stimulus value attribute: JSON, HTML-escaped. */
 export function attr(value: unknown): string {
