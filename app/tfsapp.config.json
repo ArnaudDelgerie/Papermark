@@ -14,6 +14,9 @@
       ]
     }
   ],
+  "build_outputs": [
+    "public/build"
+  ],
   "commands": {
     "pre-install": [
       "doctrine:migrations:migrate --no-interaction"
@@ -32,7 +35,11 @@
     "secrets": {
       "ipc": false,
       "bridge": true,
-      "keys": ["openai", "anthropic", "mistral"]
+      "keys": [
+        "openai",
+        "anthropic",
+        "mistral"
+      ]
     },
     "update": {
       "ipc": true,
@@ -51,6 +58,9 @@
     }
   },
   "file_associations": {
-    "mime_types": ["text/markdown", "inode/directory"]
+    "mime_types": [
+      "text/markdown",
+      "inode/directory"
+    ]
   }
 }
