@@ -12,10 +12,10 @@ use App\Enum\Setting\ThemeMode;
 use App\Repository\ProviderRepository;
 use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
-use App\Tests\Double\StationContextDouble;
+use App\Tests\Double\HubContextDouble;
 use App\Tests\Trait\ContractAssertions;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use ArnaudDelgerie\TFSAppBundle\HubContext\HubContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -29,7 +29,7 @@ final class SettingsControllerTest extends WebTestCase
 
     private KernelBrowser $client;
     private InMemorySecretStore $secretStore;
-    private StationContextDouble $stationContext;
+    private HubContextDouble $hubContext;
 
     protected function setUp(): void
     {
@@ -44,8 +44,8 @@ final class SettingsControllerTest extends WebTestCase
         // no banner leaks into the tests that don't care about them. The
         // probes stay flippable: the container cannot replace an
         // initialized service, but it re-reads the properties each request.
-        $this->stationContext = new StationContextDouble();
-        static::getContainer()->set(StationContextInterface::class, $this->stationContext);
+        $this->hubContext = new HubContextDouble();
+        static::getContainer()->set(HubContextInterface::class, $this->hubContext);
 
         $entityManager = static::getContainer()->get(EntityManagerInterface::class);
         foreach (ProviderName::cases() as $name) {
@@ -467,7 +467,7 @@ final class SettingsControllerTest extends WebTestCase
 
     public function testAMissingWorkerShowsItsBannerButLeavesTheKeyFieldsActive(): void
     {
-        $this->stationContext->worker = false;
+        $this->hubContext->worker = false;
 
         $crawler = $this->client->request('GET', '/settings');
 
@@ -493,7 +493,7 @@ final class SettingsControllerTest extends WebTestCase
 
     public function testAMissingKeyringShowsItsWarningButLeavesTheKeyFieldsActive(): void
     {
-        $this->stationContext->keyring = false;
+        $this->hubContext->keyring = false;
 
         $crawler = $this->client->request('GET', '/settings');
 

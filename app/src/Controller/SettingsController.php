@@ -25,7 +25,7 @@ use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use ArnaudDelgerie\TFSAppBundle\HubContext\HubContextInterface;
 
 /**
  * The settings live in a modal of the editor page (see EDITOR_SETTINGS.md).
@@ -44,7 +44,7 @@ final class SettingsController extends AbstractController
         private readonly SettingStoreInterface $settingStore,
         private readonly SettingsUpdater $settingsUpdater,
         private readonly EditorState $editorState,
-        private readonly StationContextInterface $stationContext,
+        private readonly HubContextInterface $hubContext,
         private readonly SecretStoreInterface $secretStore,
     ) {
     }
@@ -69,9 +69,9 @@ final class SettingsController extends AbstractController
             // HUB-06, lot 09: the hub's capabilities, probed one by one —
             // never "am I in the hub". The bridge probe is the secret store's
             // own availability: it is exactly what makes saving a key fail.
-            'has_worker' => $this->stationContext->isAsyncWorker(),
+            'has_worker' => $this->hubContext->isAsyncWorker(),
             'bridge_available' => $this->secretStore->isAvailable(),
-            'keyring_available' => $this->stationContext->isKeyringAvailable(),
+            'keyring_available' => $this->hubContext->isKeyringAvailable(),
         ]);
     }
 

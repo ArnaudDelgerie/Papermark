@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Ai;
 
 use App\Interface\SettingStoreInterface;
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use ArnaudDelgerie\TFSAppBundle\HubContext\HubContextInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
@@ -18,7 +18,7 @@ final class AiAvailability
     public function __construct(
         private readonly SettingStoreInterface $settings,
         private readonly RequestStack $requestStack,
-        private readonly StationContextInterface $stationContext,
+        private readonly HubContextInterface $hubContext,
         private readonly ApiKeyResolver $apiKeyResolver,
     ) {
     }
@@ -28,7 +28,7 @@ final class AiAvailability
         $providerName = $this->settings->getSelectedProviderName();
 
         return $this->requestStack->getMainRequest() !== null
-            && $this->stationContext->isAsyncWorker()
+            && $this->hubContext->isAsyncWorker()
             && $providerName !== null
             && $this->apiKeyResolver->resolve($providerName) !== null;
     }

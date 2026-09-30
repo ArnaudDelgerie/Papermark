@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Double;
 
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use ArnaudDelgerie\TFSAppBundle\HubContext\HubContextInterface;
 
 /**
  * Station context stand-in whose probes can change between requests: the
  * container keeps one instance for the whole test (it cannot be replaced
  * once initialized), so a test flips the public properties instead.
  */
-final class StationContextDouble implements StationContextInterface
+final class HubContextDouble implements HubContextInterface
 {
     public bool $worker = true;
     public bool $keyring = true;
@@ -46,7 +46,7 @@ final class StationContextDouble implements StationContextInterface
         return true;
     }
 
-    public function isRunningUnderStation(): bool
+    public function isRunningUnderHub(): bool
     {
         return true;
     }

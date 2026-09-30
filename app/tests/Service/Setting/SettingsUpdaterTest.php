@@ -18,7 +18,7 @@ use App\Service\Editor\EditorState;
 use App\Service\Setting\SettingsUpdater;
 use App\Tests\Double\InMemorySecretStore;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use ArnaudDelgerie\TFSAppBundle\HubContext\HubContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Form\FormFactoryInterface;
@@ -52,9 +52,9 @@ final class SettingsUpdaterTest extends KernelTestCase
         $this->secretStore = new InMemorySecretStore();
         self::getContainer()->set(SecretStoreInterface::class, $this->secretStore);
 
-        $stationContext = $this->createStub(StationContextInterface::class);
-        $stationContext->method('isAsyncWorker')->willReturn(true);
-        self::getContainer()->set(StationContextInterface::class, $stationContext);
+        $hubContext = $this->createStub(HubContextInterface::class);
+        $hubContext->method('isAsyncWorker')->willReturn(true);
+        self::getContainer()->set(HubContextInterface::class, $hubContext);
 
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
         foreach (ProviderName::cases() as $name) {

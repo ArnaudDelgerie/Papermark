@@ -11,7 +11,7 @@ use App\Repository\SettingRepository;
 use App\Tests\Double\InMemorySecretStore;
 use App\Tests\Trait\ContractAssertions;
 use ArnaudDelgerie\TFSAppBundle\Bridge\SecretStoreInterface;
-use ArnaudDelgerie\TFSAppBundle\StationContext\StationContextInterface;
+use ArnaudDelgerie\TFSAppBundle\HubContext\HubContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\DomCrawler\Crawler;
@@ -163,9 +163,9 @@ final class EditorComponentTest extends KernelTestCase
         $request->setSession(new Session(new MockArraySessionStorage()));
         self::getContainer()->get(RequestStack::class)->push($request);
 
-        $stationContext = $this->createStub(StationContextInterface::class);
-        $stationContext->method('isAsyncWorker')->willReturn(true);
-        self::getContainer()->set(StationContextInterface::class, $stationContext);
+        $hubContext = $this->createStub(HubContextInterface::class);
+        $hubContext->method('isAsyncWorker')->willReturn(true);
+        self::getContainer()->set(HubContextInterface::class, $hubContext);
         self::getContainer()->set(SecretStoreInterface::class, new InMemorySecretStore($secrets));
 
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
