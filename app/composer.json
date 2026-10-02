@@ -2,7 +2,7 @@
     "name": "arnauddelgerie/papermark",
     "description": "A desktop Markdown editor that runs under TFSAppHub.",
     "type": "project",
-    "license": "proprietary",
+    "license": "MIT",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {

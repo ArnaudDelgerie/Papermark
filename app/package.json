@@ -21,7 +21,7 @@
         "webpack": "^5.82",
         "webpack-cli": "^7.0.0"
     },
-    "license": "UNLICENSED",
+    "license": "MIT",
     "private": true,
     "type": "module",
     "scripts": {
