@@ -1,8 +1,8 @@
 {
   "product_name": "Papermark",
-  "identifier": "dev.local.papermark",
+  "identifier": "io.github.arnauddelgerie.papermark",
   "project_name": "papermark",
-  "app_version": "0.1.3",
+  "app_version": "0.1.0",
   "icon_path": "icon.png",
   "splash_path": "splash.html",
   "splash_bg": "#121212",
