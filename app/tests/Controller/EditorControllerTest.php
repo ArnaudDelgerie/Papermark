@@ -87,6 +87,62 @@ final class EditorControllerTest extends WebTestCase
         self::assertSame('/icon.png', $crawler->filter('link[rel="icon"]')->attr('href'));
     }
 
+    /**
+     * UX-15: the column's quiet footer, last child of the sidebar. Outside
+     * the hub there is no TFS_APP_VERSION, so the first line is the name
+     * alone and the footer keeps its other two lines.
+     */
+    public function testTheSidebarCarriesTheBrandingFooterWithoutTheHubVersion(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', '/editor');
+
+        $footer = $crawler->filter('footer.editor-sidebar-footer');
+        self::assertSame(1, $footer->count());
+        // Last child of the column.
+        self::assertSame('footer', $crawler->filterXPath('//aside[@class="editor-sidebar"]/*[last()]')->nodeName());
+
+        $lines = $footer->filter('p.editor-sidebar-footer-line');
+        self::assertSame(3, $lines->count());
+        self::assertSame('Papermark', trim($lines->eq(0)->text()));
+        self::assertSame('Powered by TFSAppHub', trim($lines->eq(1)->text()));
+        self::assertSame('Built on Milkdown Crepe', trim($lines->eq(2)->text()));
+
+        // The two links point at the hub's repository and at Milkdown, and
+        // the leave-guard never marked them: they leave without a word.
+        $hub = $footer->filter('a[href="https://github.com/ArnaudDelgerie/TFSAppHub"]');
+        self::assertSame('TFSAppHub', trim($hub->text()));
+        $milkdown = $footer->filter('a[href="https://milkdown.dev"]');
+        self::assertSame('Milkdown Crepe', trim($milkdown->text()));
+        self::assertSame(0, $footer->filter('[data-editor-leave-guard]')->count());
+    }
+
+    /**
+     * Under the hub, TFS_APP_VERSION carries the version the hub installed;
+     * the bundle reads it from the process environment when the hub context
+     * service is first resolved, so setting the variable before booting the
+     * kernel drives the same path the hub does — no container workaround.
+     */
+    public function testTheBrandingFooterShowsTheHubVersionWhenThereIsOne(): void
+    {
+        putenv('TFS_APP_VERSION=0.1.0');
+
+        try {
+            $client = static::createClient();
+
+            $crawler = $client->request('GET', '/editor');
+
+            $lines = $crawler->filter('footer.editor-sidebar-footer p.editor-sidebar-footer-line');
+            self::assertSame(3, $lines->count());
+            self::assertSame('Papermark 0.1.0', trim($lines->eq(0)->text()));
+            self::assertSame('Powered by TFSAppHub', trim($lines->eq(1)->text()));
+            self::assertSame('Built on Milkdown Crepe', trim($lines->eq(2)->text()));
+        } finally {
+            putenv('TFS_APP_VERSION');
+        }
+    }
+
     public function testEditorEmbedsNoFileEvenWhenOneIsCurrent(): void
     {
         $client = $this->createClientWithTokens();

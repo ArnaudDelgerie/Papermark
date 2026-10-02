@@ -6,3 +6,6 @@ templates:
         title: Something went wrong
         message: Papermark could not display this page.
         retry: Try again
+    editor:
+        powered_by: Powered by
+        built_on: Built on

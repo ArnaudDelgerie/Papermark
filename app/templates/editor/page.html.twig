@@ -38,6 +38,15 @@
         {# Dir mode: only the tree is behind a frame, and it loads eagerly even
            while hidden — the FrankenPHP server is dedicated, nothing to spare. #}
         {{ component('mode-dir', { active: mode == 'dir' }) }}
+
+        {# UX-15: the column's quiet footer. Plain anchors: the hub routes the
+           open web to the user's browser, and the leave-guard only intercepts
+           elements marked data-editor-leave-guard, so neither needs help here. #}
+        <footer class="editor-sidebar-footer">
+            <p class="editor-sidebar-footer-line">Papermark{% if tfsapp.version %} {{ tfsapp.version }}{% endif %}</p>
+            <p class="editor-sidebar-footer-line">{{ 'templates.editor.powered_by'|trans({}, 'templates') }} <a class="editor-sidebar-footer-link" href="https://github.com/ArnaudDelgerie/TFSAppHub">TFSAppHub</a></p>
+            <p class="editor-sidebar-footer-line">{{ 'templates.editor.built_on'|trans({}, 'templates') }} <a class="editor-sidebar-footer-link" href="https://milkdown.dev">Milkdown Crepe</a></p>
+        </footer>
     </aside>
     {# No file here: the editor fetches the current one itself on connect. #}
     {{ component('editor', {
