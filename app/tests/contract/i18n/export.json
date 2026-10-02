@@ -1,0 +1,34 @@
+{
+    "sourceTitle": "Source",
+    "sourceFile": "File",
+    "sourceFolder": "Folder",
+    "browse": "Browse…",
+    "noSourceSelected": "No source selected",
+    "includeExternalMarkdown": "Include external Markdown files",
+    "exportButton": "Export",
+    "noSource": "Choose a source first",
+    "done": "Exported to {path}",
+    "failed": "Export failed",
+    "ipc": {
+        "unavailable": "This action requires the Hub",
+        "rejected": "The file picker failed"
+    },
+    "zipFilter": "Zip archive",
+    "documentFilter": "Documents (Markdown, text)",
+    "unsaved": {
+        "confirm": "The archive will contain the last saved version.",
+        "cancel": "Cancel",
+        "continue": "Export anyway"
+    },
+    "report": {
+        "title": "Report",
+        "empty": "Nothing left out",
+        "count_one": "{count} reference left at its original path",
+        "count_other": "{count} references left at their original path",
+        "clear": "Clear the report",
+        "reason": {
+            "not_found": "Not found",
+            "limit_exceeded": "Size limit exceeded"
+        }
+    }
+}

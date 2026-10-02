@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="light dark">
+    <title>Papermark</title>
+    <style>
+        /* The hub's cold-start page (contract §8): loaded over its own scheme
+           before the app's server exists, under CSP `default-src 'none'` —
+           everything lives in this one file. The colours are the two themes of
+           app/assets/styles/tokens.css: this page can only follow the system,
+           never the theme chosen in the app's settings, so both are here. */
+        :root {
+            color-scheme: light dark;
+            --page: #121212;
+            --letter: #e0e0e0;
+            --muted: #a0a0a0;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --page: #fff;
+                --letter: #1c1c1c;
+                --muted: #6b6b6b;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.25rem;
+            background: var(--page);
+            color: var(--letter);
+            font-family: sans-serif;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        /* A discreet loading pulse under the name. */
+
+        .loading {
+            display: flex;
+            gap: 0.4rem;
+            margin: -0.75rem 0 0;
+        }
+
+        .loading span {
+            width: 0.4rem;
+            height: 0.4rem;
+            border-radius: 50%;
+            background: var(--muted);
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
+        .loading span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 0.25;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .loading span {
+                animation: none;
+                opacity: 0.6;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- The icon itself (app/icon.png), redrawn at its geometry on a 1024
+         grid: the tile, and the P ImageMagick drew for
+         "JetBrains-Mono-ExtraBold" — the variable JetBrainsMono[wght].ttf at
+         its default weight, 400 — trimmed to 620 high and centred. -->
+    <svg width="96" height="96" viewBox="0 0 1024 1024" role="img" aria-label="P">
+        <rect x="37" y="37" width="950" height="950" rx="96" fill="var(--page)" stroke="var(--letter)" stroke-width="10"></rect>
+        <path fill="var(--letter)" fill-rule="evenodd" transform="translate(239.36 822) scale(0.8493 -0.8493)" d="M92 0V730H327Q395 730 445 703.5Q495 677 522.5 629Q550 581 550 515Q550 450 522.5 401.5Q495 353 445 326.5Q395 300 327 300H182V0ZM182 381H327Q386 381 421.5 417.5Q457 454 457 515Q457 577 421.5 613Q386 649 327 649H182Z"></path>
+    </svg>
+    <h1>Papermark</h1>
+    <p class="loading" aria-hidden="true"><span></span><span></span><span></span></p>
+</body>
+</html>

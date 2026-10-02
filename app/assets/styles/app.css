@@ -1,4 +1,15 @@
+/* Crepe lives in its own layer: any unlayered rule below wins over it,
+   whatever its specificity, so our selectors stay short. */
+@import url("@milkdown/crepe/theme/common/style.css") layer(crepe);
 @import url("./tokens.css");
+@import url("./crepe-theme.css");
 @import url("./layout.css");
-@import url("@milkdown/crepe/theme/common/style.css");
-@import url("@milkdown/crepe/theme/frame-dark.css");
+@import url("./sidebar.css");
+@import url("./document.css");
+@import url("./editor.css");
+@import url("./print.css");
+@import url("./toast.css");
+@import url("./modal.css");
+@import url("./settings.css");
+@import url("./export.css");
+@import url("./ai-history.css");

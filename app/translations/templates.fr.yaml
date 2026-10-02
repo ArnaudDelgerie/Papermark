@@ -1,0 +1,11 @@
+templates:
+    base:
+        title: Papermark
+        close: Fermer
+    error:
+        title: Une erreur est survenue
+        message: Papermark n'a pas pu afficher cette page.
+        retry: Réessayer
+    editor:
+        powered_by: Propulsé par
+        built_on: Construit avec

@@ -1,0 +1,3 @@
+{
+    "ipc": { "unavailable": "This action requires the Hub", "rejected": "The file picker failed" }
+}

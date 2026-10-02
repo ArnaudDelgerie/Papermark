@@ -1,0 +1,228 @@
+.archive-block {
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+.archive-block:first-of-type {
+    padding-top: 0;
+    border-top: none;
+}
+
+.archive-block h2 {
+    margin: 0 0 var(--space-4);
+    font-size: 1rem;
+}
+
+.archive-block > :not(:first-child) {
+    margin-top: var(--space-5);
+}
+
+.export-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    margin: 0;
+}
+
+.export-fieldset legend {
+    padding: 0 var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.export-kind {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.export-kind-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.export-kind-option input[type="radio"] {
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.export-source-row {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.export-source-path {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-page);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.export-browse-btn {
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.export-browse-btn:hover {
+    background: var(--color-surface);
+}
+
+.export-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.export-checkbox input[type="checkbox"] {
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.export-submit {
+    width: 100%;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-page);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.export-submit:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.export-submit:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+/* UX-13, lot 10: what the button shows while the archive is being written. */
+
+.export-submit-spinner {
+    display: inline-block;
+    width: 0.9rem;
+    height: 0.9rem;
+    vertical-align: -0.1em;
+    border: 2px solid currentcolor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: export-spin 0.6s linear infinite;
+}
+
+/* The base display would override the hidden attribute, and the spinner
+   would show next to the label at rest. */
+.export-submit-spinner[hidden] {
+    display: none;
+}
+
+@keyframes export-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .export-submit-spinner {
+        animation-duration: 1.5s;
+    }
+}
+
+.export-report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+}
+
+.export-report-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.export-report-clear {
+    padding: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    line-height: 1;
+    background: transparent;
+    color: var(--color-muted);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.export-report-clear:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.export-report ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.export-report-details > summary {
+    cursor: pointer;
+    color: var(--color-danger);
+    font-size: 0.9rem;
+}
+
+.export-report-details > ul {
+    margin-top: var(--space-2);
+}
+
+.export-report-item {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+}
+
+.export-report-target,
+.export-report-referencing {
+    overflow-wrap: anywhere;
+}
+
+.export-report-target {
+    font-family: monospace;
+}
+
+.export-report-reason {
+    color: var(--color-danger);
+}
+
+.export-report-referencing {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}

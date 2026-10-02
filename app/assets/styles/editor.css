@@ -1,0 +1,651 @@
+/* Editor on screen: file bar, Crepe top bar, body scroll container, A4 sheet.
+   State classes on .editor-shell only change variables where possible. */
+
+.editor-shell {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--color-surface);
+}
+
+/* File bar ------------------------------------------------------------------
+   Square icon buttons (New, Save, Save as, Print, Copy markdown, then the
+   open file path + unsaved dot, then readonly toggle and Settings pushed
+   to the far right). */
+
+.editor-file-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.editor-filebar-actions {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.editor-filebar-actions--end {
+    margin-left: auto;
+}
+
+.editor-filebar-divider {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 20px;
+    margin: 0 var(--space-1);
+    background: var(--color-border);
+}
+
+.editor-filebar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.editor-filebar-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.editor-filebar-btn:hover:not(:disabled) {
+    background: var(--color-border);
+}
+
+/* UX-10, lot 10: the readonly toggle shows its state, not only a tooltip. */
+
+.editor-filebar-btn[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.editor-filebar-icon {
+    width: 14px;
+    height: 14px;
+    background-color: currentcolor;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+}
+
+.editor-filebar-icon--new {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5zM9.5 1.5V5h3.5M8 8v4M6 10h4'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--save {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 1.5h9.5l2 2v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1zM5 1.5v3h4v-3M4 9.5h8v5h-8z'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--save-as {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 1.5h9.5l2 2v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1zM5 1.5v3h4v-3M4 9.5h8v5h-8zM12.5 11v3M11 12.5h3M11.6 11.6l1.8 1.8M13.4 11.6l-1.8 1.8'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--print {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 1.5h8v3H4zM2.5 4.5h11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H12v3H4v-3H2.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zM5 10.5h6v3H5z'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--copy {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 1.5h7v9H4zM6.5 4.5h7v9h-7z'/%3E%3C/svg%3E");
+}
+
+/* UX-10, lot 10: the icon tells the action, eye to read only, pencil to edit
+   back; the pencil of Rename lives in the sidebar, not here. */
+
+.editor-filebar-icon--toggle {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z'/%3E%3Ccircle cx='8' cy='8' r='2'/%3E%3C/svg%3E");
+}
+
+.editor-shell.is-readonly .editor-filebar-icon--toggle {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 2l3 3-8 8-3.5 1 1-3.5zM9.5 3.5l3 3'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--export {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 3h13v2.5h-13z'/%3E%3Cpath d='M2.5 5.5v8a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-8'/%3E%3Cpath d='M6.5 8h3'/%3E%3C/svg%3E");
+}
+
+/* The AI history: a clock, reading the consumption of past requests. */
+
+.editor-filebar-icon--ai-history {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='6.5'/%3E%3Cpath d='M8 4.5V8l2.5 1.5'/%3E%3C/svg%3E");
+}
+
+.editor-filebar-icon--settings {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 4h12M2 8h12M2 12h12'/%3E%3Ccircle cx='6' cy='4' r='1.5' fill='black'/%3E%3Ccircle cx='10' cy='8' r='1.5' fill='black'/%3E%3Ccircle cx='5' cy='12' r='1.5' fill='black'/%3E%3C/svg%3E");
+}
+
+/* Theme: the icon follows the value, set on the button by theme-switch. */
+
+.editor-filebar-icon--theme {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='5.5'/%3E%3Cpath d='M8 2.5v11' /%3E%3Cpath d='M8 2.5a5.5 5.5 0 0 1 0 11z' fill='black'/%3E%3C/svg%3E");
+}
+
+[data-value="light"] > .editor-filebar-icon--theme {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='2.8'/%3E%3Cpath d='M8 1.5v1.7M8 12.8v1.7M1.5 8h1.7M12.8 8h1.7M3.4 3.4l1.2 1.2M11.4 11.4l1.2 1.2M12.6 3.4l-1.2 1.2M4.6 11.4l-1.2 1.2'/%3E%3C/svg%3E");
+}
+
+[data-value="dark"] > .editor-filebar-icon--theme {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z'/%3E%3C/svg%3E");
+}
+
+/* Language: the code of the aimed language, and a ring filling around the
+   button while its timer runs (a full-size SVG rect, `pathLength` 1, so
+   the dash offset goes from 1 to 0 whatever the size). */
+
+.locale-stepper {
+    position: relative;
+    display: inline-flex;
+}
+
+.locale-stepper-btn {
+    position: relative;
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+.locale-stepper-ring {
+    position: absolute;
+    inset: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 2;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.locale-stepper-btn.is-pending .locale-stepper-ring {
+    opacity: 1;
+}
+
+/* File path + unsaved dot ---------------------------------------------- */
+
+.editor-file-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+}
+
+.editor-file-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* UX-10, lot 10: accent, not danger — unsaved work is pending, not an error.
+   The ring keeps the dot readable on the surface in both themes. */
+
+.editor-dirty-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.editor-dirty-dot[hidden] {
+    display: none;
+}
+
+/* Screen-reader-only text: keeps the icon buttons' accessible name and
+   title without showing a visible label. */
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Leave confirmation: the webview shows no native confirm(). */
+
+.editor-confirm-dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-5);
+    max-width: 50vw;
+    max-height: 50vh;
+    font-size: 0.875rem;
+}
+
+.editor-confirm-dialog::backdrop {
+    background: rgb(0 0 0 / 50%);
+}
+
+.editor-confirm-dialog-message {
+    margin: 0 0 var(--space-3);
+    color: var(--color-muted);
+}
+
+.editor-confirm-dialog-question {
+    margin: 0;
+    font-size: 1rem;
+}
+
+/* UX-11, lot 10: --color-border-strong (3:1), so the rename field is seen. */
+.editor-confirm-dialog-input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    background: var(--color-page);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+}
+
+.editor-confirm-dialog-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.editor-confirm-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+}
+
+.editor-confirm-dialog button {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.editor-confirm-dialog button:hover {
+    background: var(--color-border);
+}
+
+.editor-confirm-dialog .editor-confirm-continue {
+    border-color: var(--color-danger);
+}
+
+/* Load error (lot 03, FRT-04): a failed read shows its own state with a
+   Retry, instead of a document that no longer matches the state. The shell
+   carries is-load-failed; the sheet goes, the state takes its place. */
+
+.editor-load-error {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.875rem;
+}
+
+.editor-load-error-retry {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.editor-load-error-retry:hover {
+    background: var(--color-border);
+}
+
+/* Crepe ------------------------------------------------------------------- */
+
+.editor-shell .milkdown {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+
+    /* The desk around the sheet is the page colour, not the surface. */
+    background: var(--color-page);
+}
+
+.editor-shell.is-load-failed .milkdown {
+    display: none;
+}
+
+.editor-shell.is-load-failed .editor-load-error {
+    display: flex;
+}
+
+.editor-shell .milkdown-top-bar {
+    position: relative;
+    min-height: 36px;
+    margin-bottom: 2px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Crepe's own editable check doesn't see our readonly toggle (it flips the
+   ProseMirror contenteditable attribute directly, not Crepe's editable()),
+   so it never hides the bar itself — do it here instead. */
+.editor-shell.is-readonly .milkdown-top-bar {
+    display: none;
+}
+
+/* The heading selector and divider are Crepe's tallest default items
+   (44px); shrink them to match the 36px row below. */
+.editor-shell .milkdown-top-bar .top-bar-heading-selector {
+    padding: 4px;
+}
+
+.editor-shell .milkdown-top-bar .top-bar-heading-button {
+    height: 28px;
+}
+
+.editor-shell .milkdown-top-bar .top-bar-divider {
+    height: 20px;
+    margin: 8px;
+}
+
+/* Crepe's default buttons (32px + 4px padding + 6px margin = 40px+ visible,
+   24px icon) run bigger than the file-bar's (14px icon in a plain 28px
+   button) — match that scale so both bars read at the same size. */
+.editor-shell .milkdown-top-bar .top-bar-item {
+    width: 28px;
+    height: 28px;
+    margin: 4px;
+    padding: 0;
+}
+
+.editor-shell .milkdown-top-bar .top-bar-item svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* UX-07, lot 10: the block handle is back, minus its "+" — the slash menu
+   it opened is the "/" one, already reachable without it. Readonly keeps
+   hiding the whole handle. */
+.editor-shell.is-readonly .milkdown-block-handle {
+    display: none;
+}
+
+/* Crepe renders the "+" (block menu) first, the drag handle second, with
+   no option to drop the former alone (block-edit/handle/component.tsx). */
+.editor-shell .milkdown-block-handle .operation-item:first-child {
+    display: none;
+}
+
+/* Local links are the link follower's (link-follower.ts, EDITOR_LINKS.md):
+   a plain click opens the document in read-only, Ctrl+click in edit mode.
+   The follower stops the navigation the browser would attempt once
+   contenteditable is off; external ones stay clickable, the hub opens them
+   in the user's browser. */
+.editor-shell.is-readonly .ProseMirror a {
+    cursor: pointer;
+}
+
+/* Ctrl held: the pointer announces what a Ctrl+click does. CSS cannot see
+   modifiers — link-follower.ts carries the key's state as this class. */
+.editor-shell.is-ctrl-down .ProseMirror a {
+    cursor: pointer;
+}
+
+/* The frame, flex column and hidden x-overflow below used to come by
+   accident from our container's class: Milkdown tags .ProseMirror with
+   "editor" (prepareViewDom), which is why the container is .editor-shell.
+   Kept on purpose: the frame outlines the A4 sheet, and the flex column
+   keeps block margins from collapsing (the text spacing relies on it). */
+
+/* .editor-content is the wrapper crepe-host.ts creates around .ProseMirror;
+   it owns the scroll instead so the scrollable area covers the padding/desk
+   background around the sheet too, not just .ProseMirror. The wheel stops
+   at its bottom: whatever else overflows, it never chains to the page. */
+.editor-shell .editor-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+}
+
+.editor-shell .ProseMirror {
+    /* Scales Crepe's own UI (image blocks, tables, menus) with the document text. */
+    --crepe-base-font-size: var(--doc-font-size);
+
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+
+    /* A4 sheet: centered on the desk, width matches a real A4 page. No
+       page-break guides — reliable simulation is not feasible in CSS/JS. */
+    width: 100%;
+    max-width: var(--doc-page-width);
+    margin-inline: auto;
+    padding: var(--space-5) var(--doc-page-margin) var(--doc-page-margin);
+    background: var(--color-surface);
+}
+
+/* Code blocks: plain ProseMirror <pre> (Crepe's CodeMirror feature is off,
+   see crepe-host.ts), wrapped by code-block-view.ts.
+   No border: this <pre> has its own overflow-x: auto and sits inside
+   .editor-content, which scrolls too (see there) — a bordered box nested
+   inside another scrollable flashed on scroll in the hub's WebKitGTK
+   webview. border-radius alone wasn't the issue, kept.  */
+.editor-shell .ProseMirror pre {
+    margin: 0.6em 0;
+    padding: 0.6em 0.8em;
+    border-radius: 3px;
+    background: var(--doc-code-bg);
+    font-family: var(--doc-font-code);
+    font-size: 0.9em;
+    line-height: 1.4;
+    white-space: pre;
+    overflow-x: auto;
+
+    /* .ProseMirror is a flex column (see above); overflow makes the <pre>
+       shrinkable. */
+    flex-shrink: 0;
+}
+
+.editor-shell .ProseMirror pre code {
+    padding: 0;
+    background: none;
+    font: inherit;
+}
+
+/* Language picker and copy button of the code block node view
+   (code-block-view.ts), laid over the block so they don't add height. The
+   picker is hidden in read-only: the toggle only flips contenteditable, the
+   node view can't tell.
+   The block's margin moves from the <pre> to its wrapper (same 0.6em of the
+   0.9em code size), so the <pre>'s top border is the wrapper's top edge. */
+.editor-shell .code-block {
+    position: relative;
+    flex-shrink: 0;
+    margin: 0.54em 0;
+
+    /* Token colors, see below. */
+    --code-mono: #383a42;
+    --code-comment: #a0a1a7;
+    --code-keyword: #a626a4;
+    --code-string: #50a14f;
+    --code-number: #986801;
+    --code-function: #4078f2;
+    --code-property: #e45649;
+    --code-operator: #0184bc;
+}
+
+.editor-shell .code-block pre {
+    margin: 0;
+}
+
+/* Language picker and copy button, straddling the <pre>'s top border
+   (half their 16px above it). */
+.editor-shell .code-block-tools {
+    position: absolute;
+    top: -8px;
+    right: 10px;
+    z-index: 1;
+    display: flex;
+    gap: 4px;
+    opacity: 0.6;
+}
+
+.editor-shell .code-block-tools:focus-within {
+    opacity: 1;
+}
+
+.editor-shell .code-block:hover .code-block-tools {
+    opacity: 1;
+}
+
+.editor-shell .code-block-language,
+.editor-shell .code-block-copy {
+    height: 16px;
+    border: 1px solid var(--crepe-color-outline);
+    border-radius: 3px;
+    background-color: var(--color-surface);
+    color: var(--crepe-color-on-surface-variant);
+    cursor: pointer;
+}
+
+.editor-shell .code-block-language {
+    /* The native look ignores height/padding in WebKitGTK and clips the
+       label: drawn by hand, 12px line + 2px padding + 2px border = 16px. */
+    appearance: none;
+    padding: 1px 14px 1px 5px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentcolor 50%),
+        linear-gradient(-45deg, transparent 50%, currentcolor 50%);
+    background-position: right 7px center, right 4px center;
+    background-size: 3px 3px;
+    background-repeat: no-repeat;
+    font: 10px/12px var(--crepe-font-default);
+}
+
+.editor-shell .code-block-copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    padding: 0;
+}
+
+.editor-shell .code-block-copy .editor-filebar-icon {
+    width: 10px;
+    height: 10px;
+}
+
+.editor-shell .code-block-copy:hover {
+    color: var(--crepe-color-on-surface);
+}
+
+.editor-shell.is-readonly .code-block-language {
+    display: none;
+}
+
+/* Prism token colors (@milkdown/plugin-prism): One Light / One Dark palettes,
+   light ones declared on .editor-shell .code-block above. */
+:root[data-theme="dark"] .editor-shell .code-block {
+    --code-mono: #abb2bf;
+    --code-comment: #7d8799;
+    --code-keyword: #c678dd;
+    --code-string: #98c379;
+    --code-number: #d19a66;
+    --code-function: #61afef;
+    --code-property: #e06c75;
+    --code-operator: #56b6c2;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root[data-theme="auto"] .editor-shell .code-block {
+        --code-mono: #abb2bf;
+        --code-comment: #7d8799;
+        --code-keyword: #c678dd;
+        --code-string: #98c379;
+        --code-number: #d19a66;
+        --code-function: #61afef;
+        --code-property: #e06c75;
+        --code-operator: #56b6c2;
+    }
+}
+
+.editor-shell .ProseMirror pre[data-language] code {
+    color: var(--code-mono);
+}
+
+.editor-shell .ProseMirror pre .token:is(.comment, .prolog, .doctype, .cdata) {
+    color: var(--code-comment);
+    font-style: italic;
+}
+
+.editor-shell .ProseMirror pre .token:is(.keyword, .atrule, .important, .selector) {
+    color: var(--code-keyword);
+}
+
+.editor-shell .ProseMirror pre .token:is(.string, .char, .attr-value, .inserted, .regex) {
+    color: var(--code-string);
+}
+
+.editor-shell .ProseMirror pre .token:is(.number, .boolean, .constant, .class-name, .builtin, .symbol) {
+    color: var(--code-number);
+}
+
+.editor-shell .ProseMirror pre .token:is(.function, .url) {
+    color: var(--code-function);
+}
+
+.editor-shell .ProseMirror pre .token:is(.property, .tag, .attr-name, .variable, .deleted) {
+    color: var(--code-property);
+}
+
+.editor-shell .ProseMirror pre .token:is(.operator, .entity) {
+    color: var(--code-operator);
+}
+
+/* Align list bullets with the first line of the tighter document text. */
+.editor-shell .milkdown-list-item-block li .label-wrapper,
+.editor-shell .milkdown-list-item-block li .label-wrapper .label {
+    height: calc(var(--doc-font-size) * var(--doc-line-height));
+    padding: 0;
+}
+
+/* Narrower panel widths (half-page and up): the fixed A4 margin eats too
+   much of the available text width, shrink it. Below this, not covered. */
+@media (width <= 960px) {
+    .editor-shell .ProseMirror {
+        padding-inline: var(--space-4);
+    }
+}

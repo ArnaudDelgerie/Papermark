@@ -64,8 +64,8 @@ Encore
     // enables Sass/SCSS support
     //.enableSassLoader()
 
-    // uncomment if you use TypeScript
-    //.enableTypeScriptLoader()
+    // TypeScript: assets/**/*.ts, type-checked by `tsc --noEmit` (make lint-js)
+    .enableTypeScriptLoader()
 
     // uncomment if you use React
     //.enableReactPreset()
@@ -84,4 +84,10 @@ Encore
     })
 ;
 
-export default await Encore.getWebpackConfig();
+const config = await Encore.getWebpackConfig();
+
+// This package is "type": "module", so .js files must import fully specified
+// paths; a `.js` import resolves to the `.ts` the file was converted to.
+config.resolve.extensionAlias = { '.js': ['.ts', '.js'] };
+
+export default config;

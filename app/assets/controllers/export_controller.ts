@@ -1,0 +1,333 @@
+import { Controller } from '@hotwired/stimulus';
+import { type EditorState, emit, on } from '../editor/events';
+import { confirmDialog } from '../utils/confirm-dialog';
+import { DOCUMENT_EXTENSIONS } from '../utils/extensions';
+import { request } from '../utils/http';
+import { renderReportHeader } from '../utils/report-header';
+import { type IpcI18n, pickPath, savePath } from '../utils/tauri';
+import { showToast } from '../utils/toast';
+
+type Kind = 'file' | 'directory';
+
+/** A reference ExportController left at its original path. */
+interface ReportIssue {
+    originalTarget: string;
+    reason: string;
+    referencingPath: string;
+}
+
+export interface I18n {
+    noSource: string;
+    /** UX-13, lot 10: what the source field says while it is empty. */
+    noSourceSelected: string;
+    failed: string;
+    done: string;
+    ipc: IpcI18n;
+    /** The save dialog's zip filter name, translated (SET-09, lot 09). */
+    zipFilter: string;
+    /** The source file picker's documents filter name, translated. */
+    documentFilter: string;
+    unsaved: { confirm: string; cancel: string; continue: string };
+    report: { title: string; empty: string; count_one: string; count_other: string; clear: string; reason: Record<string, string> };
+}
+
+/** ArchiveController::export(): the archive it wrote, and the references left at their original path. */
+export interface ExportResponse {
+    path: string;
+    issues: ReportIssue[];
+}
+
+interface ExportRefusal {
+    genericErrors?: string[];
+    mappedErrors?: { field: string; message: string }[];
+}
+
+function dirname(path: string): string {
+    const idx = path.lastIndexOf('/');
+
+    return idx > 0 ? path.slice(0, idx) : '/';
+}
+
+function basename(path: string): string {
+    return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/**
+ * The export block of the Archive modal (see EDITOR_EXPORT.md): file/folder pick, the
+ * "include external .md" option, save_path with a zip filter, then a POST
+ * that writes the archive server-side and returns a report of the
+ * references left at their original path.
+ */
+export default class extends Controller {
+    static targets = ['kindFileRadio', 'kindDirectoryRadio', 'sourcePath', 'browseButton', 'includeExternalMarkdown', 'exportButton', 'exportLabel', 'exportSpinner', 'report'];
+
+    static values = {
+        // At load: 'file' in single mode, 'directory' in dir mode (see
+        // EDITOR_REACTIVITY.md). The state then takes over (see #follow()).
+        initialKind: { type: String, default: 'file' },
+        initialPath: String,
+        initialDirectory: String,
+        runUrl: String,
+        i18n: Object,
+    };
+
+    declare readonly kindFileRadioTarget: HTMLInputElement;
+    declare readonly kindDirectoryRadioTarget: HTMLInputElement;
+    declare readonly sourcePathTarget: HTMLElement;
+    declare readonly browseButtonTarget: HTMLButtonElement;
+    declare readonly includeExternalMarkdownTarget: HTMLInputElement;
+    declare readonly exportButtonTarget: HTMLButtonElement;
+    declare readonly hasExportLabelTarget: boolean;
+    declare readonly exportLabelTarget: HTMLElement;
+    declare readonly hasExportSpinnerTarget: boolean;
+    declare readonly exportSpinnerTarget: HTMLElement;
+    declare readonly reportTarget: HTMLElement;
+    declare readonly initialKindValue: string;
+    declare readonly initialPathValue: string;
+    declare readonly initialDirectoryValue: string;
+    declare readonly runUrlValue: string;
+    declare readonly i18nValue: I18n;
+
+    #kind: Kind = 'file';
+    #filePath = '';
+    #directoryPath = '';
+    /** The file actually open in the editor, whatever the source picked here (see ARC-09). */
+    #openFile: string | null = null;
+    #unsubscribers: Array<() => void> = [];
+
+    connect(): void {
+        this.#filePath = this.initialPathValue;
+        this.#directoryPath = this.initialDirectoryValue;
+        this.#openFile = this.initialPathValue || null;
+        this.#show('directory' === this.initialKindValue ? 'directory' : 'file');
+
+        // The frame is loaded once and never emptied: the source follows every
+        // event that can change the mode, the file or the folder, even over a
+        // source the user picked by hand in the modal.
+        const follow = ({ state }: { state: EditorState }): void => this.#follow(state);
+        this.#unsubscribers = [
+            on('editor:nav-switch_mode-succeeded', follow),
+            on('editor:nav-change_dir-succeeded', follow),
+            on('editor:nav-change_file-succeeded', follow),
+            on('editor:nav-new_file-succeeded', follow),
+            on('editor:do-save_as-succeeded', follow),
+            on('editor:do-delete-succeeded', follow),
+            on('editor:do-rename-succeeded', follow),
+            on('editor:do-import-succeeded', follow),
+            on('editor:nav-open_path-succeeded', follow),
+            on('editor:state-resynced', follow),
+        ];
+    }
+
+    disconnect(): void {
+        this.#unsubscribers.forEach((unsubscribe) => unsubscribe());
+        this.#unsubscribers = [];
+    }
+
+    /** The current file in single mode, the current folder in dir mode; the other keeps its path. */
+    #follow(state: EditorState): void {
+        this.#filePath = state.file ?? '';
+        this.#directoryPath = state.dir ?? '';
+        this.#openFile = state.file;
+        this.#show(state.mode === 'dir' ? 'directory' : 'file');
+    }
+
+    #show(kind: Kind): void {
+        this.#kind = kind;
+        (kind === 'file' ? this.kindFileRadioTarget : this.kindDirectoryRadioTarget).checked = true;
+        this.#updateSourceDisplay();
+    }
+
+    changeKind(event: Event): void {
+        this.#kind = (event.target as HTMLInputElement).value as Kind;
+        this.#updateSourceDisplay();
+    }
+
+    async browse(): Promise<void> {
+        // The button stays down until the picker answers, whatever the
+        // invoke does with it (FRT-07, lot 08).
+        this.browseButtonTarget.disabled = true;
+        let path: string | null;
+        try {
+            // Only a file source is narrowed to documents: a directory
+            // picker has no filter.
+            path = await pickPath(
+                this.#kind,
+                this.i18nValue.ipc,
+                this.#kind === 'file' ? [{ name: this.i18nValue.documentFilter, extensions: DOCUMENT_EXTENSIONS }] : [],
+            );
+        } finally {
+            this.browseButtonTarget.disabled = false;
+        }
+        if (path === null) {
+            return;
+        }
+
+        if (this.#kind === 'file') {
+            this.#filePath = path;
+        } else {
+            this.#directoryPath = path;
+        }
+
+        this.#updateSourceDisplay();
+    }
+
+    async run(): Promise<void> {
+        const sourcePath = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
+        if (!sourcePath) {
+            showToast('error', this.i18nValue.noSource);
+            return;
+        }
+
+        if (!(await this.#confirmUnsavedSource(sourcePath))) {
+            return;
+        }
+
+        const name = basename(sourcePath);
+        const defaultName = this.#kind === 'file' ? name.replace(/\.[^./]+$/, '') : name;
+
+        // The button stays down until the picker answers, whatever the
+        // invoke does with it (FRT-07, lot 08).
+        this.exportButtonTarget.disabled = true;
+        let target: string | null;
+        try {
+            target = await savePath(this.i18nValue.ipc, `${defaultName}.zip`, dirname(sourcePath), [
+                { name: this.i18nValue.zipFilter, extensions: ['zip'] },
+            ]);
+        } finally {
+            this.exportButtonTarget.disabled = false;
+        }
+        if (target === null) {
+            return;
+        }
+
+        this.exportButtonTarget.disabled = true;
+        this.reportTarget.hidden = true;
+        // UX-13, lot 10: the writing can take a while; the label steps aside
+        // for a spinner until the answer comes back.
+        this.#setExporting(true);
+
+        const formData = new FormData();
+        formData.append('source', sourcePath);
+        formData.append('target', target);
+        if (this.includeExternalMarkdownTarget.checked) {
+            formData.append('includeExternalMarkdown', '1');
+        }
+
+        try {
+            const result = await request<Partial<ExportResponse> & ExportRefusal>(this.runUrlValue, { method: 'POST', body: formData });
+
+            if (!result.ok) {
+                throw new Error(result.message ?? this.i18nValue.failed);
+            }
+
+            showToast('success', this.i18nValue.done.replace('{path}', result.data?.path ?? ''));
+            this.#renderReport(result.data?.issues || []);
+        } catch (err) {
+            console.error('Failed to export archive:', err);
+            showToast('error', (err as Error).message || this.i18nValue.failed);
+        } finally {
+            this.#setExporting(false);
+            this.exportButtonTarget.disabled = false;
+        }
+    }
+
+    #setExporting(exporting: boolean): void {
+        if (this.hasExportLabelTarget) {
+            this.exportLabelTarget.hidden = exporting;
+        }
+        if (this.hasExportSpinnerTarget) {
+            this.exportSpinnerTarget.hidden = !exporting;
+        }
+    }
+
+    /**
+     * True when the export can proceed as-is. False means the user cancelled
+     * after being warned that the archive would contain the last saved
+     * version, not what they see on screen (ARC-09): the editor has unsaved
+     * changes for the file it currently has open, and that file is the
+     * source picked here (or sits inside it, in folder mode).
+     */
+    async #confirmUnsavedSource(sourcePath: string): Promise<boolean> {
+        const openFile = this.#openFile;
+        if (openFile === null) {
+            return true;
+        }
+
+        const covered = this.#kind === 'file' ? openFile === sourcePath : openFile === sourcePath || openFile.startsWith(`${sourcePath}/`);
+        if (!covered) {
+            return true;
+        }
+
+        const query: { path: string; unsaved: boolean } = { path: openFile, unsaved: false };
+        emit('editor:unsaved-file-query', query);
+        if (!query.unsaved) {
+            return true;
+        }
+
+        const i18n = this.i18nValue.unsaved;
+
+        return confirmDialog({ question: i18n.confirm, cancelLabel: i18n.cancel, continueLabel: i18n.continue });
+    }
+
+    #updateSourceDisplay(): void {
+        const path = this.#kind === 'file' ? this.#filePath : this.#directoryPath;
+        // UX-13, lot 10: an empty source says why nothing shows, and a set one
+        // carries its whole path in a title, for what the ellipsis cut.
+        this.sourcePathTarget.textContent = path || this.i18nValue.noSourceSelected;
+        if (path) {
+            this.sourcePathTarget.title = path;
+        } else {
+            this.sourcePathTarget.removeAttribute('title');
+        }
+    }
+
+    #renderReport(issues: ReportIssue[]): void {
+        const i18n = this.i18nValue.report;
+        this.reportTarget.replaceChildren();
+        renderReportHeader(this.reportTarget, i18n.title, i18n.clear, () => this.#clearReport());
+
+        if (issues.length === 0) {
+            const empty = document.createElement('p');
+            empty.textContent = i18n.empty;
+            this.reportTarget.appendChild(empty);
+        } else {
+            // Only the count at first: the list can be long, it is behind a toggle.
+            const details = document.createElement('details');
+            details.className = 'export-report-details';
+            const summary = document.createElement('summary');
+            summary.textContent = (issues.length === 1 ? i18n.count_one : i18n.count_other).replace('{count}', String(issues.length));
+            details.appendChild(summary);
+
+            const list = document.createElement('ul');
+            for (const issue of issues) {
+                const item = document.createElement('li');
+                item.className = 'export-report-item';
+
+                const target = document.createElement('span');
+                target.className = 'export-report-target';
+                target.textContent = issue.originalTarget;
+
+                const reason = document.createElement('span');
+                reason.className = 'export-report-reason';
+                reason.textContent = i18n.reason[issue.reason] || issue.reason;
+
+                const referencing = document.createElement('span');
+                referencing.className = 'export-report-referencing';
+                referencing.textContent = issue.referencingPath;
+
+                item.append(target, reason, referencing);
+                list.appendChild(item);
+            }
+            details.appendChild(list);
+            this.reportTarget.appendChild(details);
+        }
+
+        this.reportTarget.hidden = false;
+    }
+
+    #clearReport(): void {
+        this.reportTarget.replaceChildren();
+        this.reportTarget.hidden = true;
+    }
+}

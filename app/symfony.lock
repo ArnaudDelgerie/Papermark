@@ -2,6 +2,18 @@
     "arnauddelgerie/tfs-app-bundle": {
         "version": "dev-main"
     },
+    "dama/doctrine-test-bundle": {
+        "version": "8.6",
+        "recipe": {
+            "repo": "github.com/symfony/recipes-contrib",
+            "branch": "main",
+            "version": "8.3",
+            "ref": "dfc51177476fb39d014ed89944cde53dc3326d23"
+        },
+        "files": [
+            "config/packages/dama_doctrine_test_bundle.yaml"
+        ]
+    },
     "doctrine/deprecations": {
         "version": "1.1",
         "recipe": {
@@ -38,6 +50,9 @@
             "migrations/.gitignore"
         ]
     },
+    "phpstan/phpstan": {
+        "version": "2.2.14"
+    },
     "phpunit/phpunit": {
         "version": "13.3",
         "recipe": {
@@ -51,6 +66,66 @@
             "phpunit.dist.xml",
             "tests/bootstrap.php",
             "bin/phpunit"
+        ]
+    },
+    "symfony/ai-anthropic-platform": {
+        "version": "0.13",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "169d966953a6b9aeca111cb7f0ac2da72e050159"
+        },
+        "files": [
+            "config/packages/ai_anthropic_platform.yaml"
+        ]
+    },
+    "symfony/ai-bundle": {
+        "version": "0.13",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "2be6ccd77335c2631fdf12d1680649b072efb8ad"
+        },
+        "files": [
+            "config/packages/ai.yaml"
+        ]
+    },
+    "symfony/ai-generic-platform": {
+        "version": "0.13",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "f38913b87380322d4c40c302b41626e811516bc4"
+        },
+        "files": [
+            "config/packages/ai_generic_platform.yaml"
+        ]
+    },
+    "symfony/ai-mistral-platform": {
+        "version": "0.13",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "2487d366905f51cc768093e51385be66c3d38f76"
+        },
+        "files": [
+            "config/packages/ai_mistral_platform.yaml"
+        ]
+    },
+    "symfony/ai-open-ai-platform": {
+        "version": "0.13",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "4f925d48b69c145cde2286e2cabfc7bd5eb4aca9"
+        },
+        "files": [
+            "config/packages/ai_open_ai_platform.yaml"
         ]
     },
     "symfony/console": {
@@ -144,6 +219,18 @@
             "version": "1.0",
             "ref": "fadbfe33303a76e25cb63401050439aa9b1a9c7f"
         }
+    },
+    "symfony/mercure-bundle": {
+        "version": "0.5",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.4",
+            "ref": "b141b8c8f13bc8c31d718a5488039b712c0d3592"
+        },
+        "files": [
+            "config/packages/mercure.yaml"
+        ]
     },
     "symfony/messenger": {
         "version": "8.1",
@@ -260,6 +347,15 @@
             "templates/base.html.twig"
         ]
     },
+    "symfony/uid": {
+        "version": "8.1",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "7.0",
+            "ref": "0df5844274d871b37fc3816c57a768ffc60a43a5"
+        }
+    },
     "symfony/ux-turbo": {
         "version": "3.4",
         "recipe": {
@@ -270,6 +366,18 @@
         },
         "files": [
             "config/packages/ux_turbo.yaml"
+        ]
+    },
+    "symfony/ux-twig-component": {
+        "version": "3.4",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "2.13",
+            "ref": "f367ae2a1faf01c503de2171f1ec22567febeead"
+        },
+        "files": [
+            "config/packages/twig_component.yaml"
         ]
     },
     "symfony/validator": {

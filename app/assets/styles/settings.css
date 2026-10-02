@@ -1,0 +1,302 @@
+/* Activity of the form: a small spinner at the right of the tabs while a
+   save is in flight (`aria-busy` on the form carries it for assistive tech). */
+.settings-activity {
+    align-self: center;
+    margin-left: auto;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: settings-spin 0.7s linear infinite;
+}
+
+.settings-activity[hidden] {
+    display: none;
+}
+
+@keyframes settings-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.settings-errors {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius);
+    color: var(--color-danger);
+    font-size: 0.85rem;
+}
+
+.settings-errors p {
+    margin: 0 0 var(--space-1);
+}
+
+.settings-errors ul {
+    margin: 0;
+    padding-left: var(--space-4);
+}
+
+/* HUB-06, lot 09: one per capability the session lacks. Danger when the
+   feature cannot work (no bridge), muted when it still does but degraded
+   (no worker, no keyring). */
+.settings-capability {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+}
+
+.settings-capability--error {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.settings-capability--warn {
+    border-color: var(--color-border);
+    color: var(--color-muted);
+}
+
+/* Block flow, not a flex column: WebKitGTK gives a fieldset flex item a
+   large bottom padding until something forces a relayout (a hover). */
+.settings-form > :not(:first-child) {
+    margin-top: var(--space-5);
+}
+
+.settings-tabs {
+    display: flex;
+    gap: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.settings-tab {
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-bottom: -1px;
+}
+
+.settings-tab:hover {
+    color: var(--color-text);
+}
+
+.settings-tab[aria-selected="true"] {
+    color: var(--color-text);
+    border-bottom-color: var(--color-accent);
+}
+
+.settings-panels {
+    display: grid;
+}
+
+.settings-tabpanel {
+    grid-area: 1 / 1;
+}
+
+/* A hidden panel still takes its room, so switching tabs doesn't move the modal. */
+.settings-tabpanel[hidden] {
+    display: block;
+    visibility: hidden;
+}
+
+.settings-tabpanel > :not(:first-child) {
+    margin-top: var(--space-5);
+}
+
+.settings-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    margin: 0;
+}
+
+.settings-fieldset legend {
+    padding: 0 var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.settings-provider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.settings-provider:hover {
+    background: var(--color-surface);
+}
+
+.settings-provider input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.settings-provider.is-selected {
+    background: var(--color-surface);
+}
+
+.settings-provider-name {
+    flex: 1;
+}
+
+/* The key block of a provider: either "key set" and the delete button, or
+   the field and its save button (the field is styled with the fieldset's). */
+.settings-key {
+    margin-top: var(--space-2);
+}
+
+.settings-key-set,
+.settings-key-new {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.settings-key-set[hidden],
+.settings-key-new[hidden] {
+    display: none;
+}
+
+.settings-key-status {
+    font-size: 0.75rem;
+    color: var(--color-accent);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+}
+
+.settings-key-status::before {
+    content: "✓ ";
+}
+
+.settings-key-save {
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.settings-key-save:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.settings-key-save:hover:not(:disabled) {
+    background: var(--color-surface);
+}
+
+.settings-delete-key-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.settings-delete-key-btn:hover {
+    background: var(--color-page);
+    color: var(--color-danger);
+}
+
+.settings-delete-key-btn::before {
+    content: "";
+    width: 13px;
+    height: 13px;
+    background-color: currentcolor;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5h10M6 4.5v-2h4v2M4.5 4.5l.5 9a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-9M6.5 7v5M9.5 7v5'/%3E%3C/svg%3E");
+}
+
+/* One form_row() per field: <div><label/><input/></div> */
+.settings-fieldset > div {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.settings-fieldset > div label {
+    min-width: 80px;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+/* UX-11, lot 10: --color-border-strong (3:1) instead of --color-border, so
+   the field is seen against the page, this one included. */
+.settings-fieldset > div input {
+    flex: 1;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-page);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+}
+
+.settings-fieldset > div input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.settings-mode-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+}
+
+.settings-update-result {
+    margin-left: var(--space-3);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.settings-submit {
+    flex: 1;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-page);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.settings-submit:hover {
+    opacity: 0.9;
+}
+
+.settings-submit-secondary {
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.settings-submit-secondary:hover {
+    background: var(--color-surface);
+    opacity: 1;
+}

@@ -1,0 +1,21 @@
+enums:
+    provider_name:
+        openai: OpenAI
+        anthropic: Anthropic
+        mistral: Mistral
+    export_issue_reason:
+        not_found: Referenced file not found
+        limit_exceeded: Export size limit exceeded
+    markdown_reference_type:
+        image: Image
+        link: Link
+    app_locale:
+        en: English
+        fr: Français
+    theme_mode:
+        light: Light
+        dark: Dark
+        auto: Automatic
+    editor_mode:
+        single: Single file
+        dir: Directory

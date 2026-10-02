@@ -1,0 +1,19 @@
+{# Lot 4b: the hub delivered paths (tfsapp-hub open, the desktop's Open with).
+   Hidden until the controller has a request to show — the question, the path
+   and the "+ N" are filled by open_with_controller.ts; the two buttons only
+   need their label. « Ouvrir » goes through the leave guard like any opener
+   of a document; nothing opens behind the controller's back. #}
+<div class="open-with" data-controller="open-with" role="status" hidden
+     data-open-with-i18n-value="{{ i18n|json_encode }}">
+    <p class="open-with-question" data-open-with-target="question"></p>
+    <p class="open-with-path" data-open-with-target="path"></p>
+    <p class="open-with-ignored" data-open-with-target="ignored" hidden></p>
+    <div class="open-with-actions">
+        <button type="button" class="editor-sidebar-btn" data-action="click->open-with#accept" data-editor-leave-guard>
+            {{ 'components.open_with.open'|trans({}, 'components') }}
+        </button>
+        <button type="button" class="editor-sidebar-btn" data-action="click->open-with#dismiss">
+            {{ 'components.open_with.dismiss'|trans({}, 'components') }}
+        </button>
+    </div>
+</div>

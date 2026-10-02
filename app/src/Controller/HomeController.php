@@ -3,14 +3,40 @@
 namespace App\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class HomeController extends AbstractController
 {
+    public function __construct(
+        #[Autowire('%kernel.project_dir%')]
+        private readonly string $projectDir,
+    ) {
+    }
+
+    /**
+     * The editor page resolves the mode itself, from the session or the
+     * default setting, so there is nothing left to decide here.
+     */
     #[Route('/', name: 'app_home')]
-    public function index(): Response
+    public function index(): RedirectResponse
     {
-        return $this->render('home/index.html.twig', []);
+        return $this->redirectToRoute('app_editor');
+    }
+
+    /**
+     * The app icon, committed at the project root for the hub's
+     * `icon_path` (UX-08, lot 10) and served here so the page's favicon is
+     * the same image, not a second copy under public/.
+     */
+    #[Route('/icon.png', name: 'app_icon')]
+    public function icon(): BinaryFileResponse
+    {
+        $response = new BinaryFileResponse($this->projectDir . '/icon.png');
+        $response->headers->add(['Cache-Control' => 'public, max-age=31536000, immutable']);
+
+        return $response;
     }
 }

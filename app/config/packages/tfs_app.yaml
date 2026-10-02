@@ -1,0 +1,7 @@
+# The bundle issues PRAGMA journal_mode=WAL on every SQLite connection, but
+# DAMADoctrineTestBundle opens its wrapping transaction during connect(), and
+# SQLite refuses a journal_mode change inside a transaction. Only dama's test
+# connections meet this: dev and prod keep the pragmas.
+when@test:
+    tfs_app:
+        sqlite_pragmas: false

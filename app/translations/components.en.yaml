@@ -1,0 +1,278 @@
+components:
+    editor:
+        placeholder: Start writing…
+        open: Open file…
+        new: New
+        save: Save
+        save_as: Save as…
+        print: Print
+        copy_markdown: Copy as Markdown
+        export: Archive
+        export_title: Export or import an archive
+        settings: Settings
+        ai_history: AI history
+        ai_history_title: See the token usage of the AI requests
+        theme_button: 'Theme: {theme}'
+        locale_button: 'Language: {language}'
+        untitled: Untitled
+        untitled_file_name: untitled.md
+        save_filter:
+            markdown: Markdown
+            text: Text
+        unsaved:
+            indicator: Unsaved
+            confirm: Continue and lose unsaved changes?
+            cancel: Cancel
+            continue: Continue
+        conflict:
+            question: What should happen to your changes?
+            cancel: Cancel
+            save_as: Save as…
+            overwrite: Overwrite
+        load_error: The file could not be loaded
+        load_error_retry: Retry
+        init_failed: The editor could not be opened
+        image_invalid: This file is not a usable image
+        save_title: 'Save (Ctrl+S)'
+        new_title: 'New (Ctrl+N)'
+        toggle:
+            edit: Edit
+            readonly: Read only
+        link:
+            confirm: Confirm
+            input_placeholder: Paste link…
+        slash_menu:
+            text: Text
+            paragraph: Paragraph
+            h1: Heading 1
+            h2: Heading 2
+            h3: Heading 3
+            h4: Heading 4
+            h5: Heading 5
+            h6: Heading 6
+            quote: Quote
+            divider: Divider
+            list: List
+            bullet_list: Bullet list
+            ordered_list: Ordered list
+            task_list: Task list
+            advanced: Advanced
+            image: Image
+            code: Code
+            table: Table
+        code_block:
+            no_language: Plain text
+            copy: Copy code
+        image_block:
+            caption_placeholder: Write image caption
+            upload_button: Upload file
+            upload_placeholder: or paste link
+            confirm_button: Confirm
+        toast:
+            autosave_failed: "The automatic save failed and is suspended: save by hand to restart it."
+            copied_markdown: Markdown copied to clipboard
+            copy_markdown_failed: Failed to copy markdown
+            copied_code: Code copied to clipboard
+            copy_code_failed: Failed to copy code
+            current_file_deleted: '"{name}" has been deleted: its content stays open, unsaved. Save it under another name to keep it.'
+            current_file_gone: '"{name}" no longer exists: its content stays open, unsaved. Save it under another name to keep it.'
+            file_not_found: File not found
+            draft_restored: Unsaved changes recovered
+        draft_conflict:
+            question: The file was modified on disk since your draft. What should happen to your unsaved changes?
+            keep_draft: Keep my draft
+            use_disk: Use the version on disk
+        ai:
+            ask_ai: Ask AI
+            instruction_placeholder: Tell AI what to do with the selection…
+            suggestions_header: SUGGESTIONS
+            send_as_prompt_header: SEND AS PROMPT
+            send_as_prompt: 'Ask AI:'
+            submit_button: Send prompt
+            listbox: AI suggestions
+            suggestions:
+                improve: Improve writing
+                improve_streaming: Improving writing
+                grammar: Fix grammar & spelling
+                grammar_streaming: Fixing grammar & spelling
+                shorter: Make shorter
+                shorter_streaming: Making shorter
+                longer: Make longer
+                longer_streaming: Expanding
+                streaming_fallback: Generating
+                streaming_cancel: Esc to cancel
+                tone:
+                    label: Change tone…
+                    title: Change tone
+                    search: Search tones…
+                    streaming: Adjusting tone
+                    professional: Professional
+                    casual: Casual
+                    confident: Confident
+                    friendly: Friendly
+                    direct: Direct
+                    formal: Formal
+                translate:
+                    label: Translate…
+                    title: Translate
+                    search: Search languages…
+                    streaming: 'Translating to {language}'
+                    english: English
+                    chinese: Chinese
+                    japanese: Japanese
+                    korean: Korean
+                    spanish: Spanish
+                    french: French
+                    german: German
+        error:
+            provider_not_selected: No AI provider selected, choose one in the settings
+            model_missing: No model set for the selected AI provider
+            api_key_missing: No API key set for the selected AI provider
+            ai_failed: The AI request failed
+            ai_failed_with_message: "The AI request failed: {message}"
+            ai_empty_response: The model returned no text
+            request_failed: The action failed, please try again
+            update_check_failed: Could not check for updates
+    ipc:
+        unavailable: This action requires the Hub
+        rejected: The file picker failed
+    pick_filter:
+        documents: Documents (Markdown, text)
+        images: Images
+        zip: Zip archive
+    mode:
+        single: File
+        dir: Folder
+        open_directory: Open folder…
+        loading: Loading…
+        history:
+            empty: No recent files
+        tree:
+            empty: No folder open
+            gone: The open folder no longer exists
+            too_large: This folder is too large to display
+            no_markdown: No Markdown files in this folder
+            refresh: Refresh the tree
+            load_failed: The tree could not be loaded
+            retry: Retry
+        file:
+            rename: Rename
+            cancel: Cancel
+            symlink: 'Symbolic link: rename and delete are disabled'
+            delete: Delete
+            rename_prompt: 'Enter a new name for "{name}"'
+            delete_confirm_message: This permanently deletes the file from disk. Images referenced in it are not affected.
+            delete_confirm_message_current: This file is open in the editor with unsaved changes. After the deletion its content stays open as an unsaved document, to save under another name.
+            delete_confirm_question: 'Delete "{name}"?'
+            deleted: File deleted
+            renamed: File renamed
+    open_with:
+        question: 'Open “{name}”?'
+        ignored:
+            count_one: '+ {count} other item ignored'
+            count_other: '+ {count} other items ignored'
+        open: Open
+        dismiss: Dismiss
+    settings:
+        title: Settings
+        tabs_label: Settings sections
+        tab_providers: AI providers
+        tab_editor: Editor
+        tab_updates: Updates
+        model_label: Model
+        api_key_label: API key
+        key_placeholder: Enter API key…
+        key_set: Key set
+        close: Close
+        saving: Saving…
+        set_key: Save key
+        errors_title: 'These settings were not saved:'
+        error_line: '{field}: {message}'
+        mode_title: Default mode
+        save_title: Saving
+        autosave: Automatic save
+        autosave_after_ai: Save after an AI task
+        cancel: Cancel
+        delete_key: Delete key
+        delete_key_confirm_message: This removes the stored API key for this provider. You'll need to enter it again to use AI with it.
+        delete_key_confirm_question: Delete this API key?
+        worker_unavailable: AI cannot run in this session.
+        bridge_unavailable: 'API keys cannot be saved in this session: the fields are disabled.'
+        keyring_unavailable: 'The system keyring is unavailable: the Hub will store keys in plain text on disk.'
+        update_title: Updates
+        update_check_button: Check for update
+        update_available: 'Update available: %version%'
+        up_to_date: You're up to date
+        update_check_unavailable: Update check unavailable in this session
+        provider:
+            openai: OpenAI
+            anthropic: Anthropic
+            mistral: Mistral
+    export:
+        title: Export
+        source_title: Source
+        source_file: File
+        source_folder: Folder
+        browse: Browse…
+        no_source_selected: No file or folder selected
+        include_external_markdown: Include external .md files
+        export_button: Export…
+        no_source: Choose a file or folder first
+        zip_filter: Zip archive
+        done: 'Archive exported to {path}'
+        failed: Export failed
+        unsaved:
+            confirm: The archive will contain the last saved version.
+            cancel: Cancel
+            continue: Export anyway
+        report:
+            title: Left at their original path
+            empty: Every reference was embedded.
+            count_one: '{count} reference'
+            count_other: '{count} references'
+            clear: Clear the report
+            reason:
+                not_found: Not found
+                limit_exceeded: Beyond the export limit
+    import:
+        title: Import
+        archive_title: Archive file
+        parent_title: Destination folder
+        browse: Browse…
+        import_button: Import…
+        no_source: Choose an archive and a destination folder first
+        no_archive_selected: No archive selected
+        no_parent_selected: No destination folder selected
+        done: 'Archive imported to {path}'
+        failed: Import failed
+        report:
+            title: Ignored entries
+            empty: Every entry was imported.
+            count_one: '{count} ignored entry'
+            count_other: '{count} ignored entries'
+            clear: Clear the report
+    archive:
+        title: Archive
+        close: Close
+    ai_history:
+        title: AI history
+        close: Close
+        empty: No finished request yet
+        delete: Delete
+        delete_confirm: Delete this entry from the history?
+        cancel: Cancel
+        continue: Delete
+        col:
+            date: Date
+            provider: Provider
+            model: Model
+            prompt_tokens: Input tokens
+            completion_tokens: Output tokens
+            status: Status
+        status:
+            done: Done
+            failed: Failed
+        pagination:
+            label: History pagination
+            previous: Previous
+            next: Next

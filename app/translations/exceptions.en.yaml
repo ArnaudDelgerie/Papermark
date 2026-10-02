@@ -1,0 +1,36 @@
+exceptions:
+    unexpected: An unexpected error occurred
+    form:
+        not_submitted: The action failed, please try again
+    path:
+        not_found: Path not found
+        is_symlink: A symbolic link cannot be modified
+        not_a_file: The path is not a regular file
+        not_writable: File or directory is not writable
+    document:
+        modified: The file was modified outside of Papermark
+        gone: The file no longer exists on disk
+        not_utf8: The file is not UTF-8 encoded; only UTF-8 files can be opened
+    filesystem:
+        rename_target_exists: A file with that name already exists
+        write_failed: Could not write the file
+        delete_failed: Could not delete the file
+    ai:
+        key_save_failed: Could not save the API key
+        key_delete_failed: Could not delete the API key
+    archive:
+        export_refused:
+            ext_img_conflict: 'Export needs "ext_img" to be a folder in the source folder'
+            ext_md_conflict: 'Export needs "ext_md" to be a folder in the source folder'
+            empty: 'Nothing to export: no .md, .markdown or .txt file'
+            unsupported_file_type: "This file type can't be exported: only .md, .markdown and .txt"
+        import_refused:
+            not_a_zip: 'The selected file is not a valid zip archive'
+            zip_slip: 'This archive contains an unsafe file path and was rejected'
+            symlink: 'This archive contains a symbolic link and was rejected'
+            too_many_entries: 'This archive has too many entries to import'
+            too_large: 'This archive is too large to import'
+            unreadable: 'This archive is unreadable, encrypted, or corrupted'
+            empty: 'This archive has no Markdown file or image to import'
+    security:
+        csrf_invalid: Invalid security token, please reload the page

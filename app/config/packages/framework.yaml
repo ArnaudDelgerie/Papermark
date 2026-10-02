@@ -4,6 +4,10 @@ framework:
 
     session:
         save_path: '%env(default::APP_SESSION_DIR)%'
+        # Written out, not left to the framework's default: the /file/image
+        # gate depends on a third-party page never carrying the session
+        # cookie (lot 02-chemins.md, SEC-04).
+        cookie_samesite: lax
 
     #esi: true
     #fragments: true

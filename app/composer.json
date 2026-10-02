@@ -1,29 +1,38 @@
 {
+    "name": "arnauddelgerie/papermark",
+    "description": "A desktop Markdown editor that runs under TFSAppHub.",
     "type": "project",
-    "license": "proprietary",
+    "license": "MIT",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
         "php": ">=8.4",
         "ext-ctype": "*",
         "ext-iconv": "*",
-        "arnauddelgerie/tfs-app-bundle": "@dev",
+        "arnauddelgerie/tfs-app-bundle": "^0.2",
         "doctrine/doctrine-bundle": "^3.3",
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.7",
         "phpdocumentor/reflection-docblock": "^6.0",
         "phpstan/phpdoc-parser": "^2.3",
+        "symfony/ai-agent": "^0.13.0",
+        "symfony/ai-anthropic-platform": "^0.13.0",
+        "symfony/ai-bundle": "^0.13.0",
+        "symfony/ai-mistral-platform": "^0.13.0",
+        "symfony/ai-open-ai-platform": "^0.13.0",
         "symfony/asset": "8.1.*",
         "symfony/console": "8.1.*",
         "symfony/doctrine-messenger": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/expression-language": "8.1.*",
+        "symfony/finder": "8.1.*",
         "symfony/flex": "^2",
         "symfony/form": "8.1.*",
         "symfony/framework-bundle": "8.1.*",
         "symfony/http-client": "8.1.*",
         "symfony/intl": "8.1.*",
         "symfony/mailer": "8.1.*",
+        "symfony/mercure-bundle": "^0.5.0",
         "symfony/mime": "8.1.*",
         "symfony/monolog-bundle": "^3.0|^4.0",
         "symfony/notifier": "8.1.*",
@@ -38,6 +47,7 @@
         "symfony/translation": "8.1.*",
         "symfony/twig-bundle": "8.1.*",
         "symfony/ux-turbo": "^3.4",
+        "symfony/ux-twig-component": "^3.4",
         "symfony/validator": "8.1.*",
         "symfony/web-link": "8.1.*",
         "symfony/webpack-encore-bundle": "^2.4",
@@ -99,8 +109,10 @@
         }
     },
     "require-dev": {
+        "dama/doctrine-test-bundle": "^8.6",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.2",
+        "phpstan/phpstan-doctrine": "^2.0",
         "phpstan/phpstan-symfony": "^2.0",
         "phpunit/phpunit": "^13.3",
         "symfony/browser-kit": "8.1.*",
@@ -109,14 +121,5 @@
         "symfony/maker-bundle": "^1.0",
         "symfony/stopwatch": "8.1.*",
         "symfony/web-profiler-bundle": "8.1.*"
-    },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "/home/arnaud/Dev/TFSApp/TFSAppBundle",
-            "options": {
-                "symlink": false
-            }
-        }
-    ]
+    }
 }

@@ -1,0 +1,4 @@
+{# Content of the tree frame declared in components/mode-dir.html.twig. #}
+<turbo-frame id="mode-dir-tree">
+    {% include 'components/_mode_dir_tree.html.twig' with { tree_result: tree_result, gone_dir: gone_dir ?? null } only %}
+</turbo-frame>

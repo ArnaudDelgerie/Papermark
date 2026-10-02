@@ -3,9 +3,13 @@ framework:
     form:
         csrf_protection:
             token_id: submit
+            # No JS double-submit on forms: once a session used it, Symfony rejects
+            # requests without it, and the editor's fetch calls rely on the origin check.
+            field_attr: []
 
     csrf_protection:
         stateless_token_ids:
             - submit
             - authenticate
             - logout
+            - papermark_app

@@ -17,3 +17,15 @@ framework:
         # Namespaced pools use the above "app" backend by default
         #pools:
             #my.dedicated.cache: null
+        pools:
+            # The SettingStore's entry: can be cleared without touching cache.app.
+            setting.cache:
+                adapter: cache.app
+
+when@test:
+    framework:
+        cache:
+            pools:
+                # Not on disk: the tests roll back the database, not the cache.
+                setting.cache:
+                    adapter: cache.adapter.array

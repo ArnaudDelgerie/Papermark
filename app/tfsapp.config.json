@@ -1,8 +1,10 @@
 {
   "product_name": "Papermark",
-  "identifier": "dev.local.papermark",
+  "identifier": "io.github.arnauddelgerie.papermark",
   "project_name": "papermark",
   "app_version": "0.1.0",
+  "icon_path": "icon.png",
+  "splash_path": "splash.html",
   "splash_bg": "#121212",
   "splash_text": "#e0e0e0",
   "workers": [
@@ -12,28 +14,53 @@
       ]
     }
   ],
+  "build_outputs": [
+    "public/build"
+  ],
   "commands": {
     "pre-install": [
       "doctrine:migrations:migrate --no-interaction"
     ],
-    "post-install": [],
+    "post-install": [
+      "app:ai:seed-providers"
+    ],
     "pre-update": [
       "doctrine:migrations:migrate --no-interaction"
     ],
-    "post-update": []
+    "post-update": [
+      "app:ai:seed-providers"
+    ]
   },
   "actions": {
     "secrets": {
       "ipc": false,
-      "bridge": false,
-      "keys": []
+      "bridge": true,
+      "keys": [
+        "openai",
+        "anthropic",
+        "mistral"
+      ]
     },
     "update": {
       "ipc": true,
       "bridge": false
     },
+    "close_guard": {
+      "ipc": true,
+      "bridge": true
+    },
     "picker": {
       "ipc": true
+    },
+    "open_files": {
+      "ipc": true,
+      "directories": true
     }
+  },
+  "file_associations": {
+    "mime_types": [
+      "text/markdown",
+      "inode/directory"
+    ]
   }
 }

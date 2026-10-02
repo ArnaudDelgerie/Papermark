@@ -5,3 +5,58 @@ body {
     color: var(--color-text);
     font-family: var(--font-sans);
 }
+
+.editor-page {
+    display: flex;
+    height: 100vh;
+    padding: var(--space-3);
+    gap: var(--space-3);
+    box-sizing: border-box;
+
+    /* The whole page scrolls by itself, never: both columns own their
+       scroll. Without this, anything that makes a column taller than the
+       viewport (a long history, a tree) overflows the document, and the
+       wheel chains to the page once the editor's scroll hits its bottom
+       (seen in the hub, EDITOR_LINKS.md). */
+    overflow: hidden;
+}
+
+.editor-page > [data-controller="editor"] {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A path cut from its start (utils/path-label.ts): the last segment keeps its
+   width and only ellipsises when it alone overflows; the head before it
+   shrinks first. The head is laid out right to left so that its ellipsis
+   lands at the start; the marks around it are strong left-to-right
+   characters, which keep the slashes in their places. */
+.path-label {
+    display: flex;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.path-label[hidden] {
+    display: none;
+}
+
+.path-label-head {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;
+}
+
+.path-label-head::before,
+.path-label-head::after {
+    content: "\200E";
+}
+
+.path-label-tail {
+    flex: 0 0 auto;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

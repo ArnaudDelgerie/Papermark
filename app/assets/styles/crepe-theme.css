@@ -1,0 +1,98 @@
+/* Crepe's "frame" theme, split into its light/dark declinations and gated by
+   the app's own [data-theme] instead of the family's own hardcoded CSS files
+   (@milkdown/crepe/theme/frame.css / frame-dark.css), so both switch with
+   the same app-wide mode. Values copied as-is from those two files. */
+.milkdown {
+    --crepe-base-font-size: 16px;
+    --crepe-font-title: 'Noto Serif', cambria, 'Times New Roman', times, serif;
+    --crepe-font-default: 'Noto Sans', arial, helvetica, sans-serif;
+    --crepe-font-code:
+        'Space Mono', fira code, menlo, monaco, 'Courier New', courier, monospace;
+}
+
+:root[data-theme="dark"] .milkdown {
+    --crepe-color-background: #1a1a1a;
+
+    /* Softer than the UI's #e0e0e0: under the hub's greyscale antialiasing,
+       near-white body text on a dark page reads fuzzier (lot 10). ~11:1. */
+    --crepe-color-on-background: #c8c8c8;
+    --crepe-color-surface: #121212;
+    --crepe-color-surface-low: #1c1c1c;
+    --crepe-color-on-surface: #d1d1d1;
+    --crepe-color-on-surface-variant: #a9a9a9;
+    --crepe-color-outline: #757575;
+    --crepe-color-primary: #b5b5b5;
+    --crepe-color-secondary: #4d4d4d;
+    --crepe-color-on-secondary: #d6d6d6;
+    --crepe-color-inverse: #e5e5e5;
+    --crepe-color-on-inverse: #2a2a2a;
+    --crepe-color-inline-code: #f66;
+    --crepe-color-error: #f66;
+    --crepe-color-hover: #232323;
+    --crepe-color-selected: #2f2f2f;
+    --crepe-color-inline-area: #2b2b2b;
+    --crepe-shadow-1:
+        0px 1px 2px 0px rgb(255 255 255 / 30%),
+        0px 1px 3px 1px rgb(255 255 255 / 15%);
+    --crepe-shadow-2:
+        0px 1px 2px 0px rgb(255 255 255 / 30%),
+        0px 2px 6px 2px rgb(255 255 255 / 15%);
+}
+
+/* Same "auto" convention as tokens.css: light values are the default/fallback,
+   dark values (identical to the block above) are duplicated under the media
+   query since plain CSS can't share a declaration block across selectors. */
+:root[data-theme="light"] .milkdown,
+:root[data-theme="auto"] .milkdown {
+    --crepe-color-background: #fff;
+    --crepe-color-on-background: #000;
+    --crepe-color-surface: #f7f7f7;
+    --crepe-color-surface-low: #ededed;
+    --crepe-color-on-surface: #1c1c1c;
+    --crepe-color-on-surface-variant: #4d4d4d;
+    --crepe-color-outline: #a8a8a8;
+    --crepe-color-primary: #333;
+    --crepe-color-secondary: #cfcfcf;
+    --crepe-color-on-secondary: #000;
+    --crepe-color-inverse: #f0f0f0;
+    --crepe-color-on-inverse: #1a1a1a;
+    --crepe-color-inline-code: #ba1a1a;
+    --crepe-color-error: #ba1a1a;
+    --crepe-color-hover: #e0e0e0;
+    --crepe-color-selected: #d5d5d5;
+    --crepe-color-inline-area: #cacaca;
+    --crepe-shadow-1:
+        0px 1px 3px 1px rgb(0 0 0 / 15%), 0px 1px 2px 0px rgb(0 0 0 / 30%);
+    --crepe-shadow-2:
+        0px 2px 6px 2px rgb(0 0 0 / 15%), 0px 1px 2px 0px rgb(0 0 0 / 30%);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root[data-theme="auto"] .milkdown {
+        --crepe-color-background: #1a1a1a;
+
+        /* Same as the dark theme above. */
+        --crepe-color-on-background: #c8c8c8;
+        --crepe-color-surface: #121212;
+        --crepe-color-surface-low: #1c1c1c;
+        --crepe-color-on-surface: #d1d1d1;
+        --crepe-color-on-surface-variant: #a9a9a9;
+        --crepe-color-outline: #757575;
+        --crepe-color-primary: #b5b5b5;
+        --crepe-color-secondary: #4d4d4d;
+        --crepe-color-on-secondary: #d6d6d6;
+        --crepe-color-inverse: #e5e5e5;
+        --crepe-color-on-inverse: #2a2a2a;
+        --crepe-color-inline-code: #f66;
+        --crepe-color-error: #f66;
+        --crepe-color-hover: #232323;
+        --crepe-color-selected: #2f2f2f;
+        --crepe-color-inline-area: #2b2b2b;
+        --crepe-shadow-1:
+            0px 1px 2px 0px rgb(255 255 255 / 30%),
+            0px 1px 3px 1px rgb(255 255 255 / 15%);
+        --crepe-shadow-2:
+            0px 1px 2px 0px rgb(255 255 255 / 30%),
+            0px 2px 6px 2px rgb(255 255 255 / 15%);
+    }
+}

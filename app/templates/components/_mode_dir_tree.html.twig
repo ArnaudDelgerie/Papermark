@@ -1,0 +1,60 @@
+{% macro tree_file(file) %}
+    {% set symlink_title = 'components.mode.file.symlink'|trans({}, 'components') %}
+    <li class="mode-tree-file{% if file.symlink %} mode-tree-file--symlink{% endif %}" id="mode-tree-{{ file.path }}">
+        <a href="#" data-action="click->mode-dir#openFile" data-path="{{ file.path }}" data-editor-leave-guard>
+            <span class="mode-tree-label">{{ file.name }}</span>
+        </a>
+        <span class="mode-entry-actions">
+            {# A symbolic link is read-only here: acting on it would act on its target (lot 02-chemins.md). #}
+            <button type="button" class="mode-entry-action mode-entry-action--rename"
+                    data-action="click->mode-dir#renameEntry" data-path="{{ file.path }}"
+                    title="{{ file.symlink ? symlink_title : 'components.mode.file.rename'|trans({}, 'components') }}"{% if file.symlink %} disabled{% endif %}>
+                <span class="visually-hidden">{{ 'components.mode.file.rename'|trans({}, 'components') }}</span>
+            </button>
+            <button type="button" class="mode-entry-action mode-entry-action--delete"
+                    data-action="click->mode-dir#deleteEntry" data-path="{{ file.path }}"
+                    title="{{ file.symlink ? symlink_title : 'components.mode.file.delete'|trans({}, 'components') }}"{% if file.symlink %} disabled{% endif %}>
+                <span class="visually-hidden">{{ 'components.mode.file.delete'|trans({}, 'components') }}</span>
+            </button>
+        </span>
+    </li>
+{% endmacro %}
+
+{% macro tree_dir(node) %}
+    <li class="mode-tree-dir" id="mode-tree-{{ node.path }}">
+        <details>
+            <summary class="mode-tree-dir-name">
+                <span class="mode-tree-label">{{ node.name }}</span>
+            </summary>
+            <ul>
+                {% for dir in node.directories %}
+                    {{ _self.tree_dir(dir) }}
+                {% endfor %}
+                {% for file in node.files %}
+                    {{ _self.tree_file(file) }}
+                {% endfor %}
+            </ul>
+        </details>
+    </li>
+{% endmacro %}
+
+{% if gone_dir is not null %}
+    {# data-dir-gone tells the front the folder disappeared, so the label and
+       the state resync like for a file gone (EDITOR_REACTIVITY.md, S5). #}
+    <p class="mode-tree-gone" data-dir-gone="{{ gone_dir }}">{{ 'components.mode.tree.gone'|trans({}, 'components') }}</p>
+{% elseif tree_result is null %}
+    <p class="mode-tree-empty">{{ 'components.mode.tree.empty'|trans({}, 'components') }}</p>
+{% elseif tree_result.tooLarge %}
+    <p class="mode-tree-error">{{ 'components.mode.tree.too_large'|trans({}, 'components') }}</p>
+{% elseif tree_result.root.directories is empty and tree_result.root.files is empty %}
+    <p class="mode-tree-empty">{{ 'components.mode.tree.no_markdown'|trans({}, 'components') }}</p>
+{% else %}
+    <ul class="mode-tree">
+        {% for dir in tree_result.root.directories %}
+            {{ _self.tree_dir(dir) }}
+        {% endfor %}
+        {% for file in tree_result.root.files %}
+            {{ _self.tree_file(file) }}
+        {% endfor %}
+    </ul>
+{% endif %}

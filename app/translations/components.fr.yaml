@@ -1,0 +1,278 @@
+components:
+    editor:
+        placeholder: Commencez à écrire…
+        open: Ouvrir un fichier…
+        new: Nouveau
+        save: Enregistrer
+        save_as: Enregistrer sous…
+        print: Imprimer
+        copy_markdown: Copier en Markdown
+        export: Archive
+        export_title: Exporter ou importer une archive
+        settings: Réglages
+        ai_history: Historique IA
+        ai_history_title: Voir la consommation des demandes IA
+        theme_button: 'Thème : {theme}'
+        locale_button: 'Langue : {language}'
+        untitled: Sans titre
+        untitled_file_name: sans-titre.md
+        save_filter:
+            markdown: Markdown
+            text: Texte
+        unsaved:
+            indicator: Non enregistré
+            confirm: Continuer et perdre les modifications non enregistrées ?
+            cancel: Annuler
+            continue: Continuer
+        conflict:
+            question: Que faire de vos modifications ?
+            cancel: Annuler
+            save_as: Enregistrer sous…
+            overwrite: Écraser
+        load_error: Impossible de charger le fichier
+        load_error_retry: Réessayer
+        init_failed: Impossible d'ouvrir l'éditeur
+        image_invalid: Ce fichier n'est pas une image utilisable
+        save_title: 'Enregistrer (Ctrl+S)'
+        new_title: 'Nouveau (Ctrl+N)'
+        toggle:
+            edit: Modifier
+            readonly: Lecture seule
+        link:
+            confirm: Confirmer
+            input_placeholder: Coller un lien…
+        slash_menu:
+            text: Texte
+            paragraph: Paragraphe
+            h1: Titre 1
+            h2: Titre 2
+            h3: Titre 3
+            h4: Titre 4
+            h5: Titre 5
+            h6: Titre 6
+            quote: Citation
+            divider: Séparateur
+            list: Liste
+            bullet_list: Liste à puces
+            ordered_list: Liste numérotée
+            task_list: Liste de tâches
+            advanced: Avancé
+            image: Image
+            code: Code
+            table: Tableau
+        code_block:
+            no_language: Texte brut
+            copy: Copier le code
+        image_block:
+            caption_placeholder: Écrire la légende de l'image
+            upload_button: Envoyer un fichier
+            upload_placeholder: ou collez un lien
+            confirm_button: Confirmer
+        toast:
+            autosave_failed: "La sauvegarde automatique a échoué et est suspendue : enregistrez à la main pour la relancer."
+            copied_markdown: Markdown copié dans le presse-papier
+            copy_markdown_failed: Échec de la copie du markdown
+            copied_code: Code copié dans le presse-papier
+            copy_code_failed: Échec de la copie du code
+            current_file_deleted: '« {name} » a été supprimé : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
+            current_file_gone: '« {name} » n''existe plus : son contenu reste ouvert, non enregistré. Enregistrez-le sous un autre nom pour le conserver.'
+            file_not_found: Fichier introuvable
+            draft_restored: Modifications non enregistrées récupérées
+        draft_conflict:
+            question: Le fichier a été modifié sur le disque depuis votre brouillon. Que faire de vos modifications non enregistrées ?
+            keep_draft: Garder mon brouillon
+            use_disk: Reprendre la version du disque
+        ai:
+            ask_ai: Demander à l'IA
+            instruction_placeholder: Indiquez à l'IA quoi faire avec la sélection…
+            suggestions_header: SUGGESTIONS
+            send_as_prompt_header: ENVOYER COMME INVITE
+            send_as_prompt: 'Demander à l''IA :'
+            submit_button: Envoyer l'invite
+            listbox: Suggestions de l'IA
+            suggestions:
+                improve: Améliorer l'écriture
+                improve_streaming: Amélioration de l'écriture
+                grammar: Corriger la grammaire et l'orthographe
+                grammar_streaming: Correction de la grammaire et de l'orthographe
+                shorter: Raccourcir
+                shorter_streaming: Raccourcissement
+                longer: Allonger
+                longer_streaming: Développement
+                streaming_fallback: Génération
+                streaming_cancel: Échap pour annuler
+                tone:
+                    label: Changer le ton…
+                    title: Changer le ton
+                    search: Rechercher un ton…
+                    streaming: Ajustement du ton
+                    professional: Professionnel
+                    casual: Décontracté
+                    confident: Assuré
+                    friendly: Amical
+                    direct: Direct
+                    formal: Formel
+                translate:
+                    label: Traduire…
+                    title: Traduire
+                    search: Rechercher une langue…
+                    streaming: 'Traduction en {language}'
+                    english: Anglais
+                    chinese: Chinois
+                    japanese: Japonais
+                    korean: Coréen
+                    spanish: Espagnol
+                    french: Français
+                    german: Allemand
+        error:
+            provider_not_selected: Aucun fournisseur IA sélectionné, choisissez-en un dans les réglages
+            model_missing: Aucun modèle défini pour le fournisseur IA sélectionné
+            api_key_missing: Aucune clé API définie pour le fournisseur IA sélectionné
+            ai_failed: L'appel à l'IA a échoué
+            ai_failed_with_message: "L'appel à l'IA a échoué : {message}"
+            ai_empty_response: Le modèle n'a renvoyé aucun texte
+            request_failed: "L'action a échoué, veuillez réessayer"
+            update_check_failed: Impossible de vérifier les mises à jour
+    ipc:
+        unavailable: Cette action demande le Hub
+        rejected: Le sélecteur de fichiers a échoué
+    pick_filter:
+        documents: Documents (Markdown, texte)
+        images: Images
+        zip: Archive zip
+    mode:
+        single: Fichier
+        dir: Dossier
+        open_directory: Ouvrir un dossier…
+        loading: Chargement…
+        history:
+            empty: Aucun fichier récent
+        tree:
+            empty: Aucun dossier ouvert
+            gone: Le dossier ouvert n'existe plus
+            too_large: Ce dossier est trop volumineux pour être affiché
+            no_markdown: Aucun fichier Markdown dans ce dossier
+            refresh: Rafraîchir l'arborescence
+            load_failed: Impossible de charger l'arborescence
+            retry: Réessayer
+        file:
+            rename: Renommer
+            cancel: Annuler
+            symlink: 'Lien symbolique : renommer et supprimer sont désactivés'
+            delete: Supprimer
+            rename_prompt: 'Entrez un nouveau nom pour « {name} »'
+            delete_confirm_message: Ceci supprime définitivement le fichier du disque. Les images qui y sont référencées ne sont pas affectées.
+            delete_confirm_message_current: Ce fichier est ouvert dans l'éditeur avec des modifications non enregistrées. Après la suppression, son contenu restera ouvert comme un document non enregistré, à enregistrer sous un autre nom.
+            delete_confirm_question: 'Supprimer « {name} » ?'
+            deleted: Fichier supprimé
+            renamed: Fichier renommé
+    open_with:
+        question: 'Ouvrir « {name} » ?'
+        ignored:
+            count_one: '+ {count} autre élément ignoré'
+            count_other: '+ {count} autres éléments ignorés'
+        open: Ouvrir
+        dismiss: Ignorer
+    settings:
+        title: Réglages
+        tabs_label: Sections des réglages
+        tab_providers: Fournisseurs IA
+        tab_editor: Éditeur
+        tab_updates: Mises à jour
+        model_label: Modèle
+        api_key_label: Clé API
+        key_placeholder: Entrez la clé API…
+        key_set: Clé définie
+        close: Fermer
+        saving: Enregistrement…
+        set_key: Enregistrer la clé
+        errors_title: 'Ces réglages n''ont pas été enregistrés :'
+        error_line: '{field} : {message}'
+        mode_title: Mode par défaut
+        save_title: Sauvegarde
+        autosave: Sauvegarde automatique
+        autosave_after_ai: Enregistrer après une tâche IA
+        cancel: Annuler
+        delete_key: Supprimer la clé
+        delete_key_confirm_message: Ceci supprime la clé API stockée pour ce fournisseur. Vous devrez la saisir à nouveau pour utiliser l'IA avec lui.
+        delete_key_confirm_question: Supprimer cette clé API ?
+        worker_unavailable: L'IA ne peut pas fonctionner dans cette session.
+        bridge_unavailable: "Les clés API ne peuvent pas être enregistrées dans cette session : la saisie est désactivée."
+        keyring_unavailable: "Le trousseau du système est indisponible : le Hub stockera les clés en clair sur le disque."
+        update_title: Mises à jour
+        update_check_button: Vérifier les mises à jour
+        update_available: 'Mise à jour disponible : %version%'
+        up_to_date: Vous êtes à jour
+        update_check_unavailable: Vérification des mises à jour indisponible dans cette session
+        provider:
+            openai: OpenAI
+            anthropic: Anthropic
+            mistral: Mistral
+    export:
+        title: Export
+        source_title: Source
+        source_file: Fichier
+        source_folder: Dossier
+        browse: Parcourir…
+        no_source_selected: Aucun fichier ni dossier sélectionné
+        include_external_markdown: Inclure les .md externes
+        export_button: Exporter…
+        no_source: Choisissez d'abord un fichier ou un dossier
+        zip_filter: Archive zip
+        done: 'Archive exportée vers {path}'
+        failed: Échec de l'export
+        unsaved:
+            confirm: L'archive contiendra la dernière version enregistrée.
+            cancel: Annuler
+            continue: Exporter quand même
+        report:
+            title: Laissées à leur chemin d'origine
+            empty: Toutes les références ont été embarquées.
+            count_one: '{count} référence'
+            count_other: '{count} références'
+            clear: Effacer le rapport
+            reason:
+                not_found: Introuvable
+                limit_exceeded: Au-delà de la limite d'export
+    import:
+        title: Import
+        archive_title: Fichier archive
+        parent_title: Dossier de destination
+        browse: Parcourir…
+        import_button: Importer…
+        no_source: Choisissez d'abord une archive et un dossier de destination
+        no_archive_selected: Aucune archive sélectionnée
+        no_parent_selected: Aucun dossier de destination sélectionné
+        done: 'Archive importée dans {path}'
+        failed: Échec de l'import
+        report:
+            title: Entrées ignorées
+            empty: Toutes les entrées ont été importées.
+            count_one: '{count} entrée ignorée'
+            count_other: '{count} entrées ignorées'
+            clear: Effacer le rapport
+    archive:
+        title: Archive
+        close: Fermer
+    ai_history:
+        title: Historique de l'IA
+        close: Fermer
+        empty: Aucune demande terminée pour le moment
+        delete: Supprimer
+        delete_confirm: Supprimer cette entrée de l'historique ?
+        cancel: Annuler
+        continue: Supprimer
+        col:
+            date: Date
+            provider: Fournisseur
+            model: Modèle
+            prompt_tokens: Jetons en entrée
+            completion_tokens: Jetons en sortie
+            status: Statut
+        status:
+            done: Terminée
+            failed: Échouée
+        pagination:
+            label: Pagination de l'historique
+            previous: Précédent
+            next: Suivant

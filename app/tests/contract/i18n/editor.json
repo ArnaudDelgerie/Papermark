@@ -1,0 +1,129 @@
+{
+    "placeholder": "Start writing…",
+    "link": {
+        "confirm": "Confirm",
+        "inputPlaceholder": "Paste link…"
+    },
+    "toggle": {
+        "edit": "Edit",
+        "readonly": "Read only"
+    },
+    "untitled": "Untitled",
+    "untitledFileName": "untitled.md",
+    "saveFilters": {
+        "markdown": "Markdown",
+        "text": "Text"
+    },
+    "imageFilter": "Images",
+    "unsaved": {
+        "confirm": "Continue and lose unsaved changes?",
+        "cancel": "Cancel",
+        "continue": "Continue"
+    },
+    "conflict": {
+        "question": "What should happen to your changes?",
+        "cancel": "Cancel",
+        "saveAs": "Save as…",
+        "overwrite": "Overwrite"
+    },
+    "loadError": "The file could not be loaded",
+    "initFailed": "The editor could not be opened",
+    "ipc": {
+        "unavailable": "This action requires the Hub",
+        "rejected": "The file picker failed"
+    },
+    "imageInvalid": "This file is not a usable image",
+    "slashMenu": {
+        "text": "Text",
+        "paragraph": "Paragraph",
+        "h1": "Heading 1",
+        "h2": "Heading 2",
+        "h3": "Heading 3",
+        "h4": "Heading 4",
+        "h5": "Heading 5",
+        "h6": "Heading 6",
+        "quote": "Quote",
+        "divider": "Divider",
+        "list": "List",
+        "bulletList": "Bullet List",
+        "orderedList": "Ordered List",
+        "taskList": "Task List",
+        "advanced": "Advanced",
+        "image": "Image",
+        "code": "Code",
+        "table": "Table"
+    },
+    "codeBlock": {
+        "noLanguage": "Plain text",
+        "copy": "Copy code"
+    },
+    "imageBlock": {
+        "captionPlaceholder": "Write image caption",
+        "uploadButton": "Upload file",
+        "uploadPlaceholder": "or paste link",
+        "confirmButton": "Confirm"
+    },
+    "toast": {
+        "copiedMarkdown": "Markdown copied to clipboard",
+        "copyMarkdownFailed": "Failed to copy markdown",
+        "copiedCode": "Code copied to clipboard",
+        "copyCodeFailed": "Failed to copy code",
+        "currentFileDeleted": "\"{name}\" has been deleted: its content stays open, unsaved. Save it under another name to keep it.",
+        "currentFileGone": "\"{name}\" no longer exists: its content stays open, unsaved. Save it under another name to keep it.",
+        "fileNotFound": "File not found",
+        "draftRestored": "Unsaved changes recovered",
+        "autosaveFailed": "The automatic save failed and is suspended: save by hand to restart it."
+    },
+    "draftConflict": {
+        "question": "The file was modified on disk since your draft. What should happen to your unsaved changes?",
+        "keepDraft": "Keep my draft",
+        "useDisk": "Use the version on disk"
+    },
+    "ai": {
+        "askAi": "Ask AI",
+        "instructionPlaceholder": "Tell AI what to do with the selection…",
+        "suggestionsHeader": "SUGGESTIONS",
+        "sendAsPromptHeader": "SEND AS PROMPT",
+        "sendAsPrompt": "Ask AI:",
+        "submitButton": "Send prompt",
+        "listbox": "AI suggestions",
+        "requestFailed": "The AI request failed",
+        "suggestions": {
+            "improve": "Improve writing",
+            "improveStreaming": "Improving writing",
+            "grammar": "Fix grammar & spelling",
+            "grammarStreaming": "Fixing grammar & spelling",
+            "shorter": "Make shorter",
+            "shorterStreaming": "Making shorter",
+            "longer": "Make longer",
+            "longerStreaming": "Expanding",
+            "streamingFallback": "Generating",
+            "streamingCancel": "Esc to cancel",
+            "tone": {
+                "label": "Change tone…",
+                "title": "Change tone",
+                "search": "Search tones…",
+                "streaming": "Adjusting tone",
+                "professional": "Professional",
+                "casual": "Casual",
+                "confident": "Confident",
+                "friendly": "Friendly",
+                "direct": "Direct",
+                "formal": "Formal"
+            },
+            "translate": {
+                "label": "Translate…",
+                "title": "Translate",
+                "search": "Search languages…",
+                "streaming": "Translating to {language}",
+                "english": "English",
+                "chinese": "Chinese",
+                "japanese": "Japanese",
+                "korean": "Korean",
+                "spanish": "Spanish",
+                "french": "French",
+                "german": "German"
+            }
+        }
+    }
+}

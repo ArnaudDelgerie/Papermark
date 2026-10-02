@@ -1,0 +1,194 @@
+{# Reads the state at load through its outlet on the master (editor-state),
+   which makes its writes: New, Save, Save as. #}
+<div data-controller="editor"
+     class="editor-shell"
+     data-editor-editor-state-outlet="#editor-state"
+     data-editor-urls-value="{{ {
+         file: path('app_document_read'),
+         copy: path('app_document_copy'),
+         image: path('app_document_image'),
+         aiSubscribe: path('app_ai_subscribe'),
+         aiInstruct: path('app_ai_instruct'),
+         aiAbort: path('app_ai_abort'),
+     }|json_encode }}"
+     data-editor-ai-config-value="{{ ai_config|json_encode }}"
+     {% if readonly %}data-editor-readonly-value="true"{% endif %}
+     data-editor-i18n-value="{{ i18n|json_encode }}"
+     style="height: {{ css_height }};">
+    <div class="editor-file-bar" data-action="mousedown->editor#keepFocus">
+        {# The file #}        <div class="editor-filebar-actions">
+            <button type="button" class="editor-filebar-btn" data-editor-target="newButton" data-action="click->editor#newFile" data-editor-leave-guard title="{{ 'components.editor.new_title'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--new" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.new'|trans({}, 'components') }}</span>
+            </button>
+            <button type="button" class="editor-filebar-btn" data-editor-target="saveButton" data-action="click->editor#saveFile" disabled title="{{ 'components.editor.save_title'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--save" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.save'|trans({}, 'components') }}</span>
+            </button>
+            <button type="button" class="editor-filebar-btn" data-editor-target="saveAsButton" data-action="click->editor#saveFileAs" disabled title="{{ 'components.editor.save_as'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--save-as" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.save_as'|trans({}, 'components') }}</span>
+            </button>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# Getting the content out #}
+        <div class="editor-filebar-actions">
+            <button type="button" class="editor-filebar-btn" data-editor-target="printButton" data-action="click->editor#printFile" disabled title="{{ 'components.editor.print'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--print" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.print'|trans({}, 'components') }}</span>
+            </button>
+            <button type="button" class="editor-filebar-btn" data-editor-target="copyMarkdownButton" data-action="click->editor#copyMarkdown" disabled title="{{ 'components.editor.copy_markdown'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--copy" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.copy_markdown'|trans({}, 'components') }}</span>
+            </button>
+        </div>
+
+        <div class="editor-file-status">
+            {# UX-10, lot 10: role="status" and a hidden label announce the
+               unsaved state; the accent colour reads as "pending", not error. #}
+            <span class="editor-dirty-dot" role="status" data-editor-target="dirtyIndicator" hidden title="{{ 'components.editor.unsaved.indicator'|trans({}, 'components') }}">
+                <span class="visually-hidden">{{ 'components.editor.unsaved.indicator'|trans({}, 'components') }}</span>
+            </span>
+            <span class="editor-file-path" data-editor-target="filePath">{{ 'components.editor.untitled'|trans({}, 'components') }}</span>
+        </div>
+
+        {# The display #}
+        <div class="editor-filebar-actions editor-filebar-actions--end">
+            <button type="button" class="editor-filebar-btn" data-editor-target="toggleButton" data-action="click->editor#toggleReadonly"
+                    aria-pressed="{{ readonly ? 'true' : 'false' }}"
+                    title="{{ readonly ? 'components.editor.toggle.edit'|trans({}, 'components') : 'components.editor.toggle.readonly'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--toggle" aria-hidden="true"></span>
+                <span class="visually-hidden" data-editor-target="toggleLabel">{{ readonly
+                    ? 'components.editor.toggle.edit'|trans({}, 'components')
+                    : 'components.editor.toggle.readonly'|trans({}, 'components') }}</span>
+            </button>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# The files: the Archive modal, its frame loads on the first opening (lazy: the
+           closed dialog is not visible) and is never emptied afterwards. #}
+        <div class="editor-filebar-actions" data-controller="modal">
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.export_title'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--export" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.export'|trans({}, 'components') }}</span>
+            </button>
+
+            <dialog class="modal-dialog" data-modal-target="dialog" data-action="click->modal#backdrop" aria-labelledby="archive-dialog-title">
+                <div class="modal-dialog-header">
+                    <h2 id="archive-dialog-title">{{ 'components.archive.title'|trans({}, 'components') }}</h2>
+                    <button type="button" class="modal-dialog-close" data-action="click->modal#close" title="{{ 'components.archive.close'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.archive.close'|trans({}, 'components') }}</span>
+                    </button>
+                </div>
+                {# UX-13, lot 10: what the modal shows until the frame's first answer. #}
+                <turbo-frame id="archive" class="modal-dialog-body" src="{{ path('app_archive') }}" loading="lazy">{% include 'components/_sidebar_loading.html.twig' %}</turbo-frame>
+                {# UX-06, lot 10: the modal's own toast zone, above its backdrop. #}
+                <div class="toast-container toast-container--modal" aria-live="polite"></div>
+            </dialog>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# The AI: the history modal, its frame loads on the first opening (lazy: the
+           closed dialog is not visible) and is never emptied afterwards. frame-reload
+           re-fetches it once an AI request ends, keeping the page it shows. #}
+        <div class="editor-filebar-actions" data-controller="modal">
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.ai_history_title'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--ai-history" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.ai_history'|trans({}, 'components') }}</span>
+            </button>
+
+            <dialog class="modal-dialog modal-dialog--fixed-height" data-modal-target="dialog" data-action="click->modal#backdrop" aria-labelledby="ai-history-dialog-title">
+                <div class="modal-dialog-header">
+                    <h2 id="ai-history-dialog-title">{{ 'components.ai_history.title'|trans({}, 'components') }}</h2>
+                    <button type="button" class="modal-dialog-close" data-action="click->modal#close" title="{{ 'components.ai_history.close'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.ai_history.close'|trans({}, 'components') }}</span>
+                    </button>
+                </div>
+                {# UX-13, lot 10: what the modal shows until the frame's first answer. #}
+                <turbo-frame id="ai-history" class="modal-dialog-body" src="{{ path('app_ai_history') }}" loading="lazy"
+                        data-controller="frame-reload" data-frame-reload-event-value="ai:request-ended">{% include 'components/_sidebar_loading.html.twig' %}</turbo-frame>
+                {# UX-06, lot 10: the modal's own toast zone, above its backdrop. #}
+                <div class="toast-container toast-container--modal" aria-live="polite"></div>
+            </dialog>
+        </div>
+
+        <span class="editor-filebar-divider" aria-hidden="true"></span>
+
+        {# The app #}
+        <div class="editor-filebar-actions" data-controller="modal">
+            <button type="button" class="editor-filebar-btn" data-controller="theme-switch"
+                    data-action="click->theme-switch#next"
+                    data-value="{{ appearance.theme }}"
+                    data-theme-switch-current-value="{{ appearance.theme }}"
+                    data-theme-switch-themes-value="{{ appearance.themes|json_encode }}"
+                    data-theme-switch-labels-value="{{ appearance.themeLabels|json_encode }}"
+                    data-theme-switch-url-value="{{ path('app_settings_theme') }}"
+                    data-theme-switch-i18n-value="{{ {
+                        label: 'components.editor.theme_button'|trans({}, 'components'),
+                        failed: 'components.editor.error.request_failed'|trans({}, 'components'),
+                    }|json_encode }}"
+                    title="{{ 'components.editor.theme_button'|trans({'{theme}': appearance.themeLabels[appearance.theme]}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--theme" aria-hidden="true"></span>
+                <span class="visually-hidden" data-theme-switch-target="label">{{ 'components.editor.theme_button'|trans({'{theme}': appearance.themeLabels[appearance.theme]}, 'components') }}</span>
+            </button>
+
+            <div class="locale-stepper" data-controller="locale-stepper"
+                 data-locale-stepper-current-value="{{ appearance.locale }}"
+                 data-locale-stepper-locales-value="{{ appearance.locales|json_encode }}"
+                 data-locale-stepper-labels-value="{{ appearance.localeLabels|json_encode }}"
+                 data-locale-stepper-label-value="{{ 'components.editor.locale_button'|trans({}, 'components') }}"
+                 data-action="keydown@window->locale-stepper#keydown">
+                <button type="button" class="editor-filebar-btn locale-stepper-btn" data-locale-stepper-target="button"
+                        data-action="click->locale-stepper#step"
+                        aria-label="{{ 'components.editor.locale_button'|trans({'{language}': appearance.localeLabels[appearance.locale]}, 'components') }}"
+                        title="{{ 'components.editor.locale_button'|trans({'{language}': appearance.localeLabels[appearance.locale]}, 'components') }}">
+                    <svg class="locale-stepper-ring" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+                        <rect x="0.5" y="0.5" width="27" height="27" rx="4" pathLength="1" data-locale-stepper-target="ring"></rect>
+                    </svg>
+                    <span class="locale-stepper-code" aria-hidden="true" data-locale-stepper-target="code">{{ appearance.locale|upper }}</span>
+                </button>
+                {# The switch itself: a native post, then a full reload. The submit button
+                   is what the leave guard intercepts, so unsaved work is asked about. #}
+                <form method="post" action="{{ path('app_settings_locale') }}" data-locale-stepper-target="form" hidden>
+                    <input type="hidden" name="_token" value="{{ csrf_token('papermark_app') }}">
+                    <input type="hidden" name="locale" value="{{ appearance.locale }}" data-locale-stepper-target="input">
+                    <button type="submit" data-locale-stepper-target="submit" data-editor-leave-guard tabindex="-1"></button>
+                </form>
+            </div>
+
+            <button type="button" class="editor-filebar-btn" data-action="click->modal#open" title="{{ 'components.editor.settings'|trans({}, 'components') }}">
+                <span class="editor-filebar-icon editor-filebar-icon--settings" aria-hidden="true"></span>
+                <span class="visually-hidden">{{ 'components.editor.settings'|trans({}, 'components') }}</span>
+            </button>
+
+            {# The frame loads on the first opening (lazy: the closed dialog is not visible)
+               and is never emptied afterwards. #}
+            <dialog class="modal-dialog" data-modal-target="dialog" data-action="click->modal#backdrop" aria-labelledby="settings-dialog-title">
+                <div class="modal-dialog-header">
+                    <h2 id="settings-dialog-title">{{ 'components.settings.title'|trans({}, 'components') }}</h2>
+                    <button type="button" class="modal-dialog-close" data-action="click->modal#close" title="{{ 'components.settings.close'|trans({}, 'components') }}">
+                        <span class="visually-hidden">{{ 'components.settings.close'|trans({}, 'components') }}</span>
+                    </button>
+                </div>
+                {# UX-13, lot 10: what the modal shows until the frame's first answer. #}
+                <turbo-frame id="settings" class="modal-dialog-body" src="{{ path('app_settings') }}" loading="lazy">{% include 'components/_sidebar_loading.html.twig' %}</turbo-frame>
+                {# UX-06, lot 10: the modal's own toast zone, above its backdrop. #}
+                <div class="toast-container toast-container--modal" aria-live="polite"></div>
+            </dialog>
+        </div>
+    </div>
+
+    {# A read that failed for anything but a gone file (FRT-04, lot
+       03-enregistrement.md): an explicit state with Retry, never a document
+       that no longer matches the state. #}
+    <div class="editor-load-error" role="status">
+        <p data-editor-target="loadErrorMessage">{{ 'components.editor.load_error'|trans({}, 'components') }}</p>
+        <button type="button" class="editor-load-error-retry" data-action="click->editor#retryLoad">
+            {{ 'components.editor.load_error_retry'|trans({}, 'components') }}
+        </button>
+    </div>
+</div>

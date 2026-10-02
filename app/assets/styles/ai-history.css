@@ -1,0 +1,89 @@
+/* The AI history modal (EDITOR_AI_HISTORY.md): the table of past requests,
+   its per-row delete button, and the pagination links. It lives in the modal's
+   frame, so everything scrolls in .modal-dialog-body. */
+
+.ai-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.ai-history-table th,
+.ai-history-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.ai-history-table th {
+    color: var(--color-muted);
+    font-weight: normal;
+}
+
+.ai-history-model {
+    max-width: 14em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The raw numbers, and the dash of a count the provider did not report. */
+.ai-history-table td:nth-child(4),
+.ai-history-table td:nth-child(5) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.ai-history-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.ai-history-delete::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    background-color: currentcolor;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E");
+}
+
+.ai-history-delete:hover {
+    background: var(--color-surface);
+    color: var(--color-danger);
+}
+
+.ai-history-empty {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+/* Shown only when there is more than one page (decision 4). */
+
+.ai-history-pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    font-size: 0.85rem;
+}
+
+.ai-history-pagination a {
+    color: var(--color-accent);
+}
+
+.ai-history-pagination .ai-history-page {
+    color: var(--color-muted);
+}

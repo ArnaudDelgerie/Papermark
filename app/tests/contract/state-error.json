@@ -1,0 +1,19 @@
+{
+    "state": {
+        "mode": "single",
+        "file": "/notes/a.md",
+        "dir": null,
+        "ai_enabled": true,
+        "autosave": false,
+        "autosave_after_ai": false
+    },
+    "genericErrors": [
+        "Example error"
+    ],
+    "mappedErrors": [
+        {
+            "field": "path",
+            "message": "Example message"
+        }
+    ]
+}

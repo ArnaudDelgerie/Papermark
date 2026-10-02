@@ -1,0 +1,7 @@
+{
+    "question": "Open “{name}”?",
+    "ignored": {
+        "count_one": "+ {count} other item ignored",
+        "count_other": "+ {count} other items ignored"
+    }
+}
