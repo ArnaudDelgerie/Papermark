@@ -103,6 +103,7 @@ final class DirectoryTree
 
         $directories = [];
         foreach ($childRelativePaths as $childName => $paths) {
+            $childName = (string) $childName;
             $directories[] = $this->buildNode($childName, $path . '/' . $childName, $paths);
         }
 

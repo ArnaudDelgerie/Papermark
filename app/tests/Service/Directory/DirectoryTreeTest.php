@@ -106,6 +106,37 @@ final class DirectoryTreeTest extends TestCase
         self::assertSame(['notes.md'], array_map(static fn ($f) => $f->name, $result->root->directories[0]->files));
     }
 
+    /**
+     * PHP casts a decimal-shaped array key to int ('2026' becomes 2026),
+     * and strict_types then rejects it as a string in buildNode() — one
+     * such directory made the whole tree fail (lot 06-dossier-numerique.md).
+     */
+    public function testAWhollyNumericDirectoryNameBuildsLikeAnyOther(): void
+    {
+        mkdir($this->root . '/journal');
+        mkdir($this->root . '/journal/2026');
+        mkdir($this->root . '/01');
+        file_put_contents($this->root . '/journal/2026/day.md', '#');
+        file_put_contents($this->root . '/01/note.md', '#');
+
+        $result = (new DirectoryTree())->build($this->root);
+
+        self::assertFalse($result->tooLarge);
+        $root = $result->root;
+
+        $byName = [];
+        foreach ($root->directories as $directory) {
+            $byName[$directory->name] = $directory;
+        }
+
+        self::assertSame('01', $byName['01']->name);
+        self::assertSame('01', basename($byName['01']->path));
+
+        $journal = $byName['journal'];
+        self::assertSame('2026', $journal->directories[0]->name);
+        self::assertSame('2026', basename($journal->directories[0]->path));
+    }
+
     public function testStopsAndReportsTooLargeWhenTraversalCapIsExceeded(): void
     {
         file_put_contents($this->root . '/a.md', 'a');
