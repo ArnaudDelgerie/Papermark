@@ -1,4 +1,6 @@
 {
+    "name": "arnauddelgerie/papermark",
+    "description": "A desktop Markdown editor that runs under TFSAppHub.",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",
@@ -7,7 +9,7 @@
         "php": ">=8.4",
         "ext-ctype": "*",
         "ext-iconv": "*",
-        "arnauddelgerie/tfs-app-bundle": "@dev",
+        "arnauddelgerie/tfs-app-bundle": "^0.2",
         "doctrine/doctrine-bundle": "^3.3",
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.7",
@@ -119,14 +121,5 @@
         "symfony/maker-bundle": "^1.0",
         "symfony/stopwatch": "8.1.*",
         "symfony/web-profiler-bundle": "8.1.*"
-    },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "/home/arnaud/Dev/TFSApp/TFSAppBundle",
-            "options": {
-                "symlink": false
-            }
-        }
-    ]
+    }
 }

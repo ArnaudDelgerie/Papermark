@@ -4,15 +4,21 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9c1c875c943fb164ac13adade88d1630",
+    "content-hash": "da4526b0a3f7da3e03f7862b38301ce0",
     "packages": [
         {
             "name": "arnauddelgerie/tfs-app-bundle",
-            "version": "dev-main",
+            "version": "v0.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ArnaudDelgerie/TFSAppBundle",
+                "reference": "ced289a47a2c5112a9973f6659d30d8e17a790dc"
+            },
             "dist": {
-                "type": "path",
-                "url": "/home/arnaud/Dev/TFSApp/TFSAppBundle",
-                "reference": "c4167854050c64b6eefb05d645c2cba118446292"
+                "type": "zip",
+                "url": "https://api.github.com/repos/ArnaudDelgerie/TFSAppBundle/zipball/ced289a47a2c5112a9973f6659d30d8e17a790dc",
+                "reference": "ced289a47a2c5112a9973f6659d30d8e17a790dc",
+                "shasum": ""
             },
             "require": {
                 "php": ">=8.2",
@@ -39,11 +45,7 @@
                     "ArnaudDelgerie\\TFSAppBundle\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "ArnaudDelgerie\\TFSAppBundle\\Tests\\": "tests/"
-                }
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -66,10 +68,7 @@
                 "issues": "https://github.com/ArnaudDelgerie/TFSAppBundle/issues",
                 "source": "https://github.com/ArnaudDelgerie/TFSAppBundle"
             },
-            "transport-options": {
-                "symlink": false,
-                "relative": false
-            }
+            "time": "2026-10-02T07:43:06+00:00"
         },
         {
             "name": "doctrine/collections",
@@ -11872,9 +11871,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "arnauddelgerie/tfs-app-bundle": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

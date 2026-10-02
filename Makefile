@@ -30,10 +30,8 @@ lint-container:
 lint-translations:
 	cd app && bin/console lint:translations --locale=fr --locale=en
 
-# --no-check-publish: composer.json resolves tfs-app-bundle from a local path
-# (HUB-01, Release lot); --strict would fail on it out of the box.
 lint-composer:
-	cd app && composer validate --no-check-publish
+	cd app && composer validate
 
 # The full asset build (QUA-09): an unresolvable import in a .js passes eslint,
 # tsc and the vitest suite, and only fails here.

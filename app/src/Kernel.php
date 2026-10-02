@@ -4,12 +4,12 @@ namespace App;
 
 use App\Profiler\RedactingSerializerDataCollector;
 use App\Profiler\SensitiveCasters;
-use ArnaudDelgerie\TFSAppBundle\Kernel\TFSAppKernel;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\HttpKernel\Kernel as BaseKernel;
 
-class Kernel extends TFSAppKernel
+class Kernel extends BaseKernel
 {
     use MicroKernelTrait;
 
